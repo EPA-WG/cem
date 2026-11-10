@@ -277,47 +277,66 @@ pub(super) fn expand_reference_scoped(
 ) -> Result<Vec<RenderPlanNode>, cem_ml::operation_control::ControlError> {
     let mut result = Vec::new();
     for item in reference.values() {
-        budget.charge(0, 0)?;
-        if let Some(view) = item
-            .view()
-            .filter(|v| v.kind() == crate::eval::QueryItemViewKind::Node)
-        {
-            if reference_values(item).is_none() {
-                view.parent(budget.query_scope)
-                    .map_err(|e| budget.access_error(e))?;
-                let kind = view
-                    .field("kind")
-                    .and_then(|v| v.first().and_then(Item::atom));
-                if matches!(kind, Some(AtomValue::String(ref k)) if k == "element" || k == "document")
-                {
-                    for child in view
-                        .children(budget.query_scope)
-                        .map_err(|e| budget.access_error(e))?
-                    {
-                        budget.charge(0, 0)?;
-                        child.map_err(|e| budget.access_error(e))?;
-                    }
-                }
-                if native(item).is_none()
-                    && view
-                        .downcast_ref::<crate::eval::output::OutputView>()
-                        .is_none()
-                    && view
-                        .downcast_ref::<crate::eval::portable::GraphView>()
-                        .is_none()
-                    && view
-                        .downcast_ref::<crate::namespace_names::NamespaceQueryNode>()
-                        .is_none()
-                {
-                    return Err(budget.failure("cem.value.projection_unsupported"));
-                }
-            }
-        } else if item.atom().is_none() {
-            return Err(budget.failure("cem.value.projection_unsupported"));
-        }
-        result.extend(expand_reference(&CemReference::new(vec![item.clone()])));
+        result.extend(expand_target_scoped(item, budget)?);
     }
     Ok(result)
+}
+
+pub(super) fn expand_target_scoped(
+    item: &Item,
+    budget: &mut crate::eval::value_control::ValueControl<'_>,
+) -> Result<Vec<RenderPlanNode>, cem_ml::operation_control::ControlError> {
+    budget.charge(0, 0)?;
+    if let Some(view) = item
+        .view()
+        .filter(|v| v.kind() == crate::eval::QueryItemViewKind::Node)
+    {
+        if reference_values(item).is_none() {
+            view.parent(budget.query_scope)
+                .map_err(|e| budget.access_error(e))?;
+            let kind = view
+                .field("kind")
+                .and_then(|v| v.first().and_then(Item::atom));
+            if matches!(kind, Some(AtomValue::String(ref k)) if k == "element" || k == "document")
+            {
+                for child in view
+                    .children(budget.query_scope)
+                    .map_err(|e| budget.access_error(e))?
+                {
+                    budget.charge(0, 0)?;
+                    child.map_err(|e| budget.access_error(e))?;
+                }
+            }
+            if native(item).is_none()
+                && view
+                    .downcast_ref::<crate::eval::output::OutputView>()
+                    .is_none()
+                && view
+                    .downcast_ref::<crate::eval::portable::GraphView>()
+                    .is_none()
+                && view
+                    .downcast_ref::<crate::namespace_names::NamespaceQueryNode>()
+                    .is_none()
+            {
+                return Err(budget.failure("cem.value.projection_unsupported"));
+            }
+        }
+    } else if item.atom().is_none() {
+        return Err(budget.failure("cem.value.projection_unsupported"));
+    }
+    Ok(expand_reference(&CemReference::new(vec![item.clone()])))
+}
+
+pub(crate) fn dom_origin_key(item: &Item) -> Option<String> {
+    if let Some(provenance) = item.view().and_then(|view| view.provenance()) {
+        if provenance.source_uri.is_some_and(|uri| uri.starts_with("cem-dom://")) {
+            return provenance.source_key;
+        }
+    }
+    let node = native(item)?;
+    node.source_map().frames.iter().any(|frame| {
+        matches!(&frame.transform, TransformKind::SourceBoundary { uri } if uri.starts_with("cem-dom://"))
+    }).then(|| node.source_key()).flatten()
 }
 
 /// Explicit output projection keeps completed names and native owning edges.

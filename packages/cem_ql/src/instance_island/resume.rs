@@ -5,7 +5,7 @@ use crate::{
     eval::{AtomValue, Item},
     instance_island as island,
     render::{
-        compile_template, project_render_plan_with_control, render_compiled_template_with_control,
+        compile_template, project_render_plan_with_origins, render_compiled_template_with_control,
         CompileTemplateOptions, RenderPlanAttribute, RenderPlanNode,
     },
 };
@@ -15,7 +15,7 @@ use cem_ml::import::element_tree::{
 };
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
 use cem_ml::schema::registry::HTML_NAMESPACE_URI;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{collections::{BTreeMap, BTreeSet, VecDeque}, rc::Rc};
 #[path = "resume_controls.rs"]
 mod controls;
 #[path = "resume_stylesheets.rs"]
@@ -39,6 +39,8 @@ pub struct NativeSsrResume {
     pub source_key: String,
     pub instance_stylesheets: bool,
     pub stateful: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub controls: Vec<controls::ControlProof>,
 }
 
 #[derive(serde::Deserialize)]
@@ -69,6 +71,8 @@ struct Group<'a> {
 struct ParentInput<'a> {
     attributes: BTreeMap<String, String>,
     payload: &'a [RenderPlanNode],
+    controls: &'a mut controls::Projection,
+    under_form: bool,
 }
 pub fn versions_compatible(a: &str, b: &str) -> bool {
     if !cem_ml::schema::document_model::is_canonical_semver(a)
@@ -458,13 +462,17 @@ impl Group<'_> {
             }
         }
         let style_context = actual.remove("data-cem-css-context");
+        let mut payload_controls = Vec::new();
         if source_payload.is_none() {
             passive_nodes(
                 &payload,
                 c,
                 (explicit && declaration.is_some()).then_some(&mut payload_styles),
+                Some(&mut payload_controls),
             )?;
         }
+        let mut payload_authors = None;
+        let under_form = parent.as_ref().is_some_and(|parent| parent.under_form);
         if let Some(mut parent) = parent {
             if !parent.attributes.contains_key("scope") {
                 if let Some(scope) = &shared_scope {
@@ -501,13 +509,12 @@ impl Group<'_> {
                     if attributes != island::attrs(&payload[0])? {
                         return Err(fail());
                     }
-                    compare(
+                    Comparison::default().compare(
                         children,
                         &island::children(&payload[0])?,
                         depth,
                         c,
                         None,
-                        false,
                     )?;
                 } else {
                     if !(attributes.is_empty()
@@ -519,7 +526,17 @@ impl Group<'_> {
                 }
             }
             if source_payload.is_none() {
-                compare(expected_payload, &payload, depth, c, None, explicit)?;
+                let mut authors = BTreeMap::new();
+                Comparison {
+                    controls: Some(parent.controls),
+                    payload: Some(&mut authors),
+                    allow_style: explicit,
+                    ..Default::default()
+                }.compare(expected_payload, &payload, depth, c, None)?;
+                if authors.len() != payload_controls.len() {
+                    return Err(fail());
+                }
+                payload_authors = Some(authors);
             }
         }
         let starts = children
@@ -596,7 +613,12 @@ impl Group<'_> {
         {
             return Err(fail());
         }
-        let mut stateful = !defaults.is_empty();
+        let mut stateful = !defaults.is_empty() || !payload_controls.is_empty();
+        let author = Rc::new(controls::Author { id: instance_id.clone(), defaults });
+        let payload_authors = match payload_authors {
+            Some(authors) => authors,
+            None => controls::admit_payload(payload_controls, &author)?,
+        };
         let version = fields.get("declarationVersion").cloned();
         let plan =
             render_compiled_template_with_control(&artifact, &data, c, ROOT_EXECUTION_SCOPE_ID);
@@ -607,12 +629,16 @@ impl Group<'_> {
         {
             return Err(fail());
         }
-        let mut plan = project_render_plan_with_control(
+        let mut origins = VecDeque::new();
+        let mut plan = project_render_plan_with_origins(
             &plan,
-            crate::eval::QueryContextScope(0),
             &island::LIMITS,
             c,
-            ROOT_EXECUTION_SCOPE_ID,
+            |tag, namespace, origin| {
+                if namespace.is_none_or(|ns| ns == HTML_NAMESPACE_URI) && controls::is_form_tag(tag) {
+                    origins.push_back(origin.and_then(crate::render::dom_origin_key));
+                }
+            },
         )
         .map_err(|_| fail())?;
         crate::ssr_css::strip_sources(&mut plan.nodes, &payload_styles.maps);
@@ -635,7 +661,11 @@ impl Group<'_> {
                     return Err(fail());
                 }
                 if namespace.as_deref() == Some(HTML_NAMESPACE_URI) {
-                    stateful |= controls::admit(tag, attributes, &defaults)?;
+                    if controls::is_form_tag(tag) {
+                        stateful = true;
+                    } else {
+                        controls::admit(tag, attributes, &author.defaults)?;
+                    }
                 }
                 if !self.registry.contains(tag) {
                     pending.extend(children);
@@ -652,7 +682,7 @@ impl Group<'_> {
             if stateful || styled || source_payload.is_some() || !self.registry.is_empty() {
                 return Err(fail());
             }
-            passive_nodes(output, c, None)?;
+            passive_nodes(output, c, None, None)?;
             self.participants.push(NativeSsrResume {
                 decision: ResumeDecision::RenderOnLoad,
                 instance_id,
@@ -660,6 +690,7 @@ impl Group<'_> {
                 source_key,
                 instance_stylesheets,
                 stateful,
+                controls: vec![],
             });
             return Ok(());
         }
@@ -675,6 +706,7 @@ impl Group<'_> {
         {
             return Err(fail());
         }
+        let index = self.participants.len();
         self.participants.push(NativeSsrResume {
             decision: ResumeDecision::Adopt,
             instance_id,
@@ -682,8 +714,20 @@ impl Group<'_> {
             source_key,
             instance_stylesheets,
             stateful,
+            controls: vec![],
         });
-        compare(&plan.nodes, output, depth, c, Some(self), false)
+        let mut controls = controls::Projection { author, payload_authors, origins, proofs: vec![] };
+        Comparison {
+            group: Some(self),
+            controls: Some(&mut controls),
+            under_form,
+            ..Default::default()
+        }.compare(&plan.nodes, output, depth, c, None)?;
+        if !controls.origins.is_empty() {
+            return Err(fail());
+        }
+        self.participants[index].controls = controls.proofs;
+        Ok(())
     }
 }
 
@@ -706,101 +750,139 @@ fn plan_attributes(attributes: &[RenderPlanAttribute]) -> Result<BTreeMap<String
     }
     Ok(result)
 }
-fn compare(
-    expected: &[RenderPlanNode],
-    actual: &[Item],
-    depth: usize,
-    c: &OperationControl,
-    mut group: Option<&mut Group<'_>>,
+#[derive(Default)]
+struct Comparison<'a, 'b> {
+    group: Option<&'a mut Group<'b>>,
+    controls: Option<&'a mut controls::Projection>,
+    payload: Option<&'a mut controls::PayloadAuthors>,
     allow_style: bool,
-) -> Result<(), String> {
-    c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
-    if depth > 64 {
-        return Err(fail());
-    }
-    let (mut e, mut a) = (0, 0);
-    while e < expected.len() || a < actual.len() {
-        let mut et = String::new();
-        while let Some(RenderPlanNode::Text { text, .. }) = expected.get(e) {
-            et.push_str(text);
-            e += 1;
-        }
-        let mut at = String::new();
-        while actual
-            .get(a)
-            .is_some_and(|i| matches!(kind(i).as_deref(), Some("text" | "whitespace")))
-        {
-            at.push_str(&text(&actual[a])?);
-            a += 1;
-        }
-        if et != at {
+    under_form: bool,
+}
+
+impl Comparison<'_, '_> {
+    fn compare(
+        &mut self,
+        expected: &[RenderPlanNode],
+        actual: &[Item],
+        depth: usize,
+        c: &OperationControl,
+        form: Option<&str>,
+    ) -> Result<(), String> {
+        c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
+        if depth > 64 {
             return Err(fail());
         }
-        if e == expected.len() && a == actual.len() {
-            break;
-        }
-        let item = actual.get(a).ok_or_else(fail)?;
-        match expected.get(e).ok_or_else(fail)? {
-            RenderPlanNode::Element {
-                tag,
-                namespace,
-                attributes,
-                children,
-                ..
-            } => {
-                let namespace = namespace
-                    .as_deref()
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(HTML_NAMESPACE_URI);
-                if !island::is_element(item, tag, namespace) {
-                    return Err(fail());
-                }
-                if namespace != HTML_NAMESPACE_URI {
-                    island::payload::validate_foreign(item, namespace, tag)?;
-                    compare_foreign_attributes(attributes, item)?;
-                    compare(
-                        children,
-                        &island::children(item)?,
-                        depth + 1,
-                        c,
-                        None,
-                        false,
-                    )?;
-                } else if tag.contains('-') {
-                    let group = group.as_deref_mut().ok_or_else(fail)?;
-                    let (version, source) =
-                        *group.declarations.get(tag.as_str()).ok_or_else(fail)?;
-                    let input = ParentInput {
-                        attributes: plan_attributes(attributes)?,
-                        payload: children,
-                    };
-                    group.admit_member(item, tag, version, source, Some(input), depth + 1, c)?;
-                } else {
-                    if !profile_tag(tag)
-                        || (tag == "style" && !allow_style)
-                        || plan_attributes(attributes)? != island::attrs(item)?
-                    {
+        let (mut e, mut a) = (0, 0);
+        while e < expected.len() || a < actual.len() {
+            let mut et = String::new();
+            while let Some(RenderPlanNode::Text { text, .. }) = expected.get(e) {
+                et.push_str(text);
+                e += 1;
+            }
+            let mut at = String::new();
+            while actual
+                .get(a)
+                .is_some_and(|i| matches!(kind(i).as_deref(), Some("text" | "whitespace")))
+            {
+                at.push_str(&text(&actual[a])?);
+                a += 1;
+            }
+            if et != at {
+                return Err(fail());
+            }
+            if e == expected.len() && a == actual.len() {
+                break;
+            }
+            let item = actual.get(a).ok_or_else(fail)?;
+            match expected.get(e).ok_or_else(fail)? {
+                RenderPlanNode::Element {
+                    tag,
+                    namespace,
+                    attributes,
+                    children,
+                    ..
+                } => {
+                    let namespace = namespace
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(HTML_NAMESPACE_URI);
+                    if !island::is_element(item, tag, namespace) {
                         return Err(fail());
                     }
-                    compare(
-                        children,
-                        &island::children(item)?,
-                        depth + 1,
-                        c,
-                        group.as_deref_mut(),
-                        allow_style,
-                    )?;
+                    if namespace != HTML_NAMESPACE_URI {
+                        island::payload::validate_foreign(item, namespace, tag)?;
+                        compare_foreign_attributes(attributes, item)?;
+                        Self::default().compare(
+                            children,
+                            &island::children(item)?,
+                            depth + 1,
+                            c,
+                            None,
+                        )?;
+                    } else if tag.contains('-') {
+                        let group = self.group.as_deref_mut().ok_or_else(fail)?;
+                        let (version, source) =
+                            *group.declarations.get(tag.as_str()).ok_or_else(fail)?;
+                        let input = ParentInput {
+                            attributes: plan_attributes(attributes)?,
+                            payload: children,
+                            controls: self.controls.as_deref_mut().ok_or_else(fail)?,
+                            under_form: self.under_form || form.is_some(),
+                        };
+                        group.admit_member(item, tag, version, source, Some(input), depth + 1, c)?;
+                    } else {
+                        let attributes = plan_attributes(attributes)?;
+                        if !profile_tag(tag)
+                            || (tag == "style" && !self.allow_style)
+                            || attributes != island::attrs(item)?
+                        {
+                            return Err(fail());
+                        }
+                        let mut owned_form = None;
+                        if controls::is_form_tag(tag) {
+                            let controls = self.controls.as_deref_mut().ok_or_else(fail)?;
+                            let (origin, author) = controls.take_author()?;
+                            controls::admit_attributes(tag, &attributes, &author.defaults)?;
+                            let key = controls::capture_key(item)?;
+                            if let Some(payload) = self.payload.as_deref_mut() {
+                                if payload.insert(key, author).is_some() {
+                                    return Err(fail());
+                                }
+                            } else if !matches!(tag.as_str(), "option" | "optgroup") {
+                                if self.under_form || tag == "form" && form.is_some() {
+                                    return Err(fail());
+                                }
+                                if tag == "form" {
+                                    owned_form = Some(key.clone());
+                                }
+                                let slice_owner = attributes.contains_key("slice").then(|| author.id.clone());
+                                controls.proofs.push(controls::ControlProof {
+                                    source_key: key,
+                                    form_key: form.map(str::to_owned),
+                                    payload_key: origin.filter(|_| slice_owner.is_some()),
+                                    slice_owner,
+                                });
+                            }
+                        }
+                        self.compare(
+                            children,
+                            &island::children(item)?,
+                            depth + 1,
+                            c,
+                            owned_form.as_deref().or(form),
+                        )?;
+                    }
                 }
+                RenderPlanNode::Comment { text: expected, .. }
+                    if kind(item).as_deref() == Some("comment")
+                        && text(item).as_deref() == Ok(expected.as_str()) => {}
+                _ => return Err(fail()),
             }
-            RenderPlanNode::Comment { text: expected, .. }
-                if kind(item).as_deref() == Some("comment")
-                    && text(item).as_deref() == Ok(expected.as_str()) => {}
-            _ => return Err(fail()),
+            e += 1;
+            a += 1;
         }
-        e += 1;
-        a += 1;
+        Ok(())
     }
-    Ok(())
 }
 
 fn compare_foreign_attributes(
@@ -831,6 +913,7 @@ fn passive_nodes(
     roots: &[Item],
     c: &OperationControl,
     mut styles: Option<&mut stylesheets::PayloadStyles>,
+    mut form_controls: Option<&mut Vec<Item>>,
 ) -> Result<(), String> {
     let mut pending = roots.iter().rev().cloned().collect::<Vec<_>>();
     while let Some(node) = pending.pop() {
@@ -850,7 +933,6 @@ fn passive_nodes(
                 }
                 // Inert nested templates have a separate DOM mutation root.
                 if !profile_tag(&tag)
-                    || controls::is_form_tag(&tag)
                     || !island::is_element(&node, &tag, HTML_NAMESPACE_URI)
                 {
                     return Err(fail());
@@ -862,6 +944,9 @@ fn passive_nodes(
                     .collect::<Vec<_>>();
                 cem_ml::validation::html::validate_passive_html_projection(&tag, &pairs)
                     .map_err(|_| fail())?;
+                if controls::is_form_tag(&tag) {
+                    form_controls.as_deref_mut().ok_or_else(fail)?.push(node.clone());
+                }
                 pending.extend(island::children(&node)?.into_iter().rev());
             }
             Some("text" | "whitespace" | "comment") => {}

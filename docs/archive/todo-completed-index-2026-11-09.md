@@ -80,3 +80,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [Nested and styled stateful SSR hydration](todo-completed-ssr-stateful-groups-2026-11-10.md)
 - [Cross-origin SSR browser read grants](todo-completed-ssr-browser-cross-origin-2026-11-10.md)
 - [CSS asset identities for SSR browser adoption](todo-completed-ssr-css-assets-2026-11-10.md)
+- [Projected form controls for SSR browser adoption](todo-completed-ssr-projected-forms-2026-11-10.md)

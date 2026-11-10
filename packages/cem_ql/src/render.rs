@@ -45,9 +45,13 @@ pub use element_reference_ids::{
     project_element_reference_ids_with_host_and_placements_with_options,
     AriaReferenceProfile, ElementReferenceExportOptions,
 };
+#[cfg(target_arch = "wasm32")]
+pub(crate) use element_reference_ids::project_element_references;
 mod whitespace;
 pub use projection::{project_attribute_value_with_control, project_render_plan_with_control};
 pub(crate) use projection::project_render_plan_with_budget;
+pub(crate) use projection::project_render_plan_with_origins;
+pub(crate) use references::dom_origin_key;
 pub use hooks::ExpressionScope;
 mod attributes;
 pub use attributes::project_attribute_value;

@@ -751,18 +751,25 @@ baseline binds its own rendered range. All baselines must agree before the
 runtime assigns node identities or attaches listeners. Native input, textarea
 and single-select controls can write an owned slice on input or change.
 
-The browser reads current form values and validity from controls inside the
-owned range, including edits made before hydration. It blocks submission in
-this local profile and reads successful controls without dispatching a
-`formdata` event. External form owners, credentials, file controls and custom
-validation are refused at admission. Private or external fields are excluded
-from subsequent capture. Form controls projected through payloads require
-separate admission. The browser rechecks every form mirror and the installed
-CSS rules after preparing the baselines. A stale
-member leaves all ranges in the group on their server-rendered output. External
-declarations, inert CEM source payloads and other capabilities retain their
-passive browser profiles. The retained browser root records declaration-level
-source fidelity.
+HTML payloads can project supported local forms and controls into an admitted
+range. Native comparison follows each projected occurrence to its original
+payload node and checks its slice against the author’s declaration. A projected
+control can therefore write an ancestor’s slice while its form data and
+validation belong to the receiving participant. A control authored directly in
+a standalone instance’s HTML payload uses that instance’s declared slices.
+Browser admission checks the actual form association and the retained
+processing baseline against the native proof before connecting any participant.
+
+The browser reads current form values and validity, including edits made
+before hydration. It blocks submission in this local profile and reads
+successful controls without dispatching a `formdata` event. External form
+owners, credentials, file controls and custom validation are refused at
+admission. Private or external fields are excluded from subsequent capture.
+The browser rechecks form ownership, every form mirror and the installed CSS
+rules after preparing the baselines. A stale member leaves all ranges in the
+group on their server-rendered output. External declarations, inert CEM
+source payloads and other capabilities retain their passive browser profiles.
+The retained browser root records declaration-level source fidelity.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

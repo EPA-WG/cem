@@ -18,6 +18,23 @@ pub fn project_render_plan_with_control(
     Ok(result)
 }
 
+pub(crate) fn project_render_plan_with_origins(
+    plan: &RenderPlan,
+    limits: &CemValueArtifactLimits,
+    control: &OperationControl,
+    mut visit: impl FnMut(&str, Option<&str>, Option<&Item>),
+) -> Result<RenderPlan, ControlError> {
+    let scope = cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID;
+    let mut budget = ValueControl::new(control, scope, QueryContextScope(0), *limits)?;
+    let nodes = project_nodes(&plan.nodes, &mut budget, 0, None, &mut visit)?;
+    control.check_scope(scope)?;
+    Ok(RenderPlan {
+        nodes,
+        host_attribute_updates: plan.host_attribute_updates.clone(),
+        diagnostics: plan.diagnostics.clone(),
+    })
+}
+
 pub(crate) fn project_render_plan_with_budget(
     plan: &RenderPlan,
     budget: &mut ValueControl<'_>,
@@ -94,12 +111,24 @@ fn nodes(
     budget: &mut ValueControl<'_>,
     depth: usize,
 ) -> Result<Vec<RenderPlanNode>, ControlError> {
+    project_nodes(input, budget, depth, None, &mut |_, _, _| {})
+}
+
+fn project_nodes(
+    input: &[RenderPlanNode],
+    budget: &mut ValueControl<'_>,
+    depth: usize,
+    origin: Option<&Item>,
+    visit: &mut impl FnMut(&str, Option<&str>, Option<&Item>),
+) -> Result<Vec<RenderPlanNode>, ControlError> {
     let mut result = Vec::new();
     for node in input {
         budget.charge(std::mem::size_of::<RenderPlanNode>(), depth)?;
         if let RenderPlanNode::Reference { reference, .. } = node {
-            let expanded = references::expand_reference_scoped(reference, budget)?;
-            result.extend(nodes(&expanded, budget, depth + 1)?);
+            for target in reference.values() {
+                let expanded = references::expand_target_scoped(target, budget)?;
+                result.extend(project_nodes(&expanded, budget, depth + 1, Some(target), visit)?);
+            }
             continue;
         }
         let node = match node {
@@ -111,6 +140,7 @@ fn nodes(
                 children,
                 source_map,
             } => {
+                visit(tag, namespace.as_deref(), origin);
                 budget.charge(
                     tag.len()
                         + qualified_name.as_ref().map_or(0, String::len)
@@ -134,7 +164,7 @@ fn nodes(
                     qualified_name: qualified_name.clone(),
                     namespace: namespace.clone(),
                     attributes: projected_attributes,
-                    children: nodes(children, budget, depth + 1)?,
+                    children: project_nodes(children, budget, depth + 1, None, visit)?,
                     source_map: source_map.clone(),
                 }
             }

@@ -110,7 +110,7 @@ fn push_host(
             "cem-events",
         ][i];
         let p = push(r, "element", ns, &format!("{prefix}:{local}"), "");
-        if i == 4 && case.starts_with("state-") {
+        if i == 4 && (case.starts_with("state-") || matches!(case, "projecting-parent" | "projecting-parent-form")) {
             let slice = push(p, "element", ns, "cem-slices:slice", "");
             push(
                 slice,
@@ -203,6 +203,10 @@ fn push_host(
                 push_foreign(push, p, false, false);
                 continue;
             }
+            if case.starts_with("projected-") {
+                push_projected_input(push, p, if case == "projected-island-changed" { "other" } else { "message" });
+                continue;
+            }
             let b = push(
                 p,
                 "element",
@@ -236,6 +240,16 @@ fn push_host(
                 "section-account one-time-code",
             );
         }
+    } else if case.starts_with("projected-") {
+        let form = push(b, "element", "http://www.w3.org/1999/xhtml", "form", "");
+        push_projected_input(push, form, if case == "projected-range-changed" { "other" } else { "message" });
+    } else if case.starts_with("projecting-parent") {
+        let target = if case == "projecting-parent-form" {
+            push(b, "element", "http://www.w3.org/1999/xhtml", "form", "")
+        } else {
+            b
+        };
+        push_host(push, target, "x-child", "ssr-2", Some("1.2.3"), "", text);
     } else if case.starts_with("foreign") {
         push_foreign(push, b, case == "foreign-range", case == "foreign-active");
     } else if case.starts_with("nested") {
@@ -272,6 +286,55 @@ fn push_host(
         push(h, "comment", "", "", "cem-render-start");
     }
     h
+}
+
+fn push_projected_input(
+    push: &mut impl FnMut(u32, &str, &str, &str, &str) -> u32,
+    parent: u32,
+    slice: &str,
+) {
+    let input = push(parent, "element", "http://www.w3.org/1999/xhtml", "input", "");
+    push(input, "attribute", "", "name", "projected");
+    push(input, "attribute", "", "slot", "field");
+    push(input, "attribute", "", "slice", slice);
+}
+
+#[test]
+fn projected_control_uses_the_payload_authors_slice_and_the_receivers_form() {
+    use cem_ql::ssr_browser_resume::{admit_group, NestedDeclaration};
+
+    let child = NestedDeclaration {
+        tag: "x-child".into(),
+        version: "1.9.0".into(),
+        source: "{b | {form | {$ datadom.slots.field}}}".into(),
+    };
+    let parent = "{slice @name=message | Ready}{b | {x-child | {input @name=projected @slot=field @slice=message}}}";
+    let run = |case, child_case, source| {
+        admit_group(
+            &host_case(Some("1.2.3"), child_case, case),
+            "x-card",
+            "1.9.0",
+            source,
+            std::slice::from_ref(&child),
+            &OperationControl::default(),
+        )
+    };
+    let group = run("projecting-parent", "projected-valid", parent).unwrap();
+    assert_eq!(group.participants.len(), 2);
+    assert!(group.participants.iter().all(|p| p.stateful));
+    let [form, control] = group.participants[1].controls.as_slice() else {
+        panic!("Expected the local form and its projected control");
+    };
+    assert_eq!(control.form_key.as_ref(), Some(&form.source_key));
+    assert_eq!(control.slice_owner.as_deref(), Some("ssr-1"));
+    assert_ne!(control.payload_key.as_ref().unwrap(), &control.source_key);
+    for case in ["projected-island-changed", "projected-range-changed"] {
+        assert!(run("projecting-parent", case, parent).is_err(), "{case}");
+    }
+    assert!(run("projecting-parent-undeclared", "projected-valid",
+        "{b | {x-child | {input @name=projected @slot=field @slice=message}}}").is_err());
+    assert!(run("projecting-parent-form", "projected-valid",
+        "{slice @name=message | Ready}{b | {form | {x-child | {input @name=projected @slot=field @slice=message}}}}").is_err());
 }
 
 #[test]

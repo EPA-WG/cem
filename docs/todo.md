@@ -292,7 +292,7 @@ The native coordinator, readiness proof and named CLI exports are complete.
 Browser adoption covers passive inline HTML, SVG and MathML, inert native
 CEM source payloads, nested participants and resource-free scoped CSS.
 Stateful groups with compatible inline declarations and HTML payloads support
-owned scalar slices, local forms and verified stylesheets.
+owned scalar slices, local forms, projected controls and verified stylesheets.
 The CLI publishes scoped CSS from explicitly mapped stylesheet imports and
 accepts a single authored HTTP(S) document base. Direct and concrete config
 page reads and native HTML parsing share the original SSR CPU budget.
@@ -380,8 +380,12 @@ links the corresponding design and verification records.
         and bind image and font receipts to the owning stylesheet.
   - [x] Verify Chromium adopts matching assets and retains the SSR range when
         an asset is absent, changed, or denied by the browser read policy.
-- [ ] Admit projected form controls once the native proof can bind form and
+- [x] Admit projected form controls once the native proof can bind form and
       slice ownership across the payload boundary.
+  - [x] Verify native admission binds a projected control to its payload
+        author and its receiving form, and refuses altered or unrelated inputs.
+  - [x] Verify Chromium retains edited projected controls, routes changes to
+        the author’s slice, and freezes the group on a foreign or stale owner.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

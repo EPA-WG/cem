@@ -80,6 +80,21 @@ try {
     const groupVersions = 'x-form-outer=1.9.0,x-form-inner=1.9.0';
     const groupParentCss = 'section {color:rgb(12,34,56)}';
     const groupedForms = await render(groupFormMarkup(groupParentCss), groupVersions);
+    const projectedForms = await render([
+        '<cem-element tag="x-project-outer" version="1.2.3"><template id="x-project-outer" type="text/cem-ml">',
+        '{slice @name=message | Outer}{section | {p | {$ message}}{x-project-inner |',
+        '{template | {input @slot=field @name=projected @value=Initial @required @slice=message @slice-event=input}}}}</template></cem-element>',
+        '<cem-element tag="x-project-inner" version="1.2.3"><template id="x-project-inner" type="text/cem-ml">',
+        '{slice @name=message | Inner}{article | {p | {$ message}}{form @id=projected-form @name=profile | {$ datadom.slots.field}}}',
+        '</template></cem-element><x-project-outer></x-project-outer>',
+    ].join(''), 'x-project-outer=1.9.0,x-project-inner=1.9.0');
+    const standaloneProjectedForm = await render([
+        '<cem-element tag="x-project-local" version="1.2.3"><template id="x-project-local" type="text/cem-ml">',
+        '{slice @name=message | Local}{article | {p | {$ message}}{$ datadom.slots.panel}}</template></cem-element>',
+        '<x-project-local><template><form slot="panel" name="profile">',
+        '<input name="projected" value="Initial" required slice="message" slice-event="input">',
+        '</form></template></x-project-local>',
+    ].join(''), 'x-project-local=1.9.0');
     const mirror = path.join(temp, 'mirror');
     await mkdir(mirror);
     await writeFile(path.join(mirror, 'theme.css'), 'article { color: rgb(12,34,56) }');
@@ -131,6 +146,7 @@ try {
     const pages = new Map([
         ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
         ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms], ['/grouped-forms.html', groupedForms],
+        ['/projected-forms.html', projectedForms], ['/projected-local.html', standaloneProjectedForm],
         ['/mapped.html', mapped], [authoredPages[0], cemPage], [authoredPages[1], markdownPage],
         ['/external.html', externalPage.replace(/ data-cem-ssr-declaration="[^"]*"/gu, '')],
         ['/assets/external.html', externalDeclaration],
@@ -783,6 +799,94 @@ try {
         assert.deepEqual(result.baselines, scenario === 'foreign-form-owner' ? [] : ['x-form-outer', 'x-form-inner'], detail);
         await page.close();
     }
+    const projectedFormCases = ['main-thread', 'worker', 'local-form', 'tampered-payload', 'external-member', 'stale-form'];
+    for (const scenario of projectedFormCases) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            if (new URL(route.request().url()).origin === origin) return route.continue();
+            requests.push(route.request().url()); return route.abort();
+        });
+        await page.goto(`${origin}/projected-${scenario === 'local-form' ? 'local' : 'forms'}.html`);
+        const result = await page.evaluate(async scenario => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const author = document.querySelector('x-project-outer, x-project-local');
+            const receiver = document.querySelector('x-project-inner') ?? author;
+            const hosts = [...new Set([author, receiver])];
+            const islands = hosts.map(host => host.firstElementChild);
+            const form = receiver.querySelector('form');
+            const input = form.querySelector('input');
+            const ranges = hosts.map(host => [...host.childNodes]);
+            const retained = () => hosts.every((host, index) => ranges[index].length === host.childNodes.length
+                && ranges[index].every((node, offset) => host.childNodes[offset] === node))
+                && form.querySelector('input') === input && input.form === form;
+            input.value = 'Pre-hydration edit';
+            input.focus();
+            input.setSelectionRange(1, 5);
+            if (scenario === 'tampered-payload') islands[1].content.querySelector('input').setAttribute('slice', 'other');
+            if (scenario === 'external-member') {
+                const foreign = document.createElement('input');
+                foreign.name = 'foreign';
+                foreign.setAttribute('form', form.id);
+                document.body.append(foreign);
+            }
+            const before = author.outerHTML;
+            const runtime = scenario === 'worker' ? new CemElementRuntime()
+                : new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            const prepare = runtime.prepareCanonicalSsrState.bind(runtime);
+            runtime.prepareCanonicalSsrState = async (...args) => {
+                const baseline = await prepare(...args);
+                if (scenario === 'stale-form' && args[0] === receiver) input.value = 'Late edit';
+                return baseline;
+            };
+            runtime.install(window);
+            await Promise.all([...document.querySelectorAll('cem-element')].map(declaration => runtime.whenDeclarationSettled(declaration)));
+            await runtime.whenRenderSettled(author);
+            const marked = islands.map(island => island.hasAttribute('data-cem-ssr-profile'));
+            const diagnostics = () => hosts.flatMap(host => runtime.diagnosticsFor(host).map(d => ({ code: d.code, message: d.message })));
+            const submitBlocked = () => !form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+            const detail = { marked, retained: retained(), diagnostics: diagnostics() };
+            if (marked.some(Boolean)) return { ...detail, unchanged: author.outerHTML === before, submitBlocked: submitBlocked() };
+            const focus = document.activeElement === input && input.selectionStart === 1 && input.selectionEnd === 5;
+            const state = () => hosts.map(host => {
+                const snapshot = runtime.readInstanceSnapshot(host);
+                return [snapshot.slices.message, snapshot.formData.profile?.projected ?? null];
+            });
+            const initial = state();
+            for (const value of ['First edit', 'Second edit']) {
+                input.value = value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                await Promise.all(hosts.map(host => runtime.whenRenderSettled(host)));
+            }
+            const blocked = submitBlocked();
+            await runtime.whenRenderSettled(receiver);
+            return { ...detail, initial, focus, updated: state(), submitBlocked: blocked, afterRetained: retained(),
+                texts: hosts.map(host => host.querySelector('p').textContent), afterDiagnostics: diagnostics(),
+                mode: runtime.processingHost(runtime.declarationForInstance(author)).mode };
+        }, scenario);
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.retained, true, detail);
+        if (['main-thread', 'worker', 'local-form'].includes(scenario)) {
+            const local = scenario === 'local-form';
+            assert.deepEqual(result.marked, local ? [false] : [false, false], detail);
+            assert.deepEqual(result.initial, local ? [['Local', 'Pre-hydration edit']]
+                : [['Outer', null], ['Inner', 'Pre-hydration edit']], detail);
+            assert.deepEqual(result.updated, local ? [['Second edit', 'Second edit']]
+                : [['Second edit', null], ['Inner', 'Second edit']], detail);
+            assert.deepEqual(result.texts, local ? ['Second edit'] : ['Second edit', 'Inner'], detail);
+            assert.equal(result.mode, scenario === 'worker' ? 'worker' : 'main-thread', detail);
+            assert.equal(result.focus, true, detail);
+            assert.equal(result.submitBlocked, true, detail);
+            assert.equal(result.afterRetained, true, detail);
+            assert.deepEqual(result.afterDiagnostics, [], detail);
+        } else {
+            assert.deepEqual(result.marked, [true, true], detail);
+            assert.equal(result.unchanged, true, detail);
+            assert.equal(result.submitBlocked, false, detail);
+            assert.ok(result.diagnostics.some(d => d.code === 'cem-element.hydration_native_refused'), detail);
+        }
+        await page.close();
+    }
     const page = await browser.newPage();
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/*', route => {
@@ -1332,8 +1436,8 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + groupedFormCases.length + authoredPages.length + resourceCases.length + importCases.length + crossCases.size + assetCases.length + 4;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} standalone form, ${groupedFormCases.length} form group, ${crossCases.size} cross-origin grant and ${assetCases.length} CSS asset cases, with zero unexpected off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + groupedFormCases.length + projectedFormCases.length + authoredPages.length + resourceCases.length + importCases.length + crossCases.size + assetCases.length + 4;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} standalone form, ${groupedFormCases.length} form group, ${projectedFormCases.length} projected form, ${crossCases.size} cross-origin grant and ${assetCases.length} CSS asset cases, with zero unexpected off-origin requests`);
 } finally {
     finishCrossPage?.();
     await browser?.close();

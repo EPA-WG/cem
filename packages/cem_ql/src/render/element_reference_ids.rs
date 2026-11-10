@@ -95,6 +95,8 @@ pub struct ElementReferenceProjection {
     pub aria_profile: AriaReferenceProfile,
     pub plan: RenderPlan,
     pub placements: Vec<ElementPlacementUse>,
+    #[cfg_attr(not(all(target_arch = "wasm32", not(feature = "component-runtime"))), allow(dead_code))]
+    pub(crate) dom_slice_origins: Vec<(Vec<usize>, String)>,
 }
 
 struct AdmissionIndex<'a> {
@@ -464,6 +466,18 @@ pub fn project_element_reference_ids_with_options(
     scope: ExecutionScopeId,
     options: ElementReferenceExportOptions,
 ) -> Result<RenderPlan, ElementReferenceProjectionError> {
+    project_element_references(plan, instance_id, limits, control, scope, options)
+        .map(|result| result.plan)
+}
+
+pub(crate) fn project_element_references(
+    plan: &RenderPlan,
+    instance_id: &str,
+    limits: &CemValueArtifactLimits,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+    options: ElementReferenceExportOptions,
+) -> Result<ElementReferenceProjection, ElementReferenceProjectionError> {
     project_element_reference_ids_with_host_and_placements_with_options(
         plan,
         instance_id,
@@ -476,7 +490,6 @@ pub fn project_element_reference_ids_with_options(
         &ElementPlacementSnapshot::default(),
         options,
     )
-    .map(|result| result.plan)
 }
 
 /// Lifecycle callers supply actual contexts, scope policies and directed grants
@@ -552,6 +565,7 @@ pub fn project_element_reference_ids_with_host_and_placements_with_options<
     let mut used_placements = Vec::new();
     let mut projection = Projection {
         placements: BTreeMap::new(),
+        dom_slice_origins: Vec::new(),
         budget: &mut budget,
     };
     let mut result = RenderPlan {
@@ -560,7 +574,7 @@ pub fn project_element_reference_ids_with_host_and_placements_with_options<
         diagnostics: plan.diagnostics.clone(),
     };
     projection.nodes(&plan.nodes, &mut result.nodes, &[], 0)?;
-    let placements = projection.placements;
+    let Projection { placements, dom_slice_origins, .. } = projection;
     let mut relationships = Vec::new();
     collect(&result.nodes, &[], &mut relationships, &mut budget)?;
     let mut ids = BTreeMap::<String, Vec<Vec<usize>>>::new();
@@ -748,6 +762,7 @@ pub fn project_element_reference_ids_with_host_and_placements_with_options<
         aria_profile: options.aria_profile,
         plan: result,
         placements: used_placements,
+        dom_slice_origins,
     })
 }
 // One owning structure groups attribute slots without adding an authored
@@ -860,6 +875,7 @@ fn lexical_attribute(name: &str, value: &str, source: &SourceMapStack) -> Render
 }
 struct Projection<'a, 'b> {
     placements: BTreeMap<String, Vec<Vec<usize>>>,
+    dom_slice_origins: Vec<(Vec<usize>, String)>,
     budget: &'a mut ValueControl<'b>,
 }
 impl Projection<'_, '_> {
@@ -1020,6 +1036,16 @@ impl Projection<'_, '_> {
             }
             let origin = origin.filter(|n| kind(n).as_deref() == Some("element"));
             if let Some(origin) = origin {
+                if matches!(tag.as_str(), "input" | "textarea" | "select")
+                    && attributes.iter().any(|attribute| attribute.name == "slice")
+                {
+                    if let Some(key) = references::dom_origin_key(origin) {
+                        self.budget
+                            .charge(key.len() + path.len() * std::mem::size_of::<usize>(), depth)
+                            .map_err(|e| error("cem.element_reference.limit", e.to_string(), source_map))?;
+                        self.dom_slice_origins.push((path.clone(), key));
+                    }
+                }
                 let key = target_key(origin);
                 self.budget
                     .charge(

@@ -8,6 +8,7 @@ import {
     edgeContentAddress,
     assertProcessingBoundaryValue,
     diffRenderPlansToPatchFrames,
+    isRenderMetadataAttribute,
     projectSlotsInRenderPlan,
     type EdgePatchOptions,
     type PatchFrame,
@@ -214,6 +215,7 @@ interface WasmRenderPlan {
     referenceProjectionComplete?: boolean;
     referenceProjectionCode?: string;
     referenceProjectionMessage?: string;
+    domSliceOrigins?: [number[], string][];
     nativeValueArtifactId?: number | null;
     nativeValueContentHash?: string;
     nodes?: WasmRenderNode[];
@@ -1233,9 +1235,11 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
 
         const prefix = options.renderNodeIdPrefix ?? 'cem-node';
         const sourceSites = new Map<string, string>();
-        const mapNodes = (nodes: WasmRenderNode[], parent: string): RenderPlanNode[] => {
+        const domSliceOrigins = new Map((plan.domSliceOrigins ?? []).map(([path, key]) => [path.join('/'), key]));
+        const mapNodes = (nodes: WasmRenderNode[], parent: string, path: string): RenderPlanNode[] => {
             const occurrences = new Map<string, number>();
-            return nodes.map(node => {
+            return nodes.map((node, index) => {
+                const nodePath = domSliceOrigins.size ? (path ? `${path}/${index}` : String(index)) : '';
                 // Native provenance identifies the emitting site, not a unique
                 // occurrence. Scope repeated sites to their parent and local
                 // ordinal so conditional output elsewhere cannot renumber them.
@@ -1250,11 +1254,12 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
                 const occurrence = occurrences.get(site) ?? 0;
                 occurrences.set(site, occurrence + 1);
                 const id = `${prefix}-${edgeContentAddress('render-plan', [parent, site, occurrence]).digest}`;
-                return mapNode(node, id, children => mapNodes(children, id), artifact);
+                const origin = domSliceOrigins.get(nodePath);
+                return mapNode(node, id, children => mapNodes(children, id, nodePath), artifact, origin);
             });
         };
 
-        const nodes = mapNodes(plan.nodes ?? [], `${prefix}:root`);
+        const nodes = mapNodes(plan.nodes ?? [], `${prefix}:root`, '');
         const uses = (plan.elementPlacementUses ?? []).map(({ path, ...use }) => {
             let children = nodes, target: RenderPlanNode | undefined;
             for (const index of path) { target = children[index]; children = target?.kind === 'element' ? target.children : []; }
@@ -1402,10 +1407,10 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         };
     }
 
-    function mapNode(node: WasmRenderNode, renderNodeId: string, mapChildren: (nodes: WasmRenderNode[]) => RenderPlanNode[], artifact?: { artifact: ArrayBuffer; contentHash: string }): RenderPlanNode {
+    function mapNode(node: WasmRenderNode, renderNodeId: string, mapChildren: (nodes: WasmRenderNode[]) => RenderPlanNode[], artifact?: { artifact: ArrayBuffer; contentHash: string }, origin?: string): RenderPlanNode {
         const source = node.sourceMap as { frames?: {transform?: {kind?: string; uri?: string}}[] } | undefined;
         const fromDom = source?.frames?.some(frame => frame.transform?.kind === 'SourceBoundary' && frame.transform.uri?.startsWith('cem-dom://')) === true;
-        if (fromDom) renderNodeId = `payload-${renderNodeId}`;
+        if (fromDom) renderNodeId = origin ? `payload-${origin}:${renderNodeId}` : `payload-${renderNodeId}`;
         const sourceMapRef: SourceMapRef | undefined = fromDom ? {fidelity: 'dom-canonical', frame: `native-source:${JSON.stringify(node.sourceMap)}`} : frameFrom(node.byteOffset);
         if (node.kind === 'text') {
             return { kind: 'text', text: node.text, renderNodeId, sourceMapRef };
@@ -1417,7 +1422,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             kind: 'element',
             namespace: fromDom && node.namespace === 'http://www.w3.org/1999/xhtml' ? null : node.namespace ?? null,
             tag: node.tag,
-            attributes: (node.attributes ?? []).map((attribute) => ({
+            attributes: (node.attributes ?? []).filter(attribute => !fromDom || !isRenderMetadataAttribute(attribute.name)).map((attribute) => ({
                 name: attribute.namespace === 'http://www.w3.org/1999/xlink'
                     ? `xlink:${attribute.name.slice(attribute.name.lastIndexOf(':') + 1)}`
                     : attribute.name,
@@ -1490,6 +1495,11 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
     }
 
     const domKeys = new WeakMap<Node, string>();
+    // A worker can return an origin key, but only this capture registry can
+    // resolve it to the original DOM control in the host realm.
+    const domSliceControls = new Map<string, WeakRef<Element>>();
+    const releaseDomSliceControl = new FinalizationRegistry<string>(key => domSliceControls.delete(key));
+    const capturedSliceControl = (key: string) => domSliceControls.get(key)?.deref();
     let domSequence = 0;
     const domSourceUri = `cem-dom://runtime/${crypto.randomUUID()}`;
     function domKey(node: Node): string {
@@ -1526,6 +1536,13 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
                 const element = node.nodeType === 1 ? node as Element : undefined;
                 const id = appendDomPayloadNode(handle, parent, domKey(node), kind, element?.namespaceURI ?? '', element?.localName ?? '', element ? '' : node.nodeValue ?? '');
                 if (element) {
+                    if (element.hasAttribute('slice') && element.matches('input, textarea, select')) {
+                        const key = domKey(element);
+                        if (!domSliceControls.has(key)) {
+                            domSliceControls.set(key, new WeakRef(element));
+                            releaseDomSliceControl.register(element, key);
+                        }
+                    }
                     for (const attribute of element.attributes) appendDomPayloadNode(handle, id, domKey(attribute), 'attribute', attribute.namespaceURI ?? '', attribute.localName, attribute.value);
                     const children = element.namespaceURI === 'http://www.w3.org/1999/xhtml' && element.localName === 'template' ? (element as HTMLTemplateElement).content.childNodes : element.childNodes;
                     pending.push({children: children.values(), parent: id});
@@ -1553,11 +1570,22 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         const proof = await withDomCapture(host, limits, handle =>
             admitCapturedCanonicalSsrHost(handle, tag, version, source, JSON.stringify(nested), styleInputs,
                 payloads.map(({host, bytes}) => [domKey(host), bytes]), stylesheets));
-        const { participants } = JSON.parse(proof) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean; stateful: boolean }[] };
+        type ControlProof = { sourceKey: string; formKey: string | null; payloadKey?: string; sliceOwner?: string };
+        const { participants } = JSON.parse(proof) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean; stateful: boolean; controls?: ControlProof[] }[] };
         if (participants.length !== members.length || participants.some((decision, index) => decision.sourceKey !== domKey(members[index]))) {
             throw new Error('cem.ssr.resume_participants');
         }
-        return participants;
+        const elements = new Map(Array.from(host.querySelectorAll('form, input, textarea, select, button, fieldset'),
+            element => [domKey(element), element]));
+        return participants.map(decision => ({
+            ...decision,
+            controls: (decision.controls ?? []).map(({ sourceKey, formKey, ...binding }) => {
+                const element = elements.get(sourceKey);
+                const form = formKey === null ? null : elements.get(formKey);
+                if (!element || form === undefined) throw new Error('cem.ssr.resume_form_owner');
+                return { element, form, ...binding };
+            }),
+        }));
     });
     const verifyCanonicalSsrSource = nativeCheckpointWork(async (
         receipt: string, bytes: Uint8Array, tag: string, version: string, scope?: string,
@@ -1565,7 +1593,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         await ensureRuntimeReady();
         return verifyCanonicalSsrDeclaration(receipt, bytes, tag, version, scope);
     });
-    return { domain, native, processCheckpointControl, captureDomPayload, admitCanonicalSsrInstance, verifyCanonicalSsrSource,
+    return { domain, native, processCheckpointControl, captureDomPayload, capturedSliceControl, admitCanonicalSsrInstance, verifyCanonicalSsrSource,
         highlightSource,
         retainStylesheetSources,
         releaseRetainedTemplateStylesheets,
@@ -1622,6 +1650,7 @@ export const validatePortableCheckpointRuntime = defaultBindings.validatePortabl
 export const resolveDeclarationResourceBase = defaultBindings.resolveDeclarationResourceBase;
 export const resolveRenderPlanLinks = defaultBindings.resolveRenderPlanLinks;
 export const captureDomPayload = defaultBindings.captureDomPayload;
+export const capturedSliceControl = defaultBindings.capturedSliceControl;
 export const admitCanonicalSsrInstance = defaultBindings.admitCanonicalSsrInstance;
 export const verifyCanonicalSsrSource = defaultBindings.verifyCanonicalSsrSource;
 export const ensureRuntimeReady = defaultBindings.ensureRuntimeReady;

@@ -2470,7 +2470,7 @@ export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: r
 export function prepareRetainedSsrPatchBaseline(
     bounds: RenderPlanDomRange, frames: readonly PatchFrame[], revision: RenderRevision,
     nestedPayloads?: ReadonlyMap<Element, { container: Element; explicit: boolean }>,
-): () => void {
+): { commit(): void; sliceBindings: ReadonlyMap<Element, string> } {
     const parsed = parseCommittedPatchFrames(frames);
     const refuse = () => new Error('cem.ssr.resume_processing_range');
     if (!parsed.ok || renderRevisionKey(parsed.revision) !== renderRevisionKey(revision)) throw refuse();
@@ -2479,6 +2479,7 @@ export function prepareRetainedSsrPatchBaseline(
         return deserializePatchNode(op.node.node);
     }) };
     const writes: (() => void)[] = [];
+    const sliceBindings = new Map<Element, string>();
     const ids = new Set<string>();
     const unique = (id: string) => {
         if (!id || ids.has(id)) throw refuse();
@@ -2508,6 +2509,7 @@ export function prepareRetainedSsrPatchBaseline(
                             && (attribute.name === 'scope' || attribute.name === 'data-cem-css-context'))
                         && attributes.get(attribute.name) !== attribute.value)) throw refuse();
                 unique(node.renderNodeId);
+                if (attributes.has('slice')) sliceBindings.set(element, node.renderNodeId);
                 const children = nested?.container ?? renderPlanElementChildContainer(element);
                 let inputs = node.children;
                 if (nested?.explicit) {
@@ -2546,10 +2548,10 @@ export function prepareRetainedSsrPatchBaseline(
     const parent = bounds.start.parentNode;
     if (!parent || parent !== bounds.end.parentNode) throw refuse();
     align(bounds.start.nextSibling, bounds.end, plan.nodes);
-    return () => {
+    return { sliceBindings, commit: () => {
         for (const write of writes) write();
         renderedRangeOwners.set(bounds.start, { end: bounds.end, parent, owner: renderPlanOwnerKey(plan), rootIds: planRootIds(plan, {}) });
-    };
+    } };
 }
 
 function parseCommittedPatchFrames(frames: readonly PatchFrame[]):
@@ -2699,7 +2701,7 @@ function authoredAttributes(element: Element): Map<string, string> {
     );
 }
 
-function isRenderMetadataAttribute(name: string): boolean {
+export function isRenderMetadataAttribute(name: string): boolean {
     return (
         name === RENDER_NODE_ID_ATTR ||
         name === TEMPLATE_ARTIFACT_ID_ATTR ||

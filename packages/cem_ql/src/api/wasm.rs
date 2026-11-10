@@ -524,14 +524,16 @@ fn plan_json_for_elements(
     let projected = if let Some(execution) = execution {
         execution.project_with_options(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID, options)
     } else {
-        crate::render::project_element_reference_ids_with_options(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID, options)
-            .map(|plan| crate::render::ElementReferenceProjection { plan, placements: vec![], aria_profile: profile })
+        crate::render::project_element_references(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID, options)
     };
     match projected {
         Ok(projected) => {
             let mut result = plan_json_with_suggestions(&projected.plan, limits, suggestions);
             result["ariaReferenceProfile"] = json!(projected.aria_profile.identity());
             result["elementPlacementUses"] = serde_json::to_value(projected.placements).expect("placement control metadata");
+            if !projected.dom_slice_origins.is_empty() {
+                result["domSliceOrigins"] = json!(projected.dom_slice_origins);
+            }
             result
         },
         Err(error) => {

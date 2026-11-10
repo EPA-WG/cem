@@ -1,5 +1,5 @@
 //! Rebuild stylesheet occurrences from the admitted native inputs.
-use super::{compare, fail, island, whitespace, HTML_NAMESPACE_URI};
+use super::{fail, island, whitespace, Comparison, HTML_NAMESPACE_URI};
 use crate::{
     eval::Item,
     render::{DomStylesheetSource, RenderPlanNode, TemplateArtifact},
@@ -464,7 +464,7 @@ fn verify(
         .filter(|node| !whitespace(node))
         .cloned()
         .collect::<Vec<_>>();
-    compare(expected, &actual, 0, c, None, true)
+    Comparison { allow_style: true, ..Default::default() }.compare(expected, &actual, 0, c, None)
 }
 
 #[cfg(test)]

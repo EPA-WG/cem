@@ -4279,6 +4279,7 @@ export class CemElementRuntime {
                     }
                     const forms = decision.stateful ? this.captureRenderedForms(host, bounds, true)
                         : { formData: {}, validationState: {}, sliceMirrors: {} };
+                    if (!matchesCanonicalSsrFormOwners(decision.controls)) throw new Error('cem.ssr.resume_form_owner');
                     const payload = directIslandSection(memberIsland, DATA_ISLAND_SECTIONS.payload)!;
                     const explicit = payload.getAttribute(DATA_ISLAND_EXPLICIT_PAYLOAD_ATTR) === 'true';
                     const snapshot = this.snapshotFromCapturedForms(host, declaration, memberIsland, '0', undefined,
@@ -4307,9 +4308,22 @@ export class CemElementRuntime {
                     }
                     assertSharedStylesheetOwners();
                     if (targets.some(target => target.styleNodes.some(style => !matchesLiveSsrStylesheet(style))
+                        || !matchesCanonicalSsrFormOwners(target.decision.controls)
                         || (target.decision.stateful && !resourceValuesEqual(target.forms,
                             this.captureRenderedForms(target.host, target.bounds, true))))) {
                         throw new Error('cem.ssr.resume_stale');
+                    }
+                    const lookup = (owner: HTMLElement, element: Element) => baselines.get(owner)?.sliceBindings.get(element);
+                    const owners = new Map(targets.map(({ host, decision }) => [decision.instanceId, host]));
+                    for (const { host, decision } of targets) {
+                        for (const { element, payloadKey, sliceOwner } of decision.controls) {
+                            if (!sliceOwner) continue;
+                            const binding = lookup(host, element);
+                            if (!binding || capturedSliceControlKey(binding) !== payloadKey
+                                || this.renderedSliceBindingOwner(host, element, lookup) !== owners.get(sliceOwner)) {
+                                throw new Error('cem.ssr.resume_slice_owner');
+                            }
+                        }
                     }
                 }
 
@@ -4381,7 +4395,7 @@ export class CemElementRuntime {
     private async prepareCanonicalSsrState(host: HTMLElement, island: HTMLTemplateElement, compiled: CompiledDeclaration,
         bounds: RenderBounds, snapshot: DataIslandSnapshot,
         nestedPayloads: ReadonlyMap<Element, { container: Element; explicit: boolean }>,
-    ): Promise<{ commit(): void; plan: CemProcessingRenderPlanHandle }> {
+    ): Promise<ReturnType<typeof prepareRetainedSsrPatchBaseline> & { plan: CemProcessingRenderPlanHandle }> {
         const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
         if (!payload || compiled.xpathFunctionsRef || this.elementReferenceInputsOption || this.nativeSuggestionsInputsOption
             || this.localSuggestionsEnabled || this.checkpointPublication) throw new Error('cem.ssr.resume_stateful_profile');
@@ -4405,7 +4419,7 @@ export class CemElementRuntime {
             || result.hostAttributeUpdates.some(update => host.getAttribute(update.name) !== update.value)) {
             throw new Error('cem.ssr.resume_stateful_profile');
         }
-        return { commit: prepareRetainedSsrPatchBaseline(bounds, result.frames, revision, nestedPayloads), plan: result.nextRenderPlan };
+        return { ...prepareRetainedSsrPatchBaseline(bounds, result.frames, revision, nestedPayloads), plan: result.nextRenderPlan };
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
@@ -6441,8 +6455,10 @@ export class CemElementRuntime {
         surfaceBody?: { owner: HTMLElement; signal: AbortSignal },
     ): void {
         const renderInstance = instance;
+        if (this.canonicalSsrStateful.has(instance) && !this.ownsRenderedElement(instance, element)) return;
         const author = this.renderedSliceBindingOwner(instance, element);
-        if (!author || (this.canonicalSsrStateful.has(author) && author !== instance)) return;
+        if (!author || (this.canonicalSsrStateful.has(author) && author !== instance
+            && !this.canonicalSsrStateful.has(instance))) return;
         if (author !== instance) {
             const declaration = this.declarationForInstance(author);
             if (!declaration) return;
@@ -6510,7 +6526,12 @@ export class CemElementRuntime {
             // internal dispatch may initialize a still-detached rendered node.
             if (event !== initialization && (!owner.isConnected || !renderedBy.isConnected || !element.isConnected || !withinOwner
                 || this.renderedSliceBindingOwner(renderedBy, element) !== owner)) return;
-            if (this.canonicalSsrStateful.has(owner) && (event.target !== target || !canonicalSsrFormControl(target))) return;
+            if (this.canonicalSsrStateful.has(owner)) {
+                const form = (target as HTMLInputElement).form;
+                if (event.target !== target || !canonicalSsrFormControl(target)
+                    || !renderedBy.contains(element) || !this.ownsRenderedElement(renderedBy, element)
+                    || (form && (!renderedBy.contains(form) || !this.ownsRenderedElement(renderedBy, form)))) return;
+            }
             this.writeSlicesFromEvent(owner, compiled, sliceNames, attributeNames, expression, event, nativeValue);
         };
         for (const eventName of eventNames) {
@@ -6541,8 +6562,14 @@ export class CemElementRuntime {
      * boundary; serialized/public ID attributes never establish this authority.
      * Keep physical widget/resource ownership separate from slice authoring.
      */
-    private renderedSliceBindingOwner(instance: HTMLElement, element: Element): HTMLElement | null {
+    private renderedSliceBindingOwner(instance: HTMLElement, element: Element,
+        lookup = (owner: HTMLElement, source: Element) => {
+            const id = this.instanceIds.get(owner);
+            return id ? checkpointRenderedNodeIdentity(source, id) : undefined;
+        },
+    ): HTMLElement | null {
         let source = element;
+        let payloadOwner = instance;
         let visitedInstance = false;
         for (let ancestor: HTMLElement | null = element.parentElement; ; ancestor = ancestor.parentElement) {
             if (!ancestor) {
@@ -6552,16 +6579,23 @@ export class CemElementRuntime {
                 ancestor = instance;
             }
             if (ancestor === instance) visitedInstance = true;
-            const instanceId = this.instanceIds.get(ancestor);
-            if (!instanceId) continue;
-            const nodeId = checkpointRenderedNodeIdentity(source, instanceId);
+            const nodeId = lookup(ancestor, source);
             if (!nodeId) continue;
             if (!nodeId.startsWith('payload-')) return ancestor;
-            const path = nodeId.slice('payload-'.length).split('/');
-            if (!path.every(part => /^(0|[1-9]\d*)$/u.test(part))) return null;
             const island = directDataIsland(ancestor);
             const payload = island && directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
             if (!payload) return null;
+            const key = capturedSliceControlKey(nodeId);
+            if (key) {
+                const declaration = this.declarationForInstance(ancestor);
+                const original = declaration && this.renderSupport(declaration.declarationScope).capturedSliceControl(key);
+                if (!original || !payload.contains(original)) return null;
+                source = original;
+                payloadOwner = ancestor;
+                continue;
+            }
+            const path = nodeId.slice('payload-'.length).split('/');
+            if (!path.every(part => /^(0|[1-9]\d*)$/u.test(part))) return null;
             let children: readonly Node[] = Array.from(payload.childNodes);
             let original: Node | undefined;
             for (const part of path) {
@@ -6575,7 +6609,7 @@ export class CemElementRuntime {
         // A detached/serialized renderer origin cannot be adopted by its new
         // container. Unrendered authored HTML keeps its existing local context.
         if (source !== element && source.hasAttribute(RENDER_NODE_ID_ATTR)) return null;
-        return this.ownsRenderedElement(instance, element) ? instance : null;
+        return this.ownsRenderedElement(instance, element) ? payloadOwner : null;
     }
 
     private initializeRenderedSliceDirective(
@@ -11013,6 +11047,16 @@ function canonicalSsrFormControl(control: Element): boolean {
         && !control.hasAttribute('form') && !control.hasAttribute('dirname')
         && !field.validity?.customError
         && !isCemCredentialControl(control) && (!field.form || !isCemCredentialControl(field.form));
+}
+
+function matchesCanonicalSsrFormOwners(controls: readonly { element: Element; form: Element | null }[]): boolean {
+    return controls.every(({ element, form }) => isDomInstance(element, 'HTMLFormElement')
+        ? !form && canonicalSsrFormSurface(element)
+        : canonicalSsrFormControl(element) && (element as HTMLInputElement).form === form);
+}
+
+function capturedSliceControlKey(renderNodeId: string | undefined): string | undefined {
+    return renderNodeId?.match(/^payload-(dom-\d+):/u)?.[1];
 }
 
 /** A read of local successful controls does not dispatch a formdata event. */
