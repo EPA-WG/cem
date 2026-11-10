@@ -4,7 +4,8 @@ Status: native reference fixture, strict artifact admission, shared compiled
 registration, declarative static-closure loading and compiled-form recovery in
 worker/fallback hosts, plus an isolated compiled-template/JSON WASM prototype.
 Quantity and removal now have guarded GraphQL action bindings exercised in
-Chromium. The Studio example and reduced browser distribution remain pending.
+Chromium. Studio ships an editable snapshot example. An interactive Studio
+preview and the reduced browser distribution remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
 
@@ -1039,11 +1040,12 @@ The build watches the recipe and the three embedded assets. Its output goes to
 `packages/cem_ql/dist/wasm-selected-application`. Each heap admits the compiled
 entry and guard against the generated pins and checks the operation document
 against the hash in the guard. The selected entry exposes
-`selectedApplicationDocument`, `validateSelectedApplicationVariables` and
-`renderSelectedApplicationResponse`. The factory exposes corresponding
-`applicationDocument`, `validateVariables` and `renderResponse` methods. The
-request supplies the operation name, original JSON bytes and source URI. The
-runtime takes the template and pins from the embedded recipe.
+`selectedApplicationDocument`, `validateSelectedApplicationVariables`,
+`validateSelectedApplicationQueryVariables` and `renderSelectedApplicationResponse`.
+The factory exposes the corresponding `applicationDocument`, `validateVariables`,
+`validateQueryVariables` and `renderResponse` methods. The request supplies the
+operation name, original JSON bytes and source URI. The runtime takes the
+template and pins from the embedded recipe.
 
 Response validation passes the same native JSON parse and source coordinates
 into the existing retained CEM projection. Response admission, projection and rendering
@@ -1151,6 +1153,21 @@ and counts the loopback POSTs across a fresh selected WASM heap, including
 refused variables, an in-flight action and an invalid response. The fixture uses
 the full component host for widget capabilities.
 
+### Initial read and Studio build
+
+The selected application’s browser fixture uses the shared
+`readCemGraphqlQuery` helper to read the pinned `Cart` operation over
+same-origin HTTP GET before binding actions.
+The native query-specific validator checks operation kind and variables before
+network dispatch. The same guard admits the response and renders the entry.
+On rebind, the fixture uses the accepted response bytes without another GET.
+
+In Studio, open **Samples → Content types and schemas → Documents and UI →
+Shopping cart**. **Build and preview cart** reads the saved initial Cart
+response and generates `generated/cart.html` through the ordinary native graph.
+The sandboxed preview shows a read-only snapshot. A saved clone can change
+the input and rebuild independently. See the [sample guide](../examples/projects/shopping-cart/README.md).
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module
@@ -1161,9 +1178,9 @@ the full component host for widget capabilities.
   templates and dynamic styles available through the full/on-demand runtime.
 - Verify optional module installation through a deployable catalog and loader.
   Extend native link evidence as additional application profiles are assembled.
-- Register the cart as a normal Studio example project with its initial read,
-  build and preview. Exercise the action binding during complete worker and
-  fallback retirement and resume in that host.
+- Connect the selected runtime and its guarded actions to a Studio preview host
+  with an authorized service. Exercise complete worker and fallback retirement
+  and resume in that host.
 - Extend the isolated prototype to the complete compiled-UI + JSON distribution
   with verified native dependency/ABI closure. Verify optional module acquisition, offline
   behavior and worker/fallback recovery with the same app state and semantics.

@@ -235,6 +235,7 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `html-cem-card` | `card-live-view` | `live-view` | Saved data bound to two shared declarative cards, named/default slots and a transient local action. |
 | `html-cem-card` | `card-component` | `inspect-component` | Explicit JSON inspection of the canonical shared declaration's XML source, without registering a project component. |
 | `html-cem-card` | `card-invalid-policy` | `repair-html-policy` | Native inline-handler refusal at original source coordinates; remove the handler and revalidate the same saved resource. |
+| `shopping-cart` | `cart-graph` | `build-cart` | Read the saved initial GraphQL Cart response and build a script-free HTML cart snapshot with native template provenance. |
 | `svg-diagram` | `diagram-source` | `inspect-svg` | Family-preserving SVG inspection with real namespaces and original source offsets. |
 | `svg-diagram` | `diagram-source` | `validate-svg` | SVG root/namespace, XML, viewport/accessibility and source-policy checks. |
 | `svg-diagram` | `diagram-source` | `query-svg` | Expanded-name XPath diagram labels, dimensions and primitive counts. |

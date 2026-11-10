@@ -191,7 +191,7 @@ try {
     const dot = readFileSync(dotPath);
     const edges = directCalls(dot.toString('utf8'));
     const exportFunctions = functionExports(sections.find(section => section.name === 'export'), names);
-    const roots = ['renderSelectedApplicationResponse', 'validateSelectedApplicationVariables',
+    const roots = ['renderSelectedApplicationResponse', 'validateSelectedApplicationVariables', 'validateSelectedApplicationQueryVariables',
         'compileddeclarationowner_new', 'compileddeclarationowner_renderJson', 'compileddeclarationowner_stylesheet'];
     const traces = new Map(roots.map(name => {
         const root = exportFunctions.get(name);

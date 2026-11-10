@@ -3,9 +3,10 @@
 This reference describes a small cart that shows products, quantities, totals
 and service errors. The build compiles its declarative view once; native tests
 reload the binary template and render changing JSON responses without compiling
-the view again. The browser fixture binds quantity changes and removal to a
-local GraphQL endpoint through the shared guarded action binding. Studio
-project registration and service deployment are separate delivery steps.
+the view again. The browser fixture reads the initial cart and binds quantity
+changes and removal to a local GraphQL endpoint through shared guarded
+transport. The [Studio example](../../../../../examples/projects/shopping-cart/README.md)
+builds a read-only preview from the saved response.
 
 - [profile.json](profile.json) declares app requirements, input files and the
   variable sources for each explicit GraphQL action.

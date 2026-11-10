@@ -1,0 +1,82 @@
+{
+  "id": "shopping-cart",
+  "name": "Shopping cart",
+  "version": "1.0.0",
+  "description": "Read a saved GraphQL cart response and build a script-free HTML preview of its products, quantities and total.",
+  "collections": ["content-types-documents-ui", "content-types-data"],
+  "sources": [
+    {
+      "id": "cart-response",
+      "source": "packages/cem_ql/fixtures/component-application/shopping-cart/cart.json",
+      "path": "data/cart.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "cart-schema",
+      "source": "packages/cem_ql/fixtures/component-application/shopping-cart/schema.graphql",
+      "path": "graphql/schema.graphql",
+      "contentType": "text/plain; charset=utf-8",
+      "role": "data"
+    },
+    {
+      "id": "cart-operations",
+      "source": "packages/cem_ql/fixtures/component-application/shopping-cart/operations.graphql",
+      "path": "graphql/operations.graphql",
+      "contentType": "text/plain; charset=utf-8",
+      "role": "data"
+    },
+    {
+      "id": "cart-graph",
+      "source": "examples/projects/shopping-cart/graphs/cart.cem",
+      "path": "graphs/cart.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "cart-snapshot",
+      "source": "examples/projects/shopping-cart/templates/snapshot.cemt",
+      "path": "templates/snapshot.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "cart-expected",
+      "source": "examples/projects/shopping-cart/expected/cart.html",
+      "path": "expected/cart.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/shopping-cart/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "build-cart",
+      "name": "Build and preview cart",
+      "kind": "transformation-graph",
+      "source": "cart-graph",
+      "dependencies": ["cart-response", "cart-snapshot", "cart-expected"],
+      "description": "Read the saved Cart response, render the native CEMT snapshot and preview generated/cart.html.",
+      "entryArtifact": "generated/cart.html",
+      "argv": [
+        "transform", "--config", "$source",
+        "--config-content-type", "application/cem",
+        "--config-schema", "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget", "queueSize=1024"
+      ],
+      "expectedGraphOutputs": { "generated/cart.html": "cart-expected" },
+      "expectedProvenance": ["templates/snapshot.cemt"]
+    }
+  ]
+}

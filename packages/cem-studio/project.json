@@ -467,6 +467,7 @@
                 },
                 "{projectRoot}/scripts/example-projects.mjs",
                 "{workspaceRoot}/examples/projects/**/*",
+                "{workspaceRoot}/packages/cem_ql/fixtures/component-application/shopping-cart/{cart.json,operations.graphql,schema.graphql}",
                 "{workspaceRoot}/packages/cem-components/src/components/cem-card/cem-card.xhtml",
                 "{workspaceRoot}/examples/cem-ml/login.cem",
                 "{workspaceRoot}/examples/semantic/login.html",
@@ -1227,6 +1228,16 @@
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/markdown-site.json"
             ]
+        },
+        "verify:shopping-cart": {
+            "parallelism": false,
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:determinism"],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --shopping-cart-only",
+                "cwd": "{projectRoot}"
+            }
         },
         "verify:html-cem-card": {
             "parallelism": false,

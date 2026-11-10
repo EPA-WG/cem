@@ -79,6 +79,10 @@
     {export @id="project-scss-stylesheet-output" @out="../../dist/static/samples/examples/scss-stylesheet.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-shopping-cart" @src="examples/shopping-cart.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-shopping-cart-output" @out="../../dist/static/samples/examples/shopping-cart.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-supplier-pipeline" @src="examples/supplier-pipeline.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-supplier-pipeline-output" @out="../../dist/static/samples/examples/supplier-pipeline.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }

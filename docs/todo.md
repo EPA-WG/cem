@@ -531,6 +531,13 @@ Deferred execution gates, in order within this workstream:
   - [x] Wire cart quantity and removal to explicit declarative actions. Verify
         the generated variable and response guards, journal fencing and zero
         replay when rebinding a fresh selected heap in the browser fixture.
+  - [x] Register the Shopping cart Studio sample and verify its initial saved
+        response, native build, exact HTML preview and independent clone.
+        Verify the selected application reads the pinned Cart query before
+        binding actions and refuses mutations on the read path.
+  - [ ] Connect the interactive selected application to an authorized Studio
+        preview host and verify complete worker and fallback recovery and
+        offline behavior.
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm

@@ -9,8 +9,9 @@ use crate::{
     selected_registry::SelectedFunctionRegistry,
 };
 use cem_ml::{
-    content_cache::ContentHash, operation_control::ROOT_EXECUTION_SCOPE_ID,
-    validation::json::graphql::GraphqlContracts,
+    content_cache::ContentHash,
+    operation_control::ROOT_EXECUTION_SCOPE_ID,
+    validation::json::graphql::{GraphqlContracts, OperationKind},
 };
 use std::sync::Arc;
 
@@ -79,8 +80,19 @@ impl<'a> SelectedApplication<'a> {
         operation: &str,
         bytes: &[u8],
         uri: &str,
+        query_only: bool,
     ) -> Result<(), String> {
         check_input(operation, bytes, uri)?;
+        if query_only {
+            let kind = self
+                .graphql
+                .operations()
+                .get(operation)
+                .map(|entry| entry.kind);
+            if !matches!(kind, Some(OperationKind::Query)) {
+                return Err("cem.graphql.operation.kind".into());
+            }
+        }
         self.graphql
             .validate_variables(operation, bytes, uri, &render_control()?)
     }
@@ -183,7 +195,18 @@ mod linked {
         uri: &str,
     ) -> Result<(), String> {
         with_application(operation, bytes, uri, |app| {
-            app.validate_variables(operation, bytes, uri)
+            app.validate_variables(operation, bytes, uri, false)
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = validateSelectedApplicationQueryVariables))]
+    pub fn validate_selected_application_query_variables(
+        operation: &str,
+        bytes: &[u8],
+        uri: &str,
+    ) -> Result<(), String> {
+        with_application(operation, bytes, uri, |app| {
+            app.validate_variables(operation, bytes, uri, true)
         })
     }
 
@@ -202,5 +225,5 @@ mod linked {
 #[cfg(cem_selected_application)]
 pub use linked::{
     render_selected_application_response, selected_application_document,
-    validate_selected_application_variables,
+    validate_selected_application_query_variables, validate_selected_application_variables,
 };

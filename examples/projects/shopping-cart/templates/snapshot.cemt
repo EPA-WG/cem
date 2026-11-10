@@ -1,0 +1,61 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=data
+        @select='seq:first(seq:where(input.children.children, fn(field) => dom:text(dom:attribute(field, "name")) == "data").children)'}
+    {cem:variable @name=cart
+        @select='seq:first(seq:where(data.children, fn(field) => dom:text(dom:attribute(field, "name")) == "cart").children)'}
+    {cem:variable @name=errors
+        @select='seq:first(seq:where(input.children.children, fn(field) => dom:text(dom:attribute(field, "name")) == "errors").children).children'}
+    {element @name=main @namespace=http://www.w3.org/1999/xhtml |
+        {element @name=h1 @namespace=http://www.w3.org/1999/xhtml | Shopping cart}
+        {cem:for-each @as=error @select=errors |
+            {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+                {$ | dom:text(seq:where(error.children, fn(field) => dom:text(dom:attribute(field, "name")) == "message"))}
+            }
+        }
+        {cem:choose |
+            {cem:when @test='seq:count(cart) == 0 || cart.name == "null"' |
+                {element @name=p @namespace=http://www.w3.org/1999/xhtml | Cart unavailable}
+            }
+            {cem:otherwise |
+                {cem:variable @name=lines
+                    @select='seq:first(seq:where(cart.children, fn(field) => dom:text(dom:attribute(field, "name")) == "lines").children).children'}
+                {cem:choose |
+                    {cem:when @test='seq:count(lines) == 0' |
+                        {element @name=p @namespace=http://www.w3.org/1999/xhtml | Your cart is empty}
+                    }
+                    {cem:otherwise |
+                        {element @name=ul @namespace=http://www.w3.org/1999/xhtml |
+                            {attribute @name=aria-label @value="Cart items"}
+                            {cem:for-each @as=line @select=lines |
+                                {element @name=li @namespace=http://www.w3.org/1999/xhtml |
+                                    {$ | str:concat((
+                                        dom:text(seq:where(line.children, fn(field) => dom:text(dom:attribute(field, "name")) == "name")),
+                                        " × ",
+                                        dom:text(seq:where(line.children, fn(field) => dom:text(dom:attribute(field, "name")) == "quantity"))
+                                    ), "")}
+                                }
+                            }
+                        }
+                    }
+                }
+                {cem:variable @name=shipping
+                    @select='seq:first(seq:where(cart.children, fn(field) => dom:text(dom:attribute(field, "name")) == "shippingEstimate").children)'}
+                {cem:if @test='shipping.name == "string"' |
+                    {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+                        {$ | dom:text(shipping)}
+                    }
+                }
+                {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+                    {$ | str:concat(("Total ",
+                        dom:text(seq:where(cart.children, fn(field) => dom:text(dom:attribute(field, "name")) == "displayTotal"))
+                    ), "")}
+                }
+            }
+        }
+    }
+}

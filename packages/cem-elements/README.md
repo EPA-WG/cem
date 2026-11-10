@@ -1755,6 +1755,11 @@ reacquisition use the separate GET/HEAD resource request type.
 
 ### Guarded GraphQL actions
 
+Use `readCemGraphqlQuery` for an initial read with the selected runtime's
+query-specific guard. It checks the operation kind and variables, then sends
+the pinned document over same-origin GET with a bounded URL, response and
+deadline. It returns the original response bytes and the native guarded render.
+
 Use `bindCemGraphqlActions` on an application-owned DOM root with the selected
 WASM guard, the deployed action map, and the current checkpoint publication
 owner. An action map names the operation, the trusted browser event and each

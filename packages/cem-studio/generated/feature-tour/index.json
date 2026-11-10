@@ -20,6 +20,7 @@
     "./examples/relax-ng.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
     "./examples/scss-stylesheet.cem-studio.json",
+    "./examples/shopping-cart.cem-studio.json",
     "./examples/starter.cem-studio.json",
     "./examples/supplier-pipeline.cem-studio.json",
     "./examples/svg-diagram.cem-studio.json",
@@ -372,6 +373,18 @@
       ],
       "archive": "./examples/scss-stylesheet.cem-studio.json",
       "sha256": "82312fce526a9449cacc447d6d8b4a9a1f433af055bd36b6038346e70c640029"
+    },
+    {
+      "id": "shopping-cart",
+      "name": "Shopping cart",
+      "description": "Read a saved GraphQL cart response and build a script-free HTML preview of its products, quantities and total.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-documents-ui",
+        "content-types-data"
+      ],
+      "archive": "./examples/shopping-cart.cem-studio.json",
+      "sha256": "a6aaed317b36171a0e23d6f89d5a897ca97faa983047051d2838c38cd424a53b"
     },
     {
       "id": "supplier-pipeline",

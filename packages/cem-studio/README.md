@@ -565,6 +565,12 @@ Projects own resources and configurations. Authored example definitions live in
 Every copy has independent persistence and retains native resource identities.
 Archive updates leave saved and trashed projects intact.
 
+**Shopping cart** is available under **Documents and UI** and **Data**.
+**Build and preview cart** reads the saved GraphQL Cart response, generates
+`generated/cart.html` and displays it in the shared sandboxed artifact preview.
+Clone the project to edit the response and build a separate snapshot.
+See the [Shopping cart guide](../../examples/projects/shopping-cart/README.md).
+
 Login includes parse, validation, inspection, HTML conversion, form-method
 validation and paired HTML/CEM semantic query configurations. The queries share
 `queries/semantics.xpath` and the 21 named values in `expected/semantics.json`.

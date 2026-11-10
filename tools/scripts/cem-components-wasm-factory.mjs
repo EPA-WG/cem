@@ -26,7 +26,7 @@ export function componentWasmFactory(source, selectedApplication = false) {
     }
     visit(ast);
     const expectedFunctions = selectedApplication
-        ? ['compiledDeclarationInventory', 'renderSelectedApplicationResponse', 'selectedApplicationDocument', 'validateSelectedApplicationVariables']
+        ? ['compiledDeclarationInventory', 'renderSelectedApplicationResponse', 'selectedApplicationDocument', 'validateSelectedApplicationQueryVariables', 'validateSelectedApplicationVariables']
         : ['compiledDeclarationInventory', 'renderCompiledApplication'];
     if (!initializer || finalizers !== 1 || JSON.stringify(classes) !== '["CompiledDeclarationOwner"]'
         || JSON.stringify(functions.sort()) !== JSON.stringify(expectedFunctions)
@@ -37,6 +37,7 @@ export function componentWasmFactory(source, selectedApplication = false) {
     const applicationMethods = selectedApplication ? `
         applicationDocument() { active(); return selectedApplicationDocument(); },
         validateVariables(operation, bytes, uri) { active(); validateSelectedApplicationVariables(operation, bytes, uri); },
+        validateQueryVariables(operation, bytes, uri) { active(); validateSelectedApplicationQueryVariables(operation, bytes, uri); },
         renderResponse(operation, bytes, uri) { active(); return renderSelectedApplicationResponse(operation, bytes, uri); },` : '';
     return `/* @ts-self-types="./cem_ql_factory.d.ts" */
 // Generated binding isolation only. Shared lifecycle policy: cem-elements.
@@ -69,6 +70,7 @@ export function componentWasmFactoryTypes(selectedApplication = false) {
     const applicationMethods = selectedApplication ? `
     applicationDocument(): string;
     validateVariables(operation: string, bytes: Uint8Array, uri: string): void;
+    validateQueryVariables(operation: string, bytes: Uint8Array, uri: string): void;
     renderResponse(operation: string, bytes: Uint8Array, uri: string): string;` : '';
     return `import type { CompiledDeclarationOwner } from './cem_ql.js';
 export declare function createCemComponentWasmBindings(): {

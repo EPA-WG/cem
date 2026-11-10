@@ -110,9 +110,10 @@ fn selected_application_guards_original_json_before_rendering() {
         TemplateArtifactSourceMapMode::Prod,
     )
     .unwrap();
-    let document = "query Read($id: ID!) { item(id: $id) { label } }";
+    let document = "query Read($id: ID!) { item(id: $id) { label } }
+        mutation Write($id: ID!) { item: change(id: $id) { label } }";
     let (guard, guard_hash) = compile_graphql_contracts(
-        "type Query { item(id: ID!): Item! } type Item { label: String! }",
+        "type Query { item(id: ID!): Item! } type Mutation { change(id: ID!): Item! } type Item { label: String! }",
         document,
     )
     .unwrap()
@@ -146,10 +147,14 @@ fn selected_application_guards_original_json_before_rendering() {
     };
     let app = open(assets).unwrap();
     assert_eq!(app.operations(), document);
-    app.validate_variables("Read", br#"{"id":"tea"}"#, "app://selected/request")
+    app.validate_variables("Read", br#"{"id":"tea"}"#, "app://selected/request", true)
         .unwrap();
+    assert_eq!(
+        app.validate_variables("Write", br#"{"id":"tea"}"#, "app://selected/request", true),
+        Err("cem.graphql.operation.kind".into())
+    );
     assert!(app
-        .validate_variables("Read", b"{}", "app://selected/request")
+        .validate_variables("Read", b"{}", "app://selected/request", false)
         .is_err());
     let uri = "app://selected/response";
     let good = br#"{"data":{"item":{"label":"Tea <img>"}}}"#;

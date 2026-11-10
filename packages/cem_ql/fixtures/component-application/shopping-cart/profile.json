@@ -18,6 +18,7 @@
     "operationNames": ["Cart", "SetCartLineQuantity", "RemoveCartLine"],
     "requestContentType": "application/json",
     "responseContentTypes": ["application/graphql-response+json", "application/json"],
+    "initialRead": { "operation": "Cart", "variables": { "id": "cart-1" } },
     "actions": {
       "SetCartLineQuantity": {
         "event": "change",

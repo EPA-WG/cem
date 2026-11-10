@@ -35,7 +35,7 @@ assert.deepEqual(names, [
     'compileddeclarationowner_renderInputs', 'compileddeclarationowner_renderInstanceInputs',
     'compileddeclarationowner_renderIsland', 'compileddeclarationowner_projectIsland',
     'compileddeclarationowner_stylesheet', 'renderSelectedApplicationResponse',
-    'selectedApplicationDocument', 'validateSelectedApplicationVariables',
+    'selectedApplicationDocument', 'validateSelectedApplicationQueryVariables', 'validateSelectedApplicationVariables',
 ].sort());
 
 const { createCemComponentWasmBindings } = await import(pathToFileURL(resolve(wasm, 'cem_ql_factory.js')).href);
@@ -69,6 +69,8 @@ for (let index = 0; index < 2; index++) {
     variables('Cart', '{"id":"cart-1"}');
     variables('SetCartLineQuantity', '{"cartId":"cart-1","lineId":"tea","quantity":3}');
     variables('RemoveCartLine', '{"cartId":"cart-1","lineId":"tea"}');
+    app.validateQueryVariables('Cart', Buffer.from('{"id":"cart-1"}'), uri);
+    assert.throws(() => app.validateQueryVariables('RemoveCartLine', Buffer.from('{"cartId":"cart-1","lineId":"tea"}'), uri), /cem\.graphql\.operation\.kind/);
     assert.throws(() => variables('SetCartLineQuantity', '{"cartId":"cart-1","lineId":"tea","quantity":"3"}'), /cem\.graphql/);
     assert.throws(() => variables('Cart', '{"id":"a","id":"b"}'), /cem\.graphql/);
     assert.throws(() => variables('Foreign', '{}'), /cem\.graphql/);

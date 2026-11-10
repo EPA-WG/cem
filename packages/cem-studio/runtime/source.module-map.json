@@ -925,6 +925,30 @@
         "@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/graphql-actions.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/graphql-actions.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/application-browser-frame.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/application-browser-frame.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/application-stylesheets.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/application-stylesheets.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/application-text-provider.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/application-text-provider.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/host-attribute-publication.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/host-attribute-publication.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/ssr-resource-proof.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/ssr-resource-proof.js",
+            "contentType": "text/javascript"
         }
     }
 }
