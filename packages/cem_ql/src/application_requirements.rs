@@ -3,6 +3,8 @@
 mod query;
 mod registry;
 pub use registry::SelectedRegistryPlan;
+#[cfg(all(feature = "application-contract-build", not(target_arch = "wasm32")))]
+pub(crate) use registry::{reviewed_function, reviewed_pipeline, selected_execution_units};
 #[cfg(test)]
 mod tests;
 
@@ -177,8 +179,20 @@ pub struct RequirementGap {
     /// Stable structural coordinate, never expression text or runtime values.
     pub site: String,
 }
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TemplateRequirements {
+    pub functions: BTreeSet<FunctionRequirement>,
+    pub pipeline_operations: BTreeSet<PipelineOperation>,
+    pub data_imports: BTreeSet<DataImportRequirement>,
+    pub stylesheets: Vec<StylesheetRequirement>,
+    pub unresolved: BTreeSet<RequirementGap>,
+    pub template_node_count: usize,
+    pub expression_count: usize,
+    pub ir_node_count: usize,
+}
 struct Inventory {
-    output: DeclarationRequirements,
+    output: TemplateRequirements,
     registry: ModuleRegistry,
     items: usize,
 }
@@ -338,26 +352,50 @@ pub(crate) fn declaration_requirements(
     metadata: &DeclarationArtifactMetadata,
     metadata_hash: &str,
 ) -> Result<DeclarationRequirements, String> {
+    let TemplateRequirements {
+        functions,
+        pipeline_operations,
+        data_imports,
+        stylesheets,
+        unresolved,
+        template_node_count,
+        expression_count,
+        ir_node_count,
+    } = template_requirements(
+        artifact,
+        &metadata.resource_base_url,
+        &metadata.declaration_source_hash,
+        metadata.capability.is_some(),
+    )?;
+    Ok(DeclarationRequirements {
+        metadata_hash: metadata_hash.into(),
+        source_uri: metadata.source_uri.clone(),
+        declaration_source_hash: metadata.declaration_source_hash.clone(),
+        template_hash: metadata.template.content_hash.clone(),
+        template_format: metadata.template_format.clone(),
+        capability: metadata.capability.clone(),
+        host_bindings: metadata.template.host_bindings.iter().cloned().collect(),
+        functions,
+        pipeline_operations,
+        data_imports,
+        stylesheets,
+        unresolved,
+        template_node_count,
+        expression_count,
+        ir_node_count,
+    })
+}
+
+pub(crate) fn template_requirements(
+    artifact: &TemplateArtifact,
+    resource_base_url: &str,
+    source_identity: &str,
+    shared_behavior: bool,
+) -> Result<TemplateRequirements, String> {
     let mut inventory = Inventory {
         registry: ModuleRegistry::with_all_known(),
         items: 0,
-        output: DeclarationRequirements {
-            metadata_hash: metadata_hash.into(),
-            source_uri: metadata.source_uri.clone(),
-            declaration_source_hash: metadata.declaration_source_hash.clone(),
-            template_hash: metadata.template.content_hash.clone(),
-            template_format: metadata.template_format.clone(),
-            capability: metadata.capability.clone(),
-            host_bindings: metadata.template.host_bindings.iter().cloned().collect(),
-            functions: BTreeSet::new(),
-            pipeline_operations: BTreeSet::new(),
-            data_imports: BTreeSet::new(),
-            stylesheets: vec![],
-            unresolved: BTreeSet::new(),
-            template_node_count: 0,
-            expression_count: 0,
-            ir_node_count: 0,
-        },
+        output: TemplateRequirements::default(),
     };
     if artifact
         .diagnostics
@@ -366,18 +404,18 @@ pub(crate) fn declaration_requirements(
     {
         inventory.gap("template-diagnostics", "template");
     }
-    if metadata.capability.is_some() {
+    if shared_behavior {
         inventory.gap("shared-behavior-closure", "declaration");
     }
     inventory.nodes(&artifact.nodes, 0)?;
     let handle = CemResolutionContextHandle::new("requirements");
-    let mut frame = CemModuleUrlFrame::new("declaration", &metadata.resource_base_url);
+    let mut frame = CemModuleUrlFrame::new("declaration", resource_base_url);
     if let Some(map) = &artifact.module_map {
         frame.specifiers = map.specifiers.clone();
         frame.scopes = map.scopes.clone();
     }
     let context = CemModuleUrlContext {
-        identity: metadata.declaration_source_hash.clone(),
+        identity: source_identity.into(),
         resolver_identity: "build-requirements/1".into(),
         resource_policy_stamp: "inventory-only/1".into(),
         frames: vec![frame],
@@ -390,11 +428,11 @@ pub(crate) fn declaration_requirements(
         inventory.charge(1)?;
         let site = format!("style:{occurrence}");
         if let Some(imports) = &style.compiled_imports {
-            imports.check_base(&metadata.resource_base_url)?;
+            imports.check_base(resource_base_url)?;
         }
         let mut closure = match CssImportClosure::new(
             style.css_tree().clone(),
-            &metadata.resource_base_url,
+            resource_base_url,
             capability.clone(),
             Default::default(),
             AbortSignal::new(),

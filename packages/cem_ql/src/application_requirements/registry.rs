@@ -22,58 +22,15 @@ impl ApplicationRequirements {
     pub(crate) fn plan_native_registry(&self) -> Result<SelectedRegistryPlan, String> {
         let (_, requirements_hash) = self.pinned_json()?;
         let mut entries = BTreeSet::new();
-        let mut execution_units = BTreeSet::from([NativeExecutionUnit::SelectedDispatch]);
         for declaration in self.declarations.values() {
             for function in &declaration.functions {
-                if !matches!(function.dispatch.as_str(), "call" | "pipeline") {
-                    return Err("unknown registry dispatch contract".into());
-                }
-                let selected =
-                    SelectedBuiltin::from_key(&function.module, &function.name, function.arity)?;
-                if function.implementation != selected.implementation() {
-                    return Err("selected registry catalogue kind mismatch".into());
-                }
-                if function.dispatch == "pipeline"
-                    && !matches!(
-                        selected,
-                        SelectedBuiltin::SequenceFirst
-                            | SelectedBuiltin::SequenceLast
-                            | SelectedBuiltin::SequenceTake
-                            | SelectedBuiltin::SequenceDrop
-                            | SelectedBuiltin::SequenceWhere
-                    )
-                {
-                    return Err("pipeline needs a reviewed selected adapter".into());
-                }
-                entries.insert(selected);
+                entries.insert(reviewed_function(function)?);
             }
             for operation in &declaration.pipeline_operations {
-                match operation.kind.as_str() {
-                    "field" if operation.explicit_arity == 0 => (),
-                    "builtin" => {
-                        entries.insert(SelectedBuiltin::from_key(
-                            "cem:stdlib/sequence",
-                            &operation.name,
-                            operation.explicit_arity + 1,
-                        )?);
-                    }
-                    _ => {
-                        return Err(
-                            "receiver/unknown pipeline operation needs an execution contract"
-                                .into(),
-                        )
-                    }
-                }
+                entries.extend(reviewed_pipeline(operation)?);
             }
         }
-        for entry in &entries {
-            execution_units.extend(entry.execution_units());
-        }
-        // An empty query registry still needs the evaluator/core value contracts.
-        if entries.is_empty() {
-            execution_units.extend(SelectedBuiltin::SequenceCount.execution_units());
-            execution_units.remove(&NativeExecutionUnit::SequenceValues);
-        }
+        let execution_units = selected_execution_units(&entries);
         Ok(SelectedRegistryPlan {
             contract: "cem-selected-registry/1",
             requirements_hash,
@@ -87,6 +44,61 @@ impl ApplicationRequirements {
         })
     }
 }
+pub(crate) fn selected_execution_units(
+    entries: &BTreeSet<SelectedBuiltin>,
+) -> BTreeSet<NativeExecutionUnit> {
+    let mut units = BTreeSet::from([NativeExecutionUnit::SelectedDispatch]);
+    if entries.is_empty() {
+        // An empty registry still needs the evaluator/core value contracts.
+        units.extend(SelectedBuiltin::SequenceCount.execution_units());
+        units.remove(&NativeExecutionUnit::SequenceValues);
+    } else {
+        units.extend(entries.iter().flat_map(|entry| entry.execution_units()));
+    }
+    units
+}
+
+pub(crate) fn reviewed_function(function: &FunctionRequirement) -> Result<SelectedBuiltin, String> {
+    if !matches!(function.dispatch.as_str(), "call" | "pipeline") {
+        return Err("unknown registry dispatch contract".into());
+    }
+    let selected = SelectedBuiltin::from_key(&function.module, &function.name, function.arity)?;
+    if function.implementation != selected.implementation() {
+        return Err("selected registry catalogue kind mismatch".into());
+    }
+    if function.dispatch == "pipeline"
+        && !matches!(
+            selected,
+            SelectedBuiltin::SequenceFirst
+                | SelectedBuiltin::SequenceLast
+                | SelectedBuiltin::SequenceTake
+                | SelectedBuiltin::SequenceDrop
+                | SelectedBuiltin::SequenceWhere
+        )
+    {
+        return Err("pipeline needs a reviewed selected adapter".into());
+    }
+    Ok(selected)
+}
+
+pub(crate) fn reviewed_pipeline(
+    operation: &PipelineOperation,
+) -> Result<Option<SelectedBuiltin>, String> {
+    match operation.kind.as_str() {
+        "field" if operation.explicit_arity == 0 => Ok(None),
+        "builtin" => SelectedBuiltin::from_key(
+            "cem:stdlib/sequence",
+            &operation.name,
+            operation
+                .explicit_arity
+                .checked_add(1)
+                .ok_or("pipeline arity limit")?,
+        )
+        .map(Some),
+        _ => Err("receiver/unknown pipeline operation needs an execution contract".into()),
+    }
+}
+
 impl SelectedRegistryPlan {
     pub fn execution_units(&self) -> &BTreeSet<NativeExecutionUnit> {
         &self.execution_units

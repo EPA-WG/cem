@@ -17,9 +17,9 @@ Studio project is installed by this fixture.
   stock, pricing and totals; amounts use integer minor units.
 - [operations.graphql](operations.graphql): fixed Cart, quantity-change and
   remove operations. Mutation result aliases preserve the same `data.cart` shape.
-  Native GraphQL schema/operation validation and generated variable/response
-  checks remain implementation work; these files are not yet validated against
-  a GraphQL engine by the fixture runner.
+  The application build validates the SDL and operations and generates a native
+  JSON guard. The contract tests exercise variables and all six response fixtures.
+  See the [application build command](../../../../../docs/cem-components-shopping-cart-profile.md#generated-application-and-graphql-contracts).
 - [cart.json](cart.json), [updated.json](updated.json),
   [removed.json](removed.json), [empty.json](empty.json): initial, changed,
   removed-line and empty-cart API responses. The changed response includes text

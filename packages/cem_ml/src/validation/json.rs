@@ -12,6 +12,8 @@ use crate::validation::generic_data::{
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub mod graphql;
+
 const JSON_PACKAGE_ID: &str = "json";
 
 #[derive(Debug, Clone, Copy)]

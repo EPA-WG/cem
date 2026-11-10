@@ -14,7 +14,7 @@ fn build(body: &str) -> BuiltDeclarationArtifact {
 }
 fn inventory() -> Inventory {
     Inventory {
-        output: compiled_declaration_requirements(&build("{p | Plain}")).unwrap(),
+        output: TemplateRequirements::default(),
         registry: ModuleRegistry::with_all_known(),
         items: 0,
     }
@@ -22,9 +22,8 @@ fn inventory() -> Inventory {
 fn query(source: &str) -> CompiledQuery {
     compile(source, &CompileContext::default()).unwrap()
 }
-fn has(output: &DeclarationRequirements, module: &str, name: &str, arity: usize) -> bool {
-    output
-        .functions
+fn has(functions: &BTreeSet<FunctionRequirement>, module: &str, name: &str, arity: usize) -> bool {
+    functions
         .iter()
         .any(|f| f.module == format!("cem:stdlib/{module}") && f.name == name && f.arity == arity)
 }
@@ -39,9 +38,9 @@ fn collects_aliases_unused_function_bodies_branches_and_pipeline_arities_from_ir
     // Neither original source string is read or reparsed by the inventory.
     compiled.source = "not a query; native:call('not-real')".into();
     collector.query(&compiled, "query").unwrap();
-    assert!(has(&collector.output, "strings", "length", 1));
-    assert!(has(&collector.output, "sequence", "first", 1));
-    assert!(has(&collector.output, "sequence", "take", 2));
+    assert!(has(&collector.output.functions, "strings", "length", 1));
+    assert!(has(&collector.output.functions, "sequence", "first", 1));
+    assert!(has(&collector.output.functions, "sequence", "take", 2));
     assert!(collector
         .output
         .functions
@@ -81,7 +80,10 @@ fn visits_template_attributes_variables_conditionals_loops_and_lambdas_without_e
         ("sequence", "map", 2),
         ("numbers", "abs", 1),
     ] {
-        assert!(has(&report, module, name, arity), "{module}/{name}");
+        assert!(
+            has(&report.functions, module, name, arity),
+            "{module}/{name}"
+        );
     }
     assert_eq!(report.metadata_hash, built.metadata_hash);
     assert!(report.expression_count >= 7);
@@ -310,7 +312,7 @@ fn cart_and_canonical_components_produce_deterministic_conservative_requirements
         artifact.diagnostics
     );
     collector.nodes(&artifact.nodes, 0).unwrap();
-    assert!(has(&collector.output, "sequence", "where", 2));
+    assert!(has(&collector.output.functions, "sequence", "where", 2));
     assert!(
         collector.output.unresolved.is_empty(),
         "{:?}",

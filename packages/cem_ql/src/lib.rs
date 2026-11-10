@@ -39,6 +39,8 @@ pub mod declaration_artifact;
 pub mod declaration_closure;
 #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod application_requirements;
+#[cfg(all(feature = "application-contract-build", not(target_arch = "wasm32")))]
+pub mod application_build;
 #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod application_envelope;
 #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]

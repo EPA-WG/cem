@@ -495,12 +495,15 @@ Deferred execution gates, in order within this workstream:
           verify credential refusal, physical retirement, retention of the edited
           input and selection, and a fresh editor lease.
 
-- [ ] Generate app-build dependencies and GraphQL schema/operation contracts,
+- [x] Generate app-build dependencies and GraphQL schema/operation contracts,
   including variable/response validation and compact runtime input checks. Map
   compiled function/module requirements to transitive native implementations and
   the selected registry; keep dynamic dispatch/provider/source gaps explicit.
   Deployment manifests describe requirements, not grants. Retain native JSON
   decoding and validation for API/user input arriving after deployment.
+  - [x] Verify deterministic build contracts with the original cart schema,
+        operations and response fixtures. Exercise variable coercion, aliases,
+        partial errors, malformed responses and unresolved native demands.
 
 - [ ] Bind generated registry/artifact/input contracts to the selected application
   build and specialize remaining execution/type/source roots. Audit linked symbols

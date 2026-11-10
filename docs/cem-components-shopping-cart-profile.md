@@ -440,11 +440,9 @@ dist/target/debug/examples/compile_declaration_closure \
   --compiled-css --require-static-requirements cem-static-app
 ```
 
-The report explicitly has `nativeLinkClosureVerified: false`. Even a static
-inventory does not prove transitive native implementation reachability, native
-code omission, a selected registry or a smaller WASM. The next step maps these
-requirements to implementation dependencies and explicit provider/source
-contracts before assembling a reduced target.
+The report carries `nativeLinkClosureVerified: false`. The application manifest
+below adds the reviewed registry and transitive implementation mapping. Native
+symbol reachability and reduced WASM size still require measurement.
 
 Bounds remain 64 declarations, with at most 100,000 inspected template/IR items
 and storage edges per declaration, 64 template nesting levels and a 1 MiB report
@@ -981,6 +979,50 @@ cleanup is not a recovery permit or checkpoint endpoint. Studio continues using
 the full runtime. Entered-credential refusal and the existing checkpoint/handoff
 budgets remain unchanged; these passive owners do not capture widget state.
 
+## Generated application and GraphQL contracts
+
+Build the shopping cart's dependency manifest from its original entry, canonical
+component declarations and fixed GraphQL files.
+
+```bash
+fixture=packages/cem_ql/fixtures/component-application/shopping-cart
+cargo run --locked -p cem-ql --features application-contract-build \
+  --example compile_declaration_closure -- \
+  packages/cem-components/src/components https://app.example/components/ \
+  dist/cart-contracts prod --compiled-css \
+  --entry="$fixture/cart-view.cem" --entry-uri=https://app.example/cart-view.cem \
+  --entry-binding=response --graphql-schema="$fixture/schema.graphql" \
+  --graphql-operations="$fixture/operations.graphql" \
+  cem-action cem-alert cem-card cem-text cem-text-field
+```
+
+`application-build.json` records entry and declaration content pins, the
+component graph, reviewed dispatch entries and their transitive native execution
+units and source paths. Unmapped calls, dynamic dispatch, and demands for shared
+behaviors, providers and sources stay visible. The sidecar has its own content
+pin and carries `nativeLinkClosureVerified: false`. Runtime owners and
+permissions are established separately. `--require-static-requirements` refuses
+builds with open inventory. The cart keeps its open behavior demands in the
+report. `--selected-registry` continues to emit the separate declaration-only
+recipe.
+
+The native build validates SDL and operations with Apollo Compiler and emits
+`graphql-contracts.bin` with its content pin plus the exact
+`graphql-operations.graphql`. The `CEMGQL1` guard covers fixed named queries and
+mutations with concrete selections, aliases, fragments, built-in scalars, enums,
+lists and acyclic input objects. Directives on executable selections, abstract
+selections, custom scalars, introspection, subscriptions and OneOf inputs require
+additional contracts. Runtime code admits the guard against the expected build
+pin and uses CEM's bounded native JSON parser to check variable coercion, response
+shape, error paths and duplicate names. Variable objects are closed to the names
+declared by the operation. The SDL compiler stays in the native
+build tool. Linking the guard into the selected runtime and connecting GraphQL
+transport are the next delivery steps.
+
+```bash
+yarn nx run cem_ql:test:application-build-contracts
+```
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module
@@ -989,9 +1031,8 @@ budgets remain unchanged; these passive owners do not capture widget state.
 - Extend compiled inline CSS admission to imported stylesheet closures before
   removing the CSS source parser. Keep authorized source imports, source-driven
   templates and dynamic styles available through the full/on-demand runtime.
-- Generate/validate the app manifest and API contracts during the app build.
-  The illustrative GraphQL files currently have no schema/operation validator in
-  the fixture runner, and a manifest alone proves no native code omission.
+- Bind the generated app manifest, compiled entry and GraphQL guard into the
+  selected application runtime. Audit linked code and optional-module handoff.
 - Bind real quantity/remove actions through shared declarative resources and
   GraphQL transport. The native render fixture sends no requests and has no
   interactive action bindings. Register a normal Studio example project with
