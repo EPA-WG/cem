@@ -15,6 +15,32 @@ in [`cem-ml`](../cem_ml/README.md); the CEM-QL template adapter is supplied by
 browser hosts. It does not replace this native crate or change the command
 contract.
 
+## YAML to CEM-ML in the terminal
+
+From the workspace root, print admitted YAML as tabular CEM-ML with terminal
+colors:
+
+```bash
+./dist/target/cem_ml_cli/debug/cem-ml convert \
+  examples/projects/json-yaml-report/data/settings.yaml \
+  --content-type application/yaml \
+  --to-format cem \
+  --tabular
+```
+
+Omitting `--out` writes only to stdout and leaves the input unchanged. YAML's
+retained generic-data tree exports as namespace-qualified `data:object`,
+`data:array`, `data:property` and typed scalar elements. This is direct data
+export through the shared CEM writer. Literal strings stay inert; the original
+source URI and ranges remain in native writer provenance.
+
+`--tabular` selects the tabular formatter and terminal color defaults. The
+explicit equivalent uses `--cemt-formatter-profile tabular
+--cemt-color-profile terminal --output-color-type terminal`. Use `--no-color`
+or `--output-color-type none` for plain stdout. An explicit `--out result.cem`
+writes plain CEM-ML without ANSI codes. Invalid YAML, unsupported tags, anchors
+or aliases refuse publication and preserve any existing output file.
+
 ## Verification
 
 Native inline-page SSR uses `transform` with the packaged `ssr-page.cemt`,

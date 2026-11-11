@@ -1416,3 +1416,59 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     assert.equal((await execute(source, mime, schema, operation)).result.status, 'succeeded');
   });
 }
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`YAML CEM export retains typed data and terminal output in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    let sequence = 0;
+    const execute = async (source, color, valid = true) => {
+      const uri = 'studio://yaml-cem/source.yml', destination = 'studio://yaml-cem/result.cem';
+      const bytes = new TextEncoder().encode(source);
+      const request = {
+        protocolVersion: 1, requestId: `yaml-cem:${runtimeKind}:${++sequence}`,
+        project: { projectId: 'yaml-cem', revision: 1 },
+        resourceVersions: { [uri]: { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') } },
+        operation: { kind: 'convert', inputId: 'input:0', toFormat: 'cem', preserveSourceOffsets: true },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({
+            inputs: [{ uri, rootScope: { defaultContentType: 'application/yaml', schema: 'https://cem.dev/ns/data/yaml/1' } }],
+            outputs: [{ destination, rootScope: { defaultContentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1',
+              cemtFormatterProfile: 'tabular', cemtColorProfile: color, outputColorType: color } }],
+          })),
+        ] }))),
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType: 'application/yaml', schema: 'https://cem.dev/ns/data/yaml/1' } } },
+        policyStamp: { resolver: 'yaml-cem-resolver', safety: 'yaml-cem-safety', budget: 'yaml-cem-budget' },
+      };
+      let published;
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:yaml-cem', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('inline source must not fetch'),
+          async (_, output) => { assert.equal(published, undefined); published = Uint8Array.from(output); return JSON.stringify({ token: 'yaml-cem-output' }); },
+          async () => JSON.stringify({ uri: destination }), async () => assert.fail('publication must not roll back'),
+        ));
+        assert.equal(result.status, valid ? 'succeeded' : 'failed', JSON.stringify(result));
+        if (!valid) { assert.equal(published, undefined); assert.equal(result.artifacts.originalCount, 0); return; }
+        assert.deepEqual(result.diagnostics.items, []);
+        assert.equal(result.artifacts.originalCount, 1);
+        assert.equal(result.artifacts.items[0].contentType, 'application/cem');
+        assert.equal(result.artifacts.items[0].sha256, createHash('sha256').update(published).digest('hex'));
+        return new TextDecoder().decode(published);
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    };
+    const source = "service:\n  name: 'Café {$never()} {#never}'\n  enabled: true\n  retries: 3\n  empty: null\n";
+    const plain = await execute(source, 'none');
+    assert.ok(plain.startsWith('@doc cem-ml 1\n'));
+    for (const tag of ['object', 'property', 'string', 'boolean', 'number', 'null']) assert.ok(plain.includes(`data:${tag}`), tag);
+    assert.ok(plain.includes('{$never()}') && plain.includes('{#never}'));
+    const terminal = await execute(source, 'terminal');
+    assert.ok(terminal.includes('\u001b['));
+    const ansi = new RegExp(String.fromCodePoint(27) + String.raw`\[[0-?]*[ -/]*[@-~]`, 'g');
+    assert.equal(terminal.replace(ansi, ''), plain);
+    await execute('items: [\n', 'terminal', false);
+    await execute('value: !unsafe literal\n', 'terminal', false);
+  });
+}

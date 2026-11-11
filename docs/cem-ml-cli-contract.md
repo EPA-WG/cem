@@ -211,6 +211,14 @@ take precedence over the existing direct-export inference. The supplier example
 uses a CEM result to retain its constructed domain tree while branching to another
 template and multiple publication formats.
 
+Direct YAML and CSV source exports to CEM-ML use the shared retained-data import
+and CEM writer, preserving the generic-data namespace, literal values and original
+source frames. `convert source.yml --to-format cem --tabular` prints colored,
+tabular CEM-ML to stdout without an output file; explicit CEM-ML target identities
+select the same route. Input policy errors refuse all output. The
+[native CLI example](../packages/cem_ml_cli/README.md#yaml-to-cem-ml-in-the-terminal)
+documents color overrides and plain file export.
+
 Constructed `cem:generic-data` trees can publish to explicit matching JSON or YAML
 content-type/schema pairs through the packages' native formatters. This bounded
 export accepts one root of `array`, `object`/named `property`, `string`, `number`,

@@ -1757,6 +1757,39 @@ fn convert_cem_tree_stream_with_cemt_pipeline(
     }))
 }
 
+/// Export the admitted generic-data vocabulary without reparsing external syntax.
+fn convert_loaded_data_ast_to_cem_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    native: LoadedInputAstStream,
+    source_content_type: &str,
+    adapter_id: &str,
+) -> Result<(Value, PrimaryBytes), Vec<Diagnostic>> {
+    let tree = crate::import::retain_lifecycle(Arc::new(native)).map_err(|message| {
+        vec![Diagnostic {
+            uri: Some(request.input.uri.clone()),
+            code: format!("cem.lifecycle.{adapter_id}_typed_import_failed"),
+            severity: Severity::Fatal,
+            message,
+            ..Diagnostic::default()
+        }]
+    })?;
+    let mut spans = Vec::new();
+    let primary = convert_cem_tree_stream_with_cemt_pipeline(
+        Some(context),
+        projection::imported_data_cem_tree_nodes(tree, source_content_type)
+            .with_original_source_uri(&input_uri(&request.input, context)),
+        &request.target_scope,
+        Some(&request.input.uri),
+        Some(&mut spans),
+    )?;
+    let content = primary["content"].as_str().expect("typed writer text artifact");
+    let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), &request.target_scope);
+    let (content_type, schema) = cem_output_identity(&pipeline);
+    let bytes = native_text_primary(Some(context), &request.input, content, content_type, schema, spans);
+    Ok((primary, bytes))
+}
+
 fn cem_presentation_primary_bytes(
     context: &EngineContext,
     stream: projection::CemTreeAstStream,
@@ -12843,9 +12876,26 @@ impl CemMlEngine for RealCemMlEngine {
                         primary = Some(Value::Null);
                         return;
                     }
+                    native @ (LoadedInputAstStream::CsvDocument(_) | LoadedInputAstStream::YamlDocument(_))
+                        if to_format == LayerFormat::Cem =>
+                    {
+                        primary = Some(Value::Null);
+                        if diagnostics.iter().any(|d| d.severity.is_hard_violation()) { return; }
+                        let (source_type, adapter_id, converter_id) = match &native {
+                            LoadedInputAstStream::CsvDocument(_) => (CSV_CONTENT_TYPE, "csv", "csv-typed-import-to-cem-output"),
+                            LoadedInputAstStream::YamlDocument(_) => (YAML_CONTENT_TYPE, "yaml", "yaml-typed-import-to-cem-output"),
+                            _ => unreachable!(),
+                        };
+                        let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), &request.target_scope);
+                        conversion = Some(convert_metadata_for_direct_output_pipeline(converter_id, &pipeline));
+                        match convert_loaded_data_ast_to_cem_output(&context, &request, native, source_type, adapter_id) {
+                            Ok((value, bytes)) => { primary = Some(value); primary_bytes = Some(bytes); }
+                            Err(mut errors) => diagnostics.append(&mut errors),
+                        }
+                        return;
+                    }
                     LoadedInputAstStream::CsvDocument(table_value) => {
-                        if to_format == LayerFormat::Cem
-                            || (to_format == LayerFormat::Xml && export_adapter_id == Some("xml"))
+                        if to_format == LayerFormat::Xml && export_adapter_id == Some("xml")
                         {
                             // Reuse the shared typed import boundary; CSV bytes must
                             // never be reparsed as CEM or routed through JSON.
@@ -12868,30 +12918,22 @@ impl CemMlEngine for RealCemMlEngine {
                                     return;
                                 }
                             };
-                            let is_xml = to_format == LayerFormat::Xml;
-                            let base_pipeline = if is_xml { direct_xml_output_pipeline() } else { direct_cem_output_pipeline() };
-                            let converter_id = if is_xml { "csv-typed-import-to-xml-output" } else { "csv-typed-import-to-cem-output" };
+                            let base_pipeline = direct_xml_output_pipeline();
+                            let converter_id = "csv-typed-import-to-xml-output";
                             let pipeline = cemt_output_pipeline_for_scope(base_pipeline.clone(), &request.target_scope);
                             conversion = Some(convert_metadata_for_direct_output_pipeline(converter_id, &pipeline));
-                            let result = if is_xml {
-                                convert_markup_tree_stream_with_cemt_pipeline(
-                                    Some(&context), projection::imported_data_xml_tree_nodes(tree, CSV_CONTENT_TYPE),
-                                    base_pipeline, "xml", converter_id, &request.target_scope, Some(&request.input.uri),
-                                    Some((&request.input, &mut primary_bytes)),
-                                )
-                            } else {
-                                convert_cem_tree_stream_with_cemt_pipeline(
-                                    Some(&context), projection::imported_data_cem_tree_nodes(tree, CSV_CONTENT_TYPE),
-                                    &request.target_scope, Some(&request.input.uri), None,
-                                )
-                            };
+                            let result = convert_markup_tree_stream_with_cemt_pipeline(
+                                Some(&context), projection::imported_data_xml_tree_nodes(tree, CSV_CONTENT_TYPE),
+                                base_pipeline, "xml", converter_id, &request.target_scope, Some(&request.input.uri),
+                                Some((&request.input, &mut primary_bytes)),
+                            );
                             match result {
                                 Ok(value) => {
                                     if let Some(content) = value.get("content").and_then(Value::as_str).filter(|_| primary_bytes.is_none()) {
                                         primary_bytes = Some(primary_bytes_from_text_document(
                                             content,
-                                            if is_xml { XML_CONTENT_TYPE } else { cem_output_identity(&pipeline).0 },
-                                            if is_xml { XML_SCHEMA_URI } else { cem_output_identity(&pipeline).1 },
+                                            XML_CONTENT_TYPE,
+                                            XML_SCHEMA_URI,
                                         ));
                                     }
                                     primary = Some(value);

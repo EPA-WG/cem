@@ -78,6 +78,16 @@ artifacts from the embedded schema-package catalog. Runtime output must execute
 the package CEMT bodies for YAML-to-YAML rendering; Rust fallback formatting is
 not part of the release contract.
 
+Direct CEM-ML export uses `convert --to-format cem --tabular` (or the explicit
+CEM-ML target content identity). It imports the admitted YAML owner into the
+shared retained generic-data tree, then runs the existing CEM formatter,
+colorizer and writer. It preserves mapping order, typed scalars, literal strings,
+multiple document roots and original source provenance. It does not render the
+inspection AST vocabulary or serialize a runtime AST through JSON. The bounded
+YAML import policy still rejects malformed input, aliases, anchors and explicit
+tags before output publication. Omitting `--out` prints to stdout; file output
+contains no terminal escape codes.
+
 ## Implementation Notes
 
 - Directive preservation is implemented in the typed YAML AST stream and package

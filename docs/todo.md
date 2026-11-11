@@ -41,6 +41,27 @@ physical-device/spoken AT acceptance.
 Amsterdam presentation delivery is accepted and archived. Use the SSR follow-ups
 for the current native work and the conditional diagnostic items on recurrence.
 
+## Direct structured-data CEM-ML exports
+
+- [x] Export admitted YAML through the shared retained-data CEM writer.
+  - [x] Add native fixtures for typed values, literal escaping, nested/multiple
+        documents, original source maps and refusal of invalid or unsafe YAML.
+  - [x] Add CLI fixtures for tabular/terminal stdout, explicit target identities,
+        color overrides, plain file output and no partial output on errors.
+  - [x] Verify typed YAML export, terminal colors and invalid-input refusal in
+        Node and browser WASM using the original command-service boundary.
+  - [x] Document and verify a project-root command that prints colored tabular
+        CEM-ML directly without saving output, then commit and push.
+    Verified four native cases in both default/stripped profiles, three CLI
+    cases, six existing CSV/YAML conversions and eight optimized Node/browser
+    WASM entry-point checks. Export preserves namespace bindings, literal and
+    multiline values, mapping order and original writer provenance. Invalid or
+    unsafe input publishes nothing; file output stays plain. The project-root
+    command prints ANSI-colored tabular CEM-ML without saving a file.
+
+- [ ] Extend the shared direct CEM export to JSON and JSON Schema, preserving
+      literal property names/values, source provenance and atomic error behavior.
+
 ## Amsterdam presentation samples: active Studio priority
 
 Completed 2026-11-04. The [completed delivery archive](archive/todo-completed-amsterdam-delivery-2026-11-04.md#amsterdam-presentation-samples-active-studio-priority)
