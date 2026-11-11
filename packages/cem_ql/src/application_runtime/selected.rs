@@ -11,9 +11,13 @@ use crate::{
 use cem_ml::{
     content_cache::ContentHash,
     operation_control::ROOT_EXECUTION_SCOPE_ID,
+    parser::tree::RetainedCemTree,
     validation::json::graphql::{GraphqlContracts, OperationKind},
 };
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
+
+mod response;
 
 #[derive(Clone, Copy)]
 pub(super) struct SelectedApplicationAssets<'a> {
@@ -30,6 +34,9 @@ pub(super) struct SelectedApplication<'a> {
     registry: Arc<SelectedFunctionRegistry>,
     graphql: GraphqlContracts,
     operations: &'a str,
+    deployment: String,
+    response: RefCell<Option<response::ResponseOwner>>,
+    retired: Cell<bool>,
 }
 
 impl<'a> SelectedApplication<'a> {
@@ -68,6 +75,13 @@ impl<'a> SelectedApplication<'a> {
             registry: Arc::new(registry),
             graphql,
             operations: assets.operations,
+            deployment: ContentHash::from_blake3(
+                &serde_json::to_vec(&(assets.entry_pins, assets.guard_hash))
+                    .map_err(|_| "cem.application.entry.pins")?,
+            )
+            .header_value(),
+            response: RefCell::new(None),
+            retired: Cell::new(false),
         })
     }
 
@@ -82,6 +96,7 @@ impl<'a> SelectedApplication<'a> {
         uri: &str,
         query_only: bool,
     ) -> Result<(), String> {
+        self.active()?;
         check_input(operation, bytes, uri)?;
         if query_only {
             let kind = self
@@ -103,6 +118,7 @@ impl<'a> SelectedApplication<'a> {
         bytes: &[u8],
         uri: &str,
     ) -> Result<String, String> {
+        self.active()?;
         check_input(operation, bytes, uri)?;
         let control = render_control()?;
         let response = self
@@ -114,10 +130,18 @@ impl<'a> SelectedApplication<'a> {
         control
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|error| error.to_string())?;
+        self.render_tree(tree, &control)
+    }
+
+    fn render_tree(
+        &self,
+        tree: Arc<RetainedCemTree>,
+        control: &cem_ml::operation_control::OperationControl,
+    ) -> Result<String, String> {
         let mut data = TemplateData::default()
             .with_binding(&self.binding, ItemStream::once(imported_cem_tree(tree)));
         data.selected_registry = Some(self.registry.clone());
-        render_data(&self.template, data, &control)
+        render_data(&self.template, data, control)
     }
 }
 
@@ -147,8 +171,19 @@ mod linked {
         uri: &str,
         run: impl FnOnce(&SelectedApplication<'static>) -> Result<T, String>,
     ) -> Result<T, String> {
-        let _native = cem_ml::runtime_admission::admit(false).map_err(str::to_owned)?;
         if operation.len() > 256 || bytes.len() > MAX_INPUT_BYTES || uri.len() > 4096 {
+            return Err("cem.application.input.limit".into());
+        }
+        with_state(false, bytes.len() + operation.len() + uri.len(), run)
+    }
+
+    fn with_state<T>(
+        cleanup: bool,
+        input_bytes: usize,
+        run: impl FnOnce(&SelectedApplication<'static>) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let _native = cem_ml::runtime_admission::admit(cleanup).map_err(str::to_owned)?;
+        if input_bytes > 5 * cem_ml::committed_checkpoint::MAX_CHECKPOINT_BYTES + 32 * 1024 {
             return Err("cem.application.input.limit".into());
         }
         APP.with(|cell| {
@@ -159,10 +194,8 @@ mod linked {
                 } else {
                     0
                 };
-                cem_ml::runtime_memory::admit_input(
-                    cold + bytes.len() + operation.len() + uri.len(),
-                )
-                .map_err(|error| error.to_string())?
+                cem_ml::runtime_memory::admit_input(cold + input_bytes)
+                    .map_err(|error| error.to_string())?
             };
             let app = cell
                 .get_or_init(|| {
@@ -185,7 +218,10 @@ mod linked {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = selectedApplicationDocument))]
     pub fn selected_application_document() -> Result<String, String> {
-        with_application("", &[], "", |app| Ok(app.operations().to_owned()))
+        with_application("", &[], "", |app| {
+            app.active()?;
+            Ok(app.operations().to_owned())
+        })
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = validateSelectedApplicationVariables))]
@@ -220,10 +256,121 @@ mod linked {
             app.render_response(operation, bytes, uri)
         })
     }
+
+    pub(crate) fn response_inventory_native() -> (usize, usize) {
+        APP.with(|cell| {
+            cell.get()
+                .and_then(|app| app.as_ref().ok())
+                .map_or((0, 0), SelectedApplication::response_inventory)
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = selectedApplicationIdentity))]
+    pub fn selected_application_identity() -> Result<String, String> {
+        with_state(false, 0, |app| {
+            app.active()?;
+            Ok(app.deployment().into())
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = retainSelectedApplicationResponse))]
+    pub fn retain_selected_application_response(
+        operation: &str,
+        bytes: &[u8],
+        uri: &str,
+    ) -> Result<String, String> {
+        with_application(operation, bytes, uri, |app| {
+            app.retain_response(operation, bytes, uri)
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = claimSelectedApplicationMutation))]
+    pub fn claim_selected_application_mutation(operation_id: &str) -> Result<f64, String> {
+        if operation_id.len() > 1024 {
+            return Err("cem.application.input.limit".into());
+        }
+        with_state(false, operation_id.len(), |app| {
+            app.claim_mutation(operation_id)
+                .map(|sequence| sequence as f64)
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = captureSelectedApplicationResponse))]
+    pub fn capture_selected_application_response() -> Result<Vec<u8>, String> {
+        with_state(false, 0, SelectedApplication::capture_response)
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = selectedApplicationResponseRevision))]
+    pub fn selected_application_response_revision() -> Result<String, String> {
+        with_state(false, 0, SelectedApplication::response_revision)
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = sealSelectedApplicationCheckpoint))]
+    pub fn seal_selected_application_checkpoint(
+        candidate: &str,
+        receipt: &str,
+    ) -> Result<String, String> {
+        if candidate.len() > cem_ml::committed_checkpoint::MAX_WORKSPACE_CHECKPOINT_BYTES
+            || receipt.len() > MAX_INPUT_BYTES
+        {
+            return Err("cem.application.input.limit".into());
+        }
+        with_state(false, candidate.len() + receipt.len(), |app| {
+            app.active()?;
+            cem_ml::committed_checkpoint::seal(candidate, receipt).map_err(str::to_owned)
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = confirmSelectedApplicationResponseRetirement))]
+    pub fn confirm_selected_application_response_retirement(
+        capsule: &[u8],
+        journal: &[u8],
+        runtime_id: &str,
+        instance_id: &str,
+    ) -> Result<String, String> {
+        if capsule.len() > MAX_INPUT_BYTES
+            || journal.len() > cem_ml::committed_checkpoint::MAX_WORKSPACE_CHECKPOINT_BYTES
+            || runtime_id.len() > 1024
+            || instance_id.len() > 1024
+        {
+            return Err("cem.application.input.limit".into());
+        }
+        with_state(
+            false,
+            capsule.len() + journal.len() + runtime_id.len() + instance_id.len(),
+            |app| app.confirm_response_retirement(capsule, journal, runtime_id, instance_id),
+        )
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = restoreSelectedApplicationResponse))]
+    pub fn restore_selected_application_response(
+        capsule: &[u8],
+        pin: &str,
+        journal: &[u8],
+        previous_runtime_id: &str,
+    ) -> Result<String, String> {
+        if capsule.len() > MAX_INPUT_BYTES
+            || pin.len() > 16 * 1024
+            || journal.len() > cem_ml::committed_checkpoint::MAX_WORKSPACE_CHECKPOINT_BYTES
+            || previous_runtime_id.len() > 1024
+        {
+            return Err("cem.application.input.limit".into());
+        }
+        with_state(
+            false,
+            capsule.len() + pin.len() + journal.len() + previous_runtime_id.len(),
+            |app| app.restore_response(capsule, pin, journal, previous_runtime_id),
+        )
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(js_name = disposeSelectedApplicationResponse))]
+    pub fn dispose_selected_application_response() -> Result<(), String> {
+        with_state(true, 0, |app| {
+            app.dispose_response();
+            Ok(())
+        })
+    }
 }
 
 #[cfg(cem_selected_application)]
-pub use linked::{
-    render_selected_application_response, selected_application_document,
-    validate_selected_application_query_variables, validate_selected_application_variables,
-};
+pub use linked::*;

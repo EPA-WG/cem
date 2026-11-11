@@ -26,7 +26,11 @@ export function componentWasmFactory(source, selectedApplication = false) {
     }
     visit(ast);
     const expectedFunctions = selectedApplication
-        ? ['compiledDeclarationInventory', 'renderSelectedApplicationResponse', 'selectedApplicationDocument', 'validateSelectedApplicationQueryVariables', 'validateSelectedApplicationVariables']
+        ? ['captureSelectedApplicationResponse', 'claimSelectedApplicationMutation', 'compiledDeclarationInventory',
+            'confirmSelectedApplicationResponseRetirement', 'disposeSelectedApplicationResponse',
+            'renderSelectedApplicationResponse', 'restoreSelectedApplicationResponse', 'retainSelectedApplicationResponse',
+            'sealSelectedApplicationCheckpoint', 'selectedApplicationDocument', 'selectedApplicationIdentity',
+            'selectedApplicationResponseRevision', 'validateSelectedApplicationQueryVariables', 'validateSelectedApplicationVariables']
         : ['compiledDeclarationInventory', 'renderCompiledApplication'];
     if (!initializer || finalizers !== 1 || JSON.stringify(classes) !== '["CompiledDeclarationOwner"]'
         || JSON.stringify(functions.sort()) !== JSON.stringify(expectedFunctions)
@@ -38,7 +42,16 @@ export function componentWasmFactory(source, selectedApplication = false) {
         applicationDocument() { active(); return selectedApplicationDocument(); },
         validateVariables(operation, bytes, uri) { active(); validateSelectedApplicationVariables(operation, bytes, uri); },
         validateQueryVariables(operation, bytes, uri) { active(); validateSelectedApplicationQueryVariables(operation, bytes, uri); },
-        renderResponse(operation, bytes, uri) { active(); return renderSelectedApplicationResponse(operation, bytes, uri); },` : '';
+        renderResponse(operation, bytes, uri) { active(); return renderSelectedApplicationResponse(operation, bytes, uri); },
+        applicationIdentity() { active(); return selectedApplicationIdentity(); },
+        retainResponse(operation, bytes, uri) { active(); return retainSelectedApplicationResponse(operation, bytes, uri); },
+        claimMutation(operationId) { active(); return claimSelectedApplicationMutation(operationId); },
+        captureResponse() { active(); return captureSelectedApplicationResponse(); },
+        responseRevision() { active(); return selectedApplicationResponseRevision(); },
+        sealCheckpoint(candidate, receipt) { active(); return sealSelectedApplicationCheckpoint(candidate, receipt); },
+        confirmResponseRetirement(capsule, journal, runtimeId, instanceId) { active(); return confirmSelectedApplicationResponseRetirement(capsule, journal, runtimeId, instanceId); },
+        restoreResponse(capsule, pin, journal, previousRuntimeId) { active(); return restoreSelectedApplicationResponse(capsule, pin, journal, previousRuntimeId); },
+        disposeResponse() { active(); disposeSelectedApplicationResponse(); },` : '';
     return `/* @ts-self-types="./cem_ql_factory.d.ts" */
 // Generated binding isolation only. Shared lifecycle policy: cem-elements.
 export function createCemComponentWasmBindings() {
@@ -58,7 +71,7 @@ ${source}
         memory() { active(); return wasm.memory; },
         release() {
             active(); const census = JSON.parse(compiledDeclarationInventory());
-            if (census.liveDeclarationOwners !== 0 || census.stylesheetConsumerLeases !== 0) throw new Error('cem.component.generation.owned');
+            if (census.liveDeclarationOwners !== 0 || census.stylesheetConsumerLeases !== 0 || (census.liveApplicationResponses ?? 0) !== 0) throw new Error('cem.component.generation.owned');
             retired = true; cachedUint8ArrayMemory0 = null;
             wasmModule = wasmInstance = wasm = undefined;
         },
@@ -71,7 +84,16 @@ export function componentWasmFactoryTypes(selectedApplication = false) {
     applicationDocument(): string;
     validateVariables(operation: string, bytes: Uint8Array, uri: string): void;
     validateQueryVariables(operation: string, bytes: Uint8Array, uri: string): void;
-    renderResponse(operation: string, bytes: Uint8Array, uri: string): string;` : '';
+    renderResponse(operation: string, bytes: Uint8Array, uri: string): string;
+    applicationIdentity(): string;
+    retainResponse(operation: string, bytes: Uint8Array, uri: string): string;
+    claimMutation(operationId: string): number;
+    captureResponse(): Uint8Array;
+    responseRevision(): string;
+    sealCheckpoint(candidate: string, receipt: string): string;
+    confirmResponseRetirement(capsule: Uint8Array, journal: Uint8Array, runtimeId: string, instanceId: string): string;
+    restoreResponse(capsule: Uint8Array, pin: string, journal: Uint8Array, previousRuntimeId: string): string;
+    disposeResponse(): void;` : '';
     return `import type { CompiledDeclarationOwner } from './cem_ql.js';
 export declare function createCemComponentWasmBindings(): {
     initialize(module: WebAssembly.Module): Promise<void>;

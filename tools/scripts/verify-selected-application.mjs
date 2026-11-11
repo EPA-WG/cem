@@ -36,6 +36,10 @@ assert.deepEqual(names, [
     'compileddeclarationowner_renderIsland', 'compileddeclarationowner_projectIsland',
     'compileddeclarationowner_stylesheet', 'renderSelectedApplicationResponse',
     'selectedApplicationDocument', 'validateSelectedApplicationQueryVariables', 'validateSelectedApplicationVariables',
+    'captureSelectedApplicationResponse', 'claimSelectedApplicationMutation',
+    'confirmSelectedApplicationResponseRetirement', 'disposeSelectedApplicationResponse',
+    'restoreSelectedApplicationResponse', 'retainSelectedApplicationResponse',
+    'sealSelectedApplicationCheckpoint', 'selectedApplicationIdentity', 'selectedApplicationResponseRevision',
 ].sort());
 
 const { createCemComponentWasmBindings } = await import(pathToFileURL(resolve(wasm, 'cem_ql_factory.js')).href);
@@ -106,3 +110,61 @@ for (let index = 0; index < 2; index++) {
     assert.throws(() => render('Cart', Buffer.from('{}')), /inactive/);
 }
 console.log('Selected application WASM: guarded variables, six original responses and retained CSS passed on two independent heaps.');
+
+// No service exists in this driver. Recovery must use the exact original
+// native capsule and terminal write journal on a different WebAssembly.Memory.
+const original = createCemComponentWasmBindings();
+await original.initialize(compiled);
+const raw = readFileSync(resolve(fixture, 'cart.json'));
+const uri = 'app://shopping-cart/response.json';
+const expected = original.retainResponse('Cart', raw, uri);
+const firstRevision = original.responseRevision();
+assert.throws(() => original.release(), /generation.owned/);
+assert.equal(JSON.parse(original.inventory()).liveApplicationResponses, 1);
+assert.equal(JSON.parse(original.inventory()).applicationResponseBytes, raw.length);
+assert.equal(original.claimMutation('write-1'), 1);
+assert.throws(() => original.claimMutation('write-1'), /response_checkpoint.refused/);
+const capsule = original.captureResponse();
+assert.equal(Buffer.from(capsule).subarray(-raw.length).compare(raw), 0);
+assert.notEqual(original.responseRevision(), firstRevision);
+assert.throws(() => original.retainResponse('Cart', Buffer.from('{}'), uri), /cem.graphql/);
+assert.deepEqual(original.captureResponse(), capsule);
+const receipt = {
+    runtimeId: 'original', generation: 1, commitSequence: 1, policyStamp: 'selected-test',
+    owners: [{ instanceId: 'application', declarationIdentity: original.applicationIdentity(),
+        dataRevision: original.responseRevision(), acceptedEventSequence: 1 }],
+    operations: [{ instanceId: 'application', operationId: 'write-1', outcome: 'acknowledged' }],
+};
+const seal = value => Buffer.from(original.sealCheckpoint(JSON.stringify({ version: 'cem-committed-checkpoint/1', receipt: value,
+    owners: [{ instanceId: 'application', island: 'native-response' }] }), JSON.stringify(value)));
+const unknown = seal({ ...receipt, operations: [{ ...receipt.operations[0], outcome: 'unknown' }] });
+assert.throws(() => original.confirmResponseRetirement(capsule, unknown, 'original', 'application'), /response_checkpoint.refused/);
+for (const mismatch of [{ ...receipt, operations: [] }, { ...receipt, owners: [{ ...receipt.owners[0], acceptedEventSequence: 0 }] }]) {
+    assert.throws(() => original.confirmResponseRetirement(capsule, seal(mismatch), 'original', 'application'), /response_checkpoint.refused/);
+}
+const journal = seal(receipt);
+const pin = original.confirmResponseRetirement(capsule, journal, 'original', 'application');
+assert.equal(JSON.parse(original.inventory()).liveApplicationResponses, 0);
+assert.throws(() => original.retainResponse('Cart', raw, uri), /response_checkpoint.refused/);
+assert.throws(() => original.claimMutation('write-2'), /response_checkpoint.refused/);
+const oldMemory = original.memory();
+original.release();
+const fresh = createCemComponentWasmBindings();
+await fresh.initialize(compiled);
+assert.notEqual(fresh.memory(), oldMemory);
+const changed = capsule.slice();
+changed[changed.length - 1] ^= 1;
+assert.throws(() => fresh.restoreResponse(changed, pin, journal, 'original'), /response_checkpoint.refused/);
+assert.throws(() => fresh.restoreResponse(capsule, pin, unknown, 'original'), /response_checkpoint.refused/);
+assert.throws(() => fresh.restoreResponse(capsule, pin, journal, 'foreign'), /response_checkpoint.refused/);
+assert.throws(() => fresh.restoreResponse(new Uint8Array(1_048_577), pin, journal, 'original'), /input.limit/);
+assert.throws(() => fresh.restoreResponse(capsule, ' '.repeat(16 * 1024 + 1), journal, 'original'), /input.limit/);
+assert.equal(fresh.restoreResponse(capsule, pin, journal, 'original'), expected);
+assert.deepEqual(fresh.captureResponse(), capsule);
+assert.throws(() => fresh.restoreResponse(capsule, pin, journal, 'original'), /response_checkpoint.refused/);
+assert.throws(() => fresh.claimMutation('write-1'), /response_checkpoint.refused/);
+assert.equal(fresh.claimMutation('write-2'), 2);
+fresh.disposeResponse();
+assert.equal(JSON.parse(fresh.inventory()).liveApplicationResponses, 0);
+fresh.release();
+console.log('Selected response owner: original-byte capsule, terminal-journal retirement, independent-heap reimport and native replay fence passed with no transport.');

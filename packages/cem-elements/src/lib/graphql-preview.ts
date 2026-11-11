@@ -24,7 +24,14 @@ export interface CemPreviewApplicationRequest {
     readonly resources: readonly CemLivePreviewResource[];
 }
 
-type Guard = CemGraphqlGuard & CemGraphqlQueryOptions['guard'] & { release(): void };
+type Guard = CemGraphqlGuard & CemGraphqlQueryOptions['guard'] & {
+    applicationIdentity(): string;
+    retainResponse(operation: string, bytes: Uint8Array, uri: string): string;
+    claimMutation(operationId: string): number;
+    responseRevision(): string;
+    disposeResponse(): void;
+    release(): void;
+};
 export interface CemPreviewApplication {
     readonly baseUrl: string;
     readonly grant: CemGraphqlPreviewGrant;
@@ -71,12 +78,16 @@ export function createCemGraphqlPreviewHost(baseUrl: string, grants: readonly Ce
         const factory = await import(/* @vite-ignore */ factoryUrl);
         const guard: Guard & { initialize(module: WebAssembly.Module): Promise<void> } = factory.createCemComponentWasmBindings();
         try {
+            if (!['applicationIdentity', 'retainResponse', 'claimMutation', 'responseRevision', 'disposeResponse']
+                .every(method => typeof guard[method as keyof Guard] === 'function'))
+                throw Error('cem.preview.application.runtime_contract');
             await guard.initialize(await WebAssembly.compile(new Uint8Array(bytes)));
             signal.throwIfAborted();
             let active = true;
             return { baseUrl, grant: structuredClone(grant), guard, dispose() {
                 if (!active) return;
                 active = false;
+                guard.disposeResponse();
                 guard.release();
             } };
         } catch (error) {
@@ -91,12 +102,20 @@ export function createCemGraphqlPreviewHost(baseUrl: string, grants: readonly Ce
 export async function mountCemGraphqlPreview(root: HTMLElement, application: CemPreviewApplication, signal: AbortSignal,
     reportError: (message: string) => void): Promise<() => void> {
     const { baseUrl, grant, guard } = application;
+    // Original bytes and source maps remain in the selected heap. Rendering an
+    // invalid response leaves that source owner untouched.
+    const retainedGuard: CemGraphqlQueryOptions['guard'] & CemGraphqlGuard = {
+        applicationDocument: () => guard.applicationDocument(),
+        validateVariables: (operation, bytes, uri) => guard.validateVariables(operation, bytes, uri),
+        validateQueryVariables: (operation, bytes, uri) => guard.validateQueryVariables(operation, bytes, uri),
+        renderResponse: (operation, bytes, uri) => guard.retainResponse(operation, bytes, uri),
+    };
     const journal = new CemCheckpointPublicationCoordinator({
         runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'preview-application',
         seal: () => { throw Error('cem.preview.application.resume_unsupported'); },
     });
     const owner = journal.register('application', () => undefined);
-    let revision = 0, active = true;
+    let active = true;
     const publish = (response: { html: string }) => {
         if (!active || signal.aborted || !root.isConnected) return false;
         const template = root.ownerDocument.createElement('template');
@@ -104,7 +123,7 @@ export async function mountCemGraphqlPreview(root: HTMLElement, application: Cem
         validateLivePreviewDom(template.content);
         if (!active || signal.aborted || !root.isConnected) return false;
         root.replaceChildren(template.content);
-        owner.published({ instanceId: 'application', declarationIdentity: grant.id, dataRevision: String(++revision) });
+        owner.published({ instanceId: 'application', declarationIdentity: guard.applicationIdentity(), dataRevision: guard.responseRevision() });
         return true;
     };
     let unbind: (() => void) | undefined;
@@ -117,9 +136,10 @@ export async function mountCemGraphqlPreview(root: HTMLElement, application: Cem
     };
     signal.addEventListener('abort', dispose, { once: true });
     try {
-        const response = await readCemGraphqlQuery({ baseUrl, endpoint: grant.endpoint, guard, ...grant.initialRead, signal });
+        const response = await readCemGraphqlQuery({ baseUrl, endpoint: grant.endpoint, guard: retainedGuard, ...grant.initialRead, signal });
         if (!publish(response)) throw Error('cem.preview.disposed');
-        unbind = bindCemGraphqlActions({ root, baseUrl, endpoint: grant.endpoint, guard, owner,
+        unbind = bindCemGraphqlActions({ root, baseUrl, endpoint: grant.endpoint, guard: retainedGuard, owner,
+            admitMutation: operationId => { guard.claimMutation(operationId); owner.input(); },
             actions: grant.actions, bindings: grant.bindings, publish, reportError: error => reportError(String(error)) });
         if (signal.aborted) throw Error('cem.preview.disposed');
         return () => { signal.removeEventListener('abort', dispose); dispose(); };

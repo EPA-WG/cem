@@ -357,6 +357,12 @@ impl Drop for CompiledDeclarationOwner {
     }
 }
 pub fn inventory_native() -> String {
+    #[cfg(cem_selected_application)]
+    {
+        let (responses, bytes) = super::selected::response_inventory_native();
+        return serde_json::json!({"contract":"cem-component-owner-inventory/1","revision":cem_ml::runtime_inventory::inventory_revision(),"liveDeclarationOwners":OWNERS.load(Ordering::SeqCst),"stylesheetConsumerLeases":LEASES.load(Ordering::SeqCst),"liveApplicationResponses":responses,"applicationResponseBytes":bytes}).to_string();
+    }
+    #[cfg(not(cem_selected_application))]
     serde_json::json!({"contract":"cem-component-owner-inventory/1","revision":cem_ml::runtime_inventory::inventory_revision(),"liveDeclarationOwners":OWNERS.load(Ordering::SeqCst),"stylesheetConsumerLeases":LEASES.load(Ordering::SeqCst)}).to_string()
 }
 #[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]

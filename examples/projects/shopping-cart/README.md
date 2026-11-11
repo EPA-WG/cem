@@ -34,8 +34,18 @@ that same-origin service. The view, schema and operations must match the
 deployed native application. A changed source requires a new application build.
 
 The frame runs without scripts. The parent host owns network dispatch and
-cancels pending work when the preview closes. Recovery for this interactive
-application requires a native resume adapter.
+cancels pending work when the preview closes. The selected heap retains the
+accepted response's original bytes and source maps, and claims each mutation
+in its native replay fence before transport. A failed response leaves the last
+accepted source intact and the host journal blocks further writes.
+
+The native response checkpoint reimports those original bytes under the linked
+entry/GraphQL pins and requires an exact terminal journal. Its inert capsule
+and retirement pin do not authorize allocation or UI binding. Complete preview
+recovery still requires the original frame/control generation adapters and
+physical group admission; it remains disabled.
+The capsule, including its metadata, is limited to 1 MiB. The retained-response
+byte census counts acquired bytes; it is not a native heap/RSS measurement.
 
 ## Resource identities
 

@@ -8,7 +8,7 @@ use crate::{
     types::Type,
 };
 use cem_ml::{
-    committed_checkpoint::{self, OperationOutcome},
+    committed_checkpoint,
     content_cache::ContentHash,
     parser::{AstNodeId, CemAstNode},
     schema::native_source::dependencies::NativeDependencySourceSnapshot,
@@ -100,28 +100,7 @@ pub struct ReceiverRecoveryPin {
 
 /// A fresh owner claims a new operation before delivering a write. The original
 /// terminal journal and accepted sequence fence both explicit and implicit replay.
-pub struct ReceiverWriteJournal {
-    sequence: u64,
-    captured_sequence: u64,
-    operations: BTreeSet<String>,
-}
-
-impl ReceiverWriteJournal {
-    pub fn claim_write(&mut self, sequence: u64, operation_id: &str) -> bool {
-        if sequence <= self.captured_sequence
-            || sequence < self.sequence
-            || sequence > 9_007_199_254_740_991
-            || operation_id.is_empty()
-            || operation_id.len() > 1024
-            || operation_id.chars().any(char::is_control)
-            || self.operations.len() >= 256
-        {
-            return false;
-        }
-        self.sequence = sequence;
-        self.operations.insert(operation_id.into())
-    }
-}
+pub use cem_ml::committed_checkpoint::WriteJournal as ReceiverWriteJournal;
 
 struct PacketOwners {
     deployment: String,
@@ -196,32 +175,8 @@ impl ReceiverCheckpointSeal {
 impl ReceiverRecoveryPin {
     fn read_journal(&self, bytes: &[u8]) -> Result<ReceiverWriteJournal, String> {
         let checkpoint = committed_checkpoint::read_sealed(bytes)?;
-        let receipt = checkpoint.receipt;
-        let owner = receipt
-            .owners
-            .iter()
-            .find(|owner| owner.instance_id == self.instance_id)
-            .ok_or(REFUSED)?;
-        if receipt.runtime_id != self.runtime_id
-            || owner.declaration_identity != self.declaration
-            || owner.data_revision != self.receiver.header_value()
-            || receipt
-                .operations
-                .iter()
-                .any(|op| op.outcome == OperationOutcome::Unknown)
-        {
-            return Err(REFUSED.into());
-        }
-        Ok(ReceiverWriteJournal {
-            sequence: owner.accepted_event_sequence,
-            captured_sequence: owner.accepted_event_sequence,
-            operations: receipt
-                .operations
-                .into_iter()
-                .filter(|op| op.instance_id == self.instance_id)
-                .map(|op| op.operation_id)
-                .collect(),
-        })
+        ReceiverWriteJournal::from_terminal_owner(&checkpoint.receipt, &self.runtime_id, &self.instance_id,
+            &self.declaration, &self.receiver.header_value()).map_err(|_| REFUSED.into())
     }
 
     /// The trusted embedding supplies the original out-of-band pin and the

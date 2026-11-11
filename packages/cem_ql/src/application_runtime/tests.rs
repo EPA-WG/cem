@@ -212,4 +212,74 @@ fn selected_application_guards_original_json_before_rendering() {
     let denied =
         SelectedApplication::admit(assets, SelectedFunctionRegistry::new([]).unwrap()).unwrap();
     assert!(denied.render_response("Read", good, uri).is_err());
+
+    // A passive response capsule retains original bytes, source maps and the
+    // native write fence. Allocation/binding authority stays with the host.
+    assert!(app.capture_response().is_err());
+    app.retain_response("Read", good, uri).unwrap();
+    assert_eq!(app.response_inventory(), (1, good.len()));
+    assert_eq!(app.claim_mutation("write-1").unwrap(), 1);
+    assert!(app.claim_mutation("write-1").is_err());
+    let capsule = app.capture_response().unwrap();
+    assert!(capsule.ends_with(good));
+    assert!(app.retain_response("Read", b"{}", uri).is_err());
+    assert_eq!(app.capture_response().unwrap(), capsule);
+    let journal = |outcome: &str| {
+        let receipt = serde_json::json!({
+            "runtimeId":"original", "generation":1, "commitSequence":1,
+            "policyStamp":"trusted", "owners":[{"instanceId":"application",
+                "declarationIdentity":app.deployment(), "dataRevision":app.response_revision().unwrap(),
+                "acceptedEventSequence":1}],
+            "operations":[{"instanceId":"application","operationId":"write-1","outcome":outcome}]
+        });
+        let candidate = serde_json::json!({"version":"cem-committed-checkpoint/1", "receipt":receipt,
+            "owners":[{"instanceId":"application","island":"native-response"}]});
+        cem_ml::committed_checkpoint::seal(&candidate.to_string(), &receipt.to_string()).unwrap()
+    };
+    let unknown = journal("unknown");
+    assert!(app.confirm_response_retirement(&capsule, unknown.as_bytes(), "original", "application").is_err());
+    let sealed = journal("acknowledged");
+    let stale = capsule.clone();
+    assert_eq!(app.claim_mutation("write-2").unwrap(), 2);
+    assert!(app.confirm_response_retirement(&stale, sealed.as_bytes(), "original", "application").is_err());
+    // Retire a separate owner with the exact captured native journal.
+    let owner = open(assets).unwrap();
+    owner.retain_response("Read", good, uri).unwrap();
+    owner.claim_mutation("write-1").unwrap();
+    let pin = owner.confirm_response_retirement(&capsule, sealed.as_bytes(), "original", "application").unwrap();
+    assert_eq!(owner.response_inventory(), (0, 0));
+    assert!(owner.retain_response("Read", good, uri).is_err());
+    assert!(owner.claim_mutation("write-3").is_err());
+    assert!(owner.confirm_response_retirement(&capsule, sealed.as_bytes(), "original", "application").is_err());
+    let fresh = open(assets).unwrap();
+    let mut changed = capsule.clone();
+    *changed.last_mut().unwrap() = b' ';
+    assert!(fresh.restore_response(&changed, &pin, sealed.as_bytes(), "original").is_err());
+    assert!(fresh.restore_response(&capsule, &pin, unknown.as_bytes(), "original").is_err());
+    assert!(fresh.restore_response(&capsule, &pin, sealed.as_bytes(), "foreign").is_err());
+    assert_eq!(fresh.restore_response(&capsule, &pin, sealed.as_bytes(), "original").unwrap(),
+        app.render_response("Read", good, uri).unwrap());
+    assert!(fresh.restore_response(&capsule, &pin, sealed.as_bytes(), "original").is_err());
+    assert!(fresh.claim_mutation("write-1").is_err());
+    assert_eq!(fresh.claim_mutation("write-3").unwrap(), 2);
+    let restored = fresh.retained_response_tree().unwrap();
+    assert_eq!(restored.source_uri(), uri);
+    assert!(matches!(restored.native_owner().unwrap().downcast_ref::<cem_ml::lifecycle::LoadedInputAstStream>(),
+        Some(cem_ml::lifecycle::LoadedInputAstStream::JsonDocument(_))));
+    for id in 1..original.ast().nodes.len() as u32 {
+        assert_eq!(restored.source_key(id), original.source_key(id));
+        assert_eq!(restored.source_node_map(id), original.source_node_map(id));
+        assert_eq!(format!("{:?}", restored.source_node_range(id)), format!("{:?}", original.source_node_range(id)));
+    }
+    fresh.dispose_response();
+    assert_eq!(fresh.response_inventory(), (0, 0));
+    assert!(fresh.capture_response().is_err());
+    let limited = open(assets).unwrap();
+    let large = format!(r#"{{"data":{{"item":{{"label":"{}"}}}}}}"#, "x".repeat(MAX_INPUT_BYTES - 100));
+    assert!(large.len() < MAX_INPUT_BYTES);
+    limited.retain_response("Read", large.as_bytes(), uri).unwrap();
+    assert!(limited.response_revision().is_ok());
+    // The capsule's control metadata shares the existing 1 MiB owner ceiling.
+    assert!(limited.capture_response().is_err());
+    limited.dispose_response();
 }

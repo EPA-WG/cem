@@ -541,6 +541,19 @@ Deferred execution gates, in order within this workstream:
     - [x] Add the trusted application host and optional Studio cart preview
           deployment. Verify guarded initial reads, quantity/removal, source
           pin refusal, frame isolation and disposal in the browser.
+    - [x] Retain the selected application's original response/source maps and
+          native mutation fence. Verify bounded native capture, terminal-journal
+          retirement and fresh-heap reimport without reads or mutation replay;
+          wire ownership into the interactive preview before physical group resume.
+          Verified 18 native runtime cases, 21 receiver handoffs, independent
+          WASM/browser reimport, linked-code audit and Studio cart actions,
+          cloning and offline sample rebuilds. Selected WASM: 7,996,636 bytes.
+          Full frame/control physical recovery remains the following gate.
+    - [ ] Enroll the selected response owner and the frame/control native peers
+          in the original physical generation group. Gate fresh allocation and
+          binding on complete capture, drain, retirement and source tickets;
+          verify worker/fallback recovery and offline behavior without reissuing
+          the initial query or replaying a mutation.
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm

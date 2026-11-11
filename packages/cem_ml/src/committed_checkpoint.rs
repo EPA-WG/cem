@@ -173,6 +173,54 @@ pub enum OperationOutcome {
     Unknown,
     NotApplied,
 }
+
+/// Native replay fence shared by receiver and application response owners.
+pub struct WriteJournal {
+    sequence: u64,
+    captured_sequence: u64,
+    operations: BTreeSet<String>,
+}
+
+impl WriteJournal {
+    pub fn empty() -> Self {
+        Self { sequence: 0, captured_sequence: 0, operations: BTreeSet::new() }
+    }
+
+    pub fn claim_write(&mut self, sequence: u64, operation_id: &str) -> bool {
+        if sequence <= self.captured_sequence
+            || sequence < self.sequence
+            || sequence > MAX_SAFE_INTEGER
+            || !identity(operation_id)
+            || self.operations.len() >= 256
+        {
+            return false;
+        }
+        self.sequence = sequence;
+        self.operations.insert(operation_id.into())
+    }
+
+    pub fn sequence(&self) -> u64 { self.sequence }
+    pub fn operations(&self) -> &BTreeSet<String> { &self.operations }
+
+    pub fn from_terminal_owner(receipt: &CommitReceipt, runtime_id: &str, instance_id: &str,
+        declaration: &str, revision: &str) -> Result<Self, &'static str> {
+        let owner = receipt.owners.iter().find(|owner| owner.instance_id == instance_id)
+            .ok_or("cem.checkpoint.owner")?;
+        if receipt.runtime_id != runtime_id
+            || owner.declaration_identity != declaration
+            || owner.data_revision != revision
+            || receipt.operations.iter().any(|op| op.outcome == OperationOutcome::Unknown)
+        {
+            return Err("cem.checkpoint.operations.unknown");
+        }
+        Ok(Self {
+            sequence: owner.accepted_event_sequence,
+            captured_sequence: owner.accepted_event_sequence,
+            operations: receipt.operations.iter()
+                .filter(|op| op.instance_id == instance_id).map(|op| op.operation_id.clone()).collect(),
+        })
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OwnerCheckpoint {

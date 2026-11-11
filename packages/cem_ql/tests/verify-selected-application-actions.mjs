@@ -75,29 +75,44 @@ try {
 
         const root = document.querySelector('main');
         const errors = [];
+        let guard, unbind;
         const journal = new CemCheckpointPublicationCoordinator({
             runtimeId: 'cart-browser-fixture', generation: 1, policyStamp: 'fixture',
-            allowOwner: () => true, seal: candidate => candidate,
+            allowOwner: () => true, seal: (candidate, receipt) => guard.sealCheckpoint(candidate, receipt),
         });
-        let saved;
-        let revision = 0;
-        const owner = journal.register('cart', () => '<template>cart</template>');
+        const owner = journal.register('cart', () => 'cem-application-response/1:'
+            + btoa(Array.from(guard.captureResponse(), byte => String.fromCharCode(byte)).join('')));
         const publish = response => {
             root.innerHTML = response.html;
-            saved = response;
-            owner.published({ instanceId: 'cart', declarationIdentity: profile.id, dataRevision: String(++revision) });
+            owner.published({ instanceId: 'cart', declarationIdentity: guard.applicationIdentity(), dataRevision: guard.responseRevision() });
             return true;
         };
-        let guard, unbind;
         const attach = async () => {
             const retiredMemory = guard?.memory();
+            let capsule, checkpoint, pin;
+            if (guard) {
+                capsule = guard.captureResponse();
+                await journal.capture();
+                const stored = journal.current();
+                if (!stored) throw Error('cem.checkpoint.recovery.unavailable');
+                checkpoint = stored.bytes;
+                // This trusted fixture replaces just its selected heap. It
+                // does not authorize recovery of the widget/frame generation.
+                pin = guard.confirmResponseRetirement(capsule, checkpoint, 'cart-browser-fixture', 'cart');
+            }
             unbind?.();
             guard?.release();
             guard = createCemComponentWasmBindings();
             await guard.initialize(module);
             if (guard.memory() === retiredMemory) throw Error('Expected a fresh selected WASM heap');
-            if (!saved) {
-                const options = { baseUrl: location.href, endpoint: profile.graphql.endpoint, guard };
+            const retainedGuard = {
+                applicationDocument: () => guard.applicationDocument(),
+                validateVariables: (...args) => guard.validateVariables(...args),
+                validateQueryVariables: (...args) => guard.validateQueryVariables(...args),
+                renderResponse: (...args) => guard.retainResponse(...args),
+            };
+            if (!capsule) {
+                const options = { baseUrl: location.href, endpoint: profile.graphql.endpoint, guard: retainedGuard };
                 for (const [operation, variables, expected] of [
                     ['RemoveCartLine', { cartId: 'cart-1', lineId: 'tea' }, 'cem.graphql.operation.kind'],
                     ['Cart', {}, 'cem.graphql.field.missing'],
@@ -109,11 +124,12 @@ try {
                 }
                 publish(await readCemGraphqlQuery({ ...options, ...profile.graphql.initialRead }));
             } else {
-                publish({ ...saved, html: guard.renderResponse(saved.operation, saved.bytes, saved.uri) });
+                publish({ html: guard.restoreResponse(capsule, pin, checkpoint, 'cart-browser-fixture') });
             }
             unbind = bindCemGraphqlActions({
                 root, endpoint: profile.graphql.endpoint, actions: profile.graphql.actions,
-                bindings: { cartId: profile.graphql.initialRead.variables.id }, guard, owner, publish,
+                bindings: { cartId: profile.graphql.initialRead.variables.id }, guard: retainedGuard, owner, publish,
+                admitMutation: operationId => { guard.claimMutation(operationId); owner.input(); },
                 reportError: error => errors.push(String(error)),
             });
         };
@@ -173,16 +189,19 @@ try {
         const { journal, attach } = window.cartFixture;
         let recovery;
         try { journal.recoveryEnrollment(); } catch (error) { recovery = error.message; }
-        await attach();
-        return { recovery, unknown: journal.inspectRecovery().unknownOperations };
-    }), { recovery: 'cem.checkpoint.recovery.unknown', unknown: 1 });
-    assert.equal(await quantity('coffee').inputValue(), '1');
+        let refused;
+        try { await attach(); } catch (error) { refused = String(error); }
+        return { recovery, unknown: journal.inspectRecovery().unknownOperations, refused: refused === 'Error: cem.checkpoint.unavailable' };
+    }), { recovery: 'cem.checkpoint.recovery.unknown', unknown: 1, refused: true });
+    // Refused recovery preserves the current dirty control as well as the
+    // accepted native source. It cannot silently reset an unresolved write.
+    assert.equal(await quantity('coffee').inputValue(), '2');
     await noReplay('coffee');
     await remove('coffee').click();
     await page.waitForFunction(() => window.cartFixture.errors.some(error => /cem\.checkpoint\.recovery\.unknown/.test(error)));
     assert.deepEqual(requests, expected.map(payload => ({ method: 'POST', payload })));
     assert.equal(reads.length, 1);
-    console.log('Cart browser passed: guarded initial GET, trusted mutations, journal fencing and no request replay on rebind.');
+    console.log('Cart browser passed: guarded initial GET, native response capture/reimport on a fresh heap, trusted mutations, unknown-journal refusal and no request replay.');
 } finally {
     await browser?.close();
     await server.close();

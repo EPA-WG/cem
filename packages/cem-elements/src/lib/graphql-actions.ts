@@ -42,6 +42,8 @@ export interface CemGraphqlActionOptions {
     readonly bindings: Readonly<Record<string, string>>;
     readonly guard: CemGraphqlGuard;
     readonly owner: Pick<CemCheckpointPublicationOwner, 'beginAction'>;
+    /** Original native source owner's replay fence, claimed before transport. */
+    readonly admitMutation?: (operationId: string) => void;
     /** Synchronously accept and publish the guarded response for this owner. */
     readonly publish: (response: CemGraphqlResponse) => boolean;
     readonly reportError: (error: unknown) => void;
@@ -143,6 +145,7 @@ export function bindCemGraphqlActions(options: CemGraphqlActionOptions): () => v
             const action = owner.beginAction();
             pending = true;
             try {
+                options.admitMutation?.(action.operationId);
                 const signal = requestSignal(lifetime.signal);
                 const loaded = await openCemHttpResource({
                     authoredUrl: endpoint, baseUrl, resolvedUrl,
