@@ -1255,7 +1255,11 @@
             "executor": "nx:run-commands",
             "dependsOn": ["build:cart-preview"],
             "options": {
-                "command": "node scripts/verify-navigation.mjs --shopping-cart-only --cart-preview",
+                "commands": [
+                    "node scripts/verify-navigation.mjs --shopping-cart-only --cart-preview",
+                    "node ../cem_ql/tests/verify-live-application-recovery.mjs --offline"
+                ],
+                "parallel": false,
                 "cwd": "{projectRoot}"
             }
         },

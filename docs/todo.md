@@ -563,9 +563,25 @@ Deferred execution gates, in order within this workstream:
             and input nodes survive; both native heaps must retire together.
             TypeScript build, 37 live-preview regressions, Studio's 229-asset
             deployment closure and cart/clone/offline sample workflows pass.
-    - [ ] Verify offline recovery of an accepted interactive response, including
+    - [x] Verify offline recovery of an accepted interactive response, including
           worker/runtime asset acquisition and service unavailability. Preserve
           the current frame and refuse unavailable sources without write replay.
+      - [x] Exercise the deployed cache inventory with real offline worker and
+            fallback recovery, missing runtime assets, unavailable initial reads,
+            HTTP failures and committed writes whose replies are lost. Verify
+            retained frames and zero implicit query/mutation retry on reconnect.
+            All nine deployed cases pass using Studio's actual service worker:
+            cached worker/fallback recovery; absent worker WASM; unavailable and
+            offline initial reads; 503 and lost-reply writes in both modes.
+            TypeScript, native action/recovery browser checks, 37 preview tests,
+            Studio cart/clone/offline rebuilds and deployment closure also pass.
+      - [x] Bind mutation idempotency keys to original host operation IDs and
+            require an explicit server-keyed service contract. Verify duplicate
+            transport deliveries apply once and conflicting key reuse is refused.
+            The browser retried one fetch below the application on connection
+            loss. Stable Idempotency-Key values now tie those deliveries to the
+            original journal operation. The fixture service deduplicates them;
+            a production service must implement durable caller-bound storage.
     - [ ] Verify complete Studio admission with the interactive cart enabled,
           including original parent/child physical coverage, command owners,
           credential refusals and the existing aggregate checkpoint budget.

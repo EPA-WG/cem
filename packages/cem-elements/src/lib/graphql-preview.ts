@@ -8,6 +8,7 @@ import type { CemCheckpointPublicationCoordinator as Publication } from './check
 import type { CemNativeRecoveryScope } from './internal/runtime-support/native-generation.js';
 
 export interface CemGraphqlPreviewGrant {
+    readonly mutationIdempotency: 'server-keyed';
     readonly id: string;
     readonly endpoint: string;
     readonly factoryUrl: string;
@@ -47,6 +48,7 @@ export function createCemGraphqlPreviewHost(baseUrl: string, grants: readonly Ce
     for (const input of grants) {
         const grant = structuredClone(input);
         if (!grant.id || registered.has(grant.id)) throw Error('cem.preview.application.identity');
+        if (grant.mutationIdempotency !== 'server-keyed') throw Error('cem.preview.application.idempotency_required');
         for (const path of [grant.endpoint, grant.factoryUrl, grant.wasmUrl]) {
             const url = new URL(path, baseUrl);
             if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin || url.username || url.password || url.hash)
@@ -139,6 +141,7 @@ export async function mountCemGraphqlPreview(root: HTMLElement, application: Cem
         const response = await readCemGraphqlQuery({ baseUrl, endpoint: grant.endpoint, guard: retainedGuard, ...grant.initialRead, signal });
         if (!publish(response)) throw Error('cem.preview.disposed');
         unbind = bindCemGraphqlActions({ root, baseUrl, endpoint: grant.endpoint, guard: retainedGuard, owner,
+            mutationIdempotency: grant.mutationIdempotency,
             admitMutation: operationId => { guard.claimMutation(operationId); owner.input(); },
             actions: grant.actions, bindings: grant.bindings, publish, reportError: error => reportError(String(error)) });
         if (signal.aborted) throw Error('cem.preview.disposed');

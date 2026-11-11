@@ -33,6 +33,7 @@ for (const [id, file, contentType] of runtimeAssets) {
 }
 const build = await json(resolve(project, 'src/studio.build.json'));
 build.previewApplications = [{
+    mutationIdempotency: 'server-keyed',
     id: profile.id, endpoint: profile.graphql.endpoint,
     factoryUrl: './applications/shopping-cart/cem_ql_factory.js',
     wasmUrl: './applications/shopping-cart/cem_ql_bg.wasm',

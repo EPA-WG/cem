@@ -33,6 +33,16 @@ quantity and removal actions. Deploy the optional cart preview build and provide
 that same-origin service. The view, schema and operations must match the
 deployed native application. A changed source requires a new application build.
 
+The trusted deployment grant must declare `mutationIdempotency: "server-keyed"`.
+Every mutation sends its original host operation ID as `Idempotency-Key`. The
+service must atomically persist the authenticated caller, key, request identity
+and result: duplicate deliveries return the same result, while a different
+request reusing that key is refused. The loopback verification service models
+this contract; production storage and retention belong to the deployed service.
+This matters even when the application calls fetch once: a browser can resend
+an upload after a reused connection loses its response headers ([Chromium's
+retry decision](https://chromium.googlesource.com/chromium/src.git/+/HEAD/net/http/http_network_transaction.cc#2442)).
+
 The frame runs without scripts. The parent host owns network dispatch and
 cancels pending work when the preview closes. The selected heap retains the
 accepted response's original bytes and source maps, and claims each mutation
@@ -49,8 +59,16 @@ same resume transaction. The frame document and live controls remain in place.
 
 This connection is verified for repeated worker and owned-fallback recovery,
 including actions after recovery, missing peers, stale frames and unknown
-mutation outcomes. Whole-Studio recovery and offline recovery still require
-complete host admission and verification; automatic recovery remains disabled.
+mutation outcomes. The deployed Studio service worker and cache inventory also
+support offline worker/fallback recovery of an accepted response. Recovery does
+not query the service or send a mutation. Missing worker WASM refuses allocation
+and preserves the retained frame; it does not select a fallback or refresh the
+cart. An initial unavailable read never invents a response.
+
+Offline, HTTP 503 and lost-reply mutations remain unknown and block recovery
+and further mutations after reconnect. Independent service-side knowledge does
+not automatically settle the client journal. Whole-Studio admission remains a
+separate gate, and automatic recovery stays disabled.
 The capsule, including its metadata, is limited to 1 MiB. The retained-response
 byte census counts acquired bytes; it is not a native heap/RSS measurement.
 

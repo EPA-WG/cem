@@ -33,6 +33,8 @@ export interface CemGraphqlQueryOptions {
 }
 
 export interface CemGraphqlActionOptions {
+    /** Trusted service contract: atomically deduplicate Idempotency-Key values. */
+    readonly mutationIdempotency: 'server-keyed';
     readonly root: HTMLElement;
     /** Trusted service origin for a parent-owned script-free frame. */
     readonly baseUrl?: string;
@@ -109,6 +111,7 @@ export async function readCemGraphqlQuery(options: CemGraphqlQueryOptions): Prom
 /** Bind trusted user actions to the selected application. Restoring a view
  * binds listeners only. There is no API for dispatching a saved operation. */
 export function bindCemGraphqlActions(options: CemGraphqlActionOptions): () => void {
+    if (options.mutationIdempotency !== 'server-keyed') throw Error('cem.graphql.mutation.idempotency_required');
     const { root, endpoint, actions, guard, owner, publish, reportError } = options;
     const baseUrl = options.baseUrl ?? root.ownerDocument.URL;
     const resolvedUrl = graphqlTarget(endpoint, baseUrl).href;
@@ -152,7 +155,9 @@ export function bindCemGraphqlActions(options: CemGraphqlActionOptions): () => v
                     resolverIdentity: 'selected-graphql', resourcePolicyStamp: 'same-origin',
                     contextIdentity: action.operationId, method: 'POST', body, policy, signal,
                     credentials: 'same-origin',
-                    headers: { ...headers, 'content-type': 'application/json' },
+                    // A browser can retransmit a replayable upload internally.
+                    // The original journal ID remains identical on every delivery.
+                    headers: { ...headers, 'content-type': 'application/json', 'idempotency-key': action.operationId },
                 });
                 const bytes = await responseBytes(loaded, signal, () => current() && action.current());
                 const uri = loaded.response.url || resolvedUrl;

@@ -8,11 +8,14 @@ export async function createInteractiveCartService() {
     const initial = JSON.parse(await readFile(new URL('cart.json', root), 'utf8')).data.cart;
     const cart = structuredClone(initial);
     const requests = [];
+    const deliveries = [];
+    const ledger = new Map();
     let malformed = false;
     return {
         requests,
+        deliveries,
         failNext() { malformed = true; },
-        reset() { Object.assign(cart, structuredClone(initial)); },
+        reset() { Object.assign(cart, structuredClone(initial)); ledger.clear(); deliveries.length = 0; malformed = false; },
         async handle(request, response) {
             const url = new URL(request.url, 'http://localhost');
             if (url.pathname !== '/graphql') return false;
@@ -28,6 +31,24 @@ export async function createInteractiveCartService() {
             }
             assert.equal(payload.query, document);
             const { operationName: operation, variables } = payload;
+            const key = request.headers?.['idempotency-key'];
+            const fingerprint = JSON.stringify(payload);
+            if (request.method === 'POST') {
+                assert.ok(typeof key === 'string' && key.length > 0 && key.length <= 1024);
+                deliveries.push({ key, operation, duplicate: ledger.has(key) });
+                const prior = ledger.get(key);
+                if (prior) {
+                    if (prior.fingerprint !== fingerprint) {
+                        response.writeHead(409, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+                        response.end('{"errors":[{"message":"Idempotency key conflicts with the original request"}]}');
+                    } else {
+                        response.writeHead(200, { 'content-type': 'application/graphql-response+json', 'cache-control': 'no-store' });
+                        response.end(prior.body);
+                    }
+                    return true;
+                }
+                assert.ok(ledger.size < 256, 'Fixture service ledger is bounded');
+            }
             requests.push({ method: request.method, operation, variables });
             if (operation === 'Cart') {
                 assert.equal(request.method, 'GET'); assert.equal(variables.id, cart.id);
@@ -47,8 +68,10 @@ export async function createInteractiveCartService() {
             }
             const body = malformed ? { data: { cart: { id: cart.id } } } : { data: { cart } };
             malformed = false;
+            const serialized = JSON.stringify(body);
+            if (request.method === 'POST') ledger.set(key, { fingerprint, body: serialized });
             response.writeHead(200, { 'content-type': 'application/graphql-response+json', 'cache-control': 'no-store' });
-            response.end(JSON.stringify(body));
+            response.end(serialized);
             return true;
         },
     };

@@ -18,6 +18,7 @@ try {
     browser = await chromium.launch({ executablePath: process.env.CEM_CHROME });
     const page = await browser.newPage();
     const requests = [];
+    const keys = [];
     const reads = [];
     const firstResponse = Promise.withResolvers();
     const expected = [
@@ -33,6 +34,7 @@ try {
             reads.push(Object.fromEntries(new URL(route.request().url()).searchParams));
             return route.fulfill({ contentType: 'application/graphql-response+json', body: initial });
         }
+        keys.push(route.request().headers()['idempotency-key']);
         requests.push({ method: route.request().method(), payload: route.request().postDataJSON() });
         const index = requests.length - 1;
         if (index === 0) await firstResponse.promise;
@@ -127,6 +129,7 @@ try {
                 publish({ html: guard.restoreResponse(capsule, pin, checkpoint, 'cart-browser-fixture') });
             }
             unbind = bindCemGraphqlActions({
+                mutationIdempotency: 'server-keyed',
                 root, endpoint: profile.graphql.endpoint, actions: profile.graphql.actions,
                 bindings: { cartId: profile.graphql.initialRead.variables.id }, guard: retainedGuard, owner, publish,
                 admitMutation: operationId => { guard.claimMutation(operationId); owner.input(); },
@@ -170,13 +173,14 @@ try {
     await quantity('coffee').waitFor();
     assert.equal(await quantity('tea').inputValue(), '3');
     assert.equal(await page.locator('main img').count(), 0);
-    assert.equal(await page.evaluate(async () => {
+    assert.deepEqual(await page.evaluate(async () => {
         const { journal, attach } = window.cartFixture;
         await journal.capture();
         const outcome = journal.current().receipt.operations[0].outcome;
+        const key = journal.current().receipt.operations[0].operationId;
         await attach();
-        return outcome;
-    }), 'acknowledged');
+        return { outcome, key };
+    }), { outcome: 'acknowledged', key: keys[0] });
     await noReplay('tea');
     assert.equal(requests.length, 1);
 
@@ -200,6 +204,8 @@ try {
     await remove('coffee').click();
     await page.waitForFunction(() => window.cartFixture.errors.some(error => /cem\.checkpoint\.recovery\.unknown/.test(error)));
     assert.deepEqual(requests, expected.map(payload => ({ method: 'POST', payload })));
+    assert.equal(new Set(keys).size, expected.length);
+    assert.ok(keys.every(key => typeof key === 'string' && key.startsWith('operation:')));
     assert.equal(reads.length, 1);
     console.log('Cart browser passed: guarded initial GET, native response capture/reimport on a fresh heap, trusted mutations, unknown-journal refusal and no request replay.');
 } finally {
