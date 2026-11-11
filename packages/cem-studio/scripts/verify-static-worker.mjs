@@ -205,7 +205,7 @@ try {
         await context.setOffline(true);
         await page.reload({ waitUntil: 'load' });
         await waitForApplication(page, browserErrors, httpFailures);
-        assert.equal(await page.getAttribute('[data-cem-studio-shell]', 'data-theme'), 'cem-theme-contrast-dark');
+        assert.equal(await page.getAttribute('[data-studio-shell]', 'data-theme'), 'cem-theme-contrast-dark');
         const offline = await inspectShell(page);
         assert.equal(offline.state, 'ready');
         assert.equal(offline.componentsInstalled, true);
@@ -371,7 +371,7 @@ try {
     await page.goto(`${server.url}/projects/offline-project?project=offline-project&file=source`, { waitUntil: 'load' });
     await waitForApplication(page, browserErrors, httpFailures);
     assert.ok(await page.evaluate(() => navigator.serviceWorker.controller !== null));
-    assert.equal(await page.getAttribute('[data-cem-studio-shell]', 'data-theme'), 'cem-theme-contrast-dark');
+    assert.equal(await page.getAttribute('[data-studio-shell]', 'data-theme'), 'cem-theme-contrast-dark');
     const recovered = await exportOfflineProject(page);
     assert.equal(recovered.content, '{main | Offline project bytes}\n');
     assert.equal(recovered.projectId, 'offline-project');
@@ -1773,7 +1773,7 @@ async function waitForApplication(page, browserErrors, httpFailures) {
     } catch (error) {
         const diagnostic = await page.evaluate(async () => ({
             documentReadyState: document.readyState,
-            rootState: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-state'),
+            rootState: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-studio-state'),
             rootMounted: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-mounted'),
             cacheNames: await caches.keys(),
             serviceWorkers: (await navigator.serviceWorker.getRegistrations()).map((registration) => ({
@@ -2587,8 +2587,8 @@ async function inspectShell(page) {
             errors: application.shell.view.errors.map(error => error.message),
             styleDiagnostics: [...components.result.diagnostics, ...components.runtime.diagnosticsFor(document.querySelector('cem-app-bar'))],
             styles: [...document.querySelectorAll('style')].map(style => style.textContent.slice(0, 180)),
-            state: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state'),
-            theme: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-theme'),
+            state: document.querySelector('[data-studio-shell]')?.getAttribute('data-studio-state'),
+            theme: document.querySelector('[data-studio-shell]')?.getAttribute('data-theme'),
             controlsOnly:
                 document.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button):not(cem-tree button):not(cem-expansion button)')
                     .length === 0,

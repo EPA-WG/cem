@@ -1,5 +1,5 @@
 /** Isolated acceptance driver, never imported by the application. */
-export async function studioRecovery(mode, progress, complete = false, privacy = false) {
+export async function studioRecovery(mode, progress, complete = false, privacy = false, cart) {
     const check = (condition, message) => { if (!condition) throw Error(message); };
     const elements = new URL('.', new URL('../../cem-elements/dist/index.js', import.meta.url));
     const support = new URL('lib/internal/runtime-support/', elements);
@@ -7,16 +7,20 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
     const binding = await import(/* @vite-ignore */ new URL('native-runtime.js', support).href);
     const initial = binding.isolateCemFallbackGeneration(); progress('native initialization'); await initial.ready(); progress('native ready');
     let heap = initial, embedding = initial.claimOwnership(), admission, combined;
-    const { CemElementRuntime, createCemDeclarationScope, CemCheckpointPublicationCoordinator, CemNativeRecoveryScope, resumeCemCheckpointOwners } = await import(/* @vite-ignore */ elements.href + 'index.js');
+    const { CemElementRuntime, createCemDeclarationScope, CemCheckpointPublicationCoordinator, CemNativeRecoveryScope, resumeCemCheckpointOwners, createCemGraphqlPreviewHost, mountCemView } = await import(/* @vite-ignore */ elements.href + 'index.js');
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
         policyStamp: 'studio-acceptance', maxBytes: 4 * 1024 * 1024, allowOwner: () => true,
         seal: (candidate, receipt) => binding.sealCommittedCheckpoint(candidate, receipt) });
     const recoveryScope = new CemNativeRecoveryScope();
     const scope = createCemDeclarationScope({ document });
-    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: 'cem-studio-component-declaration', checkpointPublication: coordinator, recoveryScope,
+    const previewApplicationHost = cart ? createCemGraphqlPreviewHost(cart.baseUrl, [cart.grant]) : undefined;
+    const runtime = new CemElementRuntime({ previewApplicationHost, declarationScope: scope, declarationTag: 'cem-studio-component-declaration', checkpointPublication: coordinator, recoveryScope,
         processingWorkerFactory: () => { if (mode === 'fallback') throw Error('owned fallback acceptance');
             return new Worker(new URL('processing-worker.js', support), { type: 'module' }); } });
     const map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: {
+        '@epa-wg/cem-elements': new URL('index.js', elements).href,
+        '@epa-wg/cem-elements/command-result': new URL('lib/command-result.js', elements).href,
+        '@epa-wg/cem-ml-cli/browser-commands': cart?.commandUrl ?? new URL('../../cem-ml-cli-npm/dist/browser-commands.js', import.meta.url).href,
         '@epa-wg/cem-theme': new URL('../../cem-theme/dist/index.js', import.meta.url).href,
         '@epa-wg/cem-components/components.xhtml': new URL('../../cem-components/dist/components.xhtml', import.meta.url).href,
     } }); document.head.append(map);
@@ -36,7 +40,9 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
     progress('command services ready');
     const repository = createCemStudioProjectRepository({ databaseName, validateProject: validator.validateProject });
     const request = (operation, parameters = {}) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
-    let session, workbench, view, shell, releaseStatus, stage = 'install';
+    let session, workbench, view, shell, releaseStatus, cartView, cartRoot, cartRecovery, stage = 'install';
+    const physicalGroups = [];
+    let sourceRetainedBytes = 0, renderingDomains = 0;
     // Fixture-only bounded counts; never retain source, attributes or control values.
     const nodeCensus = [];
     const recordCensus = phase => {
@@ -62,12 +68,14 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
         check(response.ok, 'missing Login sample');
         const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const cartBundle = cart ? parseCemStudioProjectBundle(new Uint8Array(await fetch(cart.bundleUrl).then(r => { check(r.ok, 'missing cart bundle'); return r.arrayBuffer(); }))) : undefined;
         session = createCemStudioProjectSession({ storage, openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
         setStage('session'); const base = await createCemStudioSessionWorkbench({ repository, session });
         const browser = new EventTarget(); browser.location = new URL('https://studio.test/?sample=login&file=login-html');
         browser.history = { pushState: (_, __, url) => { browser.location = new URL(url); }, replaceState: (_, __, url) => { browser.location = new URL(url); } };
         workbench = await createCemStudioNavigation({ repository, validator, workbench: base, browser,
-            examples: [{ id: 'login', name: 'Login', load: async () => bundle }] });
+            examples: [{ id: 'login', name: 'Login', load: async () => bundle },
+                ...(cart ? [{ id: 'shopping-cart', name: 'Shopping cart', load: async () => cartBundle }] : [])] });
         const root = document.createElement('main'); document.body.append(root);
         setStage('shell'); shell = await mountCemStudioApplicationShell({ root, storage });
         const statusHost = root.querySelector('cem-recovery-status');
@@ -79,6 +87,33 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         // and resume it only after fresh owners and their publications settle.
         releaseStatus = shell.recovery.suspend();
         setStage('workbench'); view = await mountCemStudioWorkbench({ root: shell.root, workbench }); await view.whenSettled();
+        if (cart) {
+            setStage('cart native build');
+            await workbench.openEntity('sample=shopping-cart&build=live-cart'); await view.whenSettled();
+            await workbench.buildProjectPreview(); await view.whenSettled();
+            check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', 'cart native build failed');
+            const sourceHost = root.querySelector('cem-media-preview[mode=live]');
+            check(sourceHost, 'cart build did not produce a live preview');
+            // Retain only the declared original source transport. The new view
+            // is the shared production component, never a DOM/AST serialization.
+            cartRoot = document.createElement('aside'); root.append(cartRoot);
+            const host = document.createElement('cem-media-preview');
+            for (const name of ['mode', 'value', 'source-uri', 'resource-set']) {
+                const value = sourceHost.getAttribute(name); check(value !== null, `cart transport omitted ${name}`); host.setAttribute(name, value);
+            }
+            host.setAttribute('label', 'Retained interactive cart'); cartRoot.append(host);
+            cartView = mountCemView(runtime, { root: cartRoot, tag: 'cem-media-preview', element: host });
+            await cartView.whenSettled();
+            for (let n = 0; host.querySelector('[role=status]')?.textContent !== 'Live view ready'; n++) {
+                check(n < 1000, `cart frame not ready: ${host.querySelector('[role=status]')?.textContent}`);
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            cartRecovery = runtime.previewApplicationRecovery(host);
+            check(cartRecovery, 'cart omitted its original response owner');
+            const otherScope = createCemDeclarationScope({ document });
+            try { check(!new CemElementRuntime({ declarationScope: otherScope }).previewApplicationRecovery(host), 'unrelated runtime acquired the cart host capability'); }
+            finally { otherScope.dispose(); }
+        }
         setStage('clone'); await workbench.openEntity('sample=login'); workbench.requestAction('clone');
         await workbench.submitAction({ name: ['Recovery acceptance'] }); await view.whenSettled();
         const project = workbench.snapshot().navigation.selection.project;
@@ -131,6 +166,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `initial recovery preview failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
         if (!complete) await selectUnreviewedPreview();
         check(complete || unreviewedPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'refusal lane has no unknown preview mode');
+        if (cart) await cart.phase('ready');
         if (privacy) {
             setStage('Login credential privacy');
             check(statusHost.textContent.includes('Entered passwords or one-time codes block recovery'), 'status omitted credential policy');
@@ -182,6 +218,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
             const observation = JSON.stringify(shell.recovery.snapshot());
             check(!observation.includes(credential) && !observation.includes(identity) && !observation.includes('ready'), 'recovery observation exposed credentials or asserted eligibility');
             await assertPrivacy(); // Password-manager/property-only edits cannot bypass the policy.
+            if (cart) await cart.phase('credential-refused');
             password.dispatchEvent(new InputEvent('input', { bubbles: true }));
             email.dispatchEvent(new InputEvent('input', { bubbles: true }));
             await view.whenSettled(); await assertPrivacy();
@@ -234,6 +271,10 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
 
         }
         const enrolledKinds = () => recoveryScope.inspect().members.map(member => member.kind);
+        if (cart) {
+            renderingDomains = 1 + coordinator.previewCoordinators().length;
+            check(renderingDomains === 4 && enrolledKinds().length === 7, 'Studio omitted its cart or either Login preview');
+        }
         if (privacy) check(enrolledKinds().includes('live-preview'), 'active Login runtime was omitted from membership');
         check(enrolledKinds().includes('rendering') && enrolledKinds().includes('command-service') && enrolledKinds().includes('command-invocation'), 'Studio omitted an active runtime from recovery membership');
         let groupRefused = false;
@@ -241,6 +282,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         check(complete || groupRefused, 'incomplete Studio runtime inventory prepared a partial group');
 
         for (let cycle = 0; cycle < 3; cycle++) {
+            if (cart) await cart.phase(`before ${cycle}`);
             for (let edit = 0; edit < 4; edit++) {
                 setStage(`edit ${cycle}/${edit}`);
                 const control = root.querySelector('cem-source-editor[data-cem-studio-editor] [role=textbox]');
@@ -278,11 +320,15 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 const consent = mode === 'fallback' ? heap.retirementConsent([embedding]) : undefined;
                 const proofs = []; for (const c of coordinators) proofs.push(await c.closeRenderingGeneration(5000, consent));
                 for (const c of coordinators) await capture(c);
+                if (cart) await cart.phase(`captured ${cycle}`);
                 const bytes = coordinators.reduce((total, c) => total + c.current().bytes.byteLength, 0);
                 check(bytes <= 4 * 1024 * 1024, 'complete workspace exceeded existing aggregate byte budget');
                 checkpointBytes = Math.max(checkpointBytes, bytes);
                 const tickets = coordinators.map(c => c.prepareResume()), native = validator.prepareRecovery();
                 const plan = await recoveryScope.prepare(), group = plan.createGenerationGroup();
+                const sourceBytes = cartRecovery?.retainedBytes() ?? 0;
+                sourceRetainedBytes = Math.max(sourceRetainedBytes, sourceBytes);
+                const sourceTicket = cartRecovery?.bindingTicket();
                 const commands = [native.invocation, native.commands], owners = commands.map(client => client.claimNativeEmbedding());
                 const commandProofs = []; for (let i = 0; i < commands.length; i++) commandProofs.push(await commands[i].closeNativeAdmission([owners[i]]));
                 setStage(`retire ${cycle}`); const retired = [];
@@ -290,11 +336,13 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 for (let i = 0; i < commands.length; i++) retired.push(await commands[i].retireNativeGeneration(commandProofs[i], [owners[i]], {
                     current: plan.current, retain: () => new TextEncoder().encode('Studio host ledger; no pending commands or writes'),
                 }));
+                if (cartRecovery) retired.push(cartRecovery.retire());
                 setStage(`allocate ${cycle}`); const previous = admission; admission = await group.allocate(retired);
-                groupBytes = Math.max(groupBytes, admission.generations.reduce((total, generation) => total + generation.checkpoint.byteLength, 0));
+                groupBytes = Math.max(groupBytes, sourceBytes + admission.generations.reduce((total, generation) => total + generation.checkpoint.byteLength, 0));
                 check(groupBytes <= 4 * 1024 * 1024, 'complete native group exceeded existing byte budget');
                 check(admission.generations.length === retired.length && admission.generations.every(generation => generation.runtimeId !== generation.previousRuntimeId), 'partial or reused runtime generation admitted');
-                setStage(`resume ${cycle}`); const resumed = await resumeCemCheckpointOwners(admission, tickets, 5000, native.bindings);
+                setStage(`resume ${cycle}`); const resumed = await resumeCemCheckpointOwners(admission, tickets, 5000, [...native.bindings, ...(sourceTicket ? [sourceTicket] : [])]);
+                physicalGroups.push(admission.generations.length);
                 for (const owner of resumed.owners) await owner.owner.resume(); previous?.revoke();
                 recordCensus(`resumed ${cycle}`);
                 if (mode === 'fallback') { heap = admission.generations[0].runtime; embedding = heap.claimOwnership(); }
@@ -310,6 +358,10 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 check(JSON.stringify(coordinator.inspectRecovery()) === JSON.stringify(supportBefore), 'admission refusal changed owners or journal');
             }
             assertLogin();
+            if (cart) {
+                check(runtime.previewApplicationRecovery(cartView.element) === cartRecovery, 'cart host route was replaced');
+                await cart.phase(`after ${cycle}`);
+            }
             check(previews.every(({ host, mode, frames }) => host.isConnected && host.getAttribute('mode') === mode && frames.every(({ frame, document }) => host.contains(frame) && frame.contentDocument === document)), 'handoff replaced preview presentation');
             check(storageWrites === writes, 'handoff repeated a host storage write');
             check(themeValues.every(({ host, value }) => host.isConnected && host.getAttribute('value') === value), 'handoff changed theme values');
@@ -345,7 +397,8 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         check(refused && coordinator.inspectRecovery().unknownOperations === 1, 'refusal consumed an unknown operation');
         operation.acknowledge();
         check(coordinator.inspectRecovery().unknownOperations === 0, 'explicit acknowledgment was lost');
-        return { ...(privacy ? { privacyRefusals: 2, checkpointBytes, groupBytes, nodeCensus } : {}), recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
+        if (cart) await cart.phase('complete');
+        return { ...(cart ? { physicalGroups, renderingDomains, sourceRetainedBytes } : {}), ...(privacy ? { privacyRefusals: 2, checkpointBytes, groupBytes, nodeCensus } : {}), recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
     } catch (error) {
         const counts = new Map(), visit = node => {
             if (counts.has(node)) return counts.get(node);
@@ -361,7 +414,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         throw Error(`${mode}/${stage}: ${error.stack || error} DOM ${JSON.stringify(inventory)} phases ${JSON.stringify(nodeCensus)}`, { cause: error });
     }
     finally {
-        shell?.recovery.dispose(); releaseStatus?.(); view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
+        shell?.recovery.dispose(); releaseStatus?.(); cartView?.dispose(); cartRoot?.remove(); view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
         admission?.revoke(); combined?.dispose(); coordinator.dispose(); scope.dispose(); recoveryScope.dispose();
         await new Promise((resolve, reject) => { const deletion = indexedDB.deleteDatabase(databaseName); deletion.onsuccess = resolve; deletion.onerror = () => reject(deletion.error); });
     }

@@ -25,6 +25,8 @@ export interface CemGraphqlPreviewRecovery {
     participant(): CemNativeGenerationParticipant;
     /** Called by the shared frame lifecycle after its original controls settle. */
     attachRenderingPeers(): void;
+    /** Observation only: native capsule plus the existing bounded pin reservation. */
+    retainedBytes(): number;
     bindingTicket(): CemNativeGenerationBindingTicket;
     retire(): CemNativeGenerationRetirement;
 }
@@ -179,6 +181,11 @@ export class CemGraphqlPreviewResponseOwner {
         return Object.freeze({
             participant: () => this.heap.participant!,
             attachRenderingPeers: () => this.attachRenderingPeers(),
+            retainedBytes: () => {
+                const snapshot = this.snapshot;
+                if (!snapshot || !snapshot.current()) fail();
+                return snapshot.capsule.byteLength + MAX_PIN_BYTES;
+            },
             bindingTicket: () => {
                 const snapshot = this.snapshot;
                 if (!snapshot || !snapshot.current()) fail();

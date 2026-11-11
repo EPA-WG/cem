@@ -6,6 +6,14 @@ import { mountCemArtifactPreview, type CemArtifactPreview } from './artifact-pre
 type Context = Parameters<NonNullable<CemProducedElementBehavior['rendered']>>[1];
 interface State { key: string; frame: HTMLIFrameElement; context: Context; controller?: CemLivePreview | CemArtifactPreview }
 const states = new WeakMap<HTMLElement, State>();
+/** Original host capability; serialized media attributes cannot recreate it. */
+export function cemMediaPreviewApplicationRecovery(instance: HTMLElement, runtime: Context['runtime']) {
+    const state = states.get(instance);
+    if (state?.context.runtime !== runtime || instance.getAttribute('mode') !== 'live'
+        || !instance.isConnected || !instance.contains(state.frame)
+        || !state.controller || !('applicationRecovery' in state.controller)) return undefined;
+    return state.controller.applicationRecovery();
+}
 type StaticMode = 'document' | 'text' | 'media' | 'message';
 interface Presentation { context: Context; mode: StaticMode; root: Element; frame?: HTMLIFrameElement; ready: boolean; srcdoc?: string; revision: number; stop(): void }
 const presentations = new WeakMap<HTMLElement, Presentation>();

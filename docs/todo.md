@@ -582,9 +582,23 @@ Deferred execution gates, in order within this workstream:
             loss. Stable Idempotency-Key values now tie those deliveries to the
             original journal operation. The fixture service deduplicates them;
             a production service must implement durable caller-bound storage.
-    - [ ] Verify complete Studio admission with the interactive cart enabled,
+    - [x] Verify complete Studio admission with the interactive cart enabled,
           including original parent/child physical coverage, command owners,
           credential refusals and the existing aggregate checkpoint budget.
+      - [x] Exercise the actual Studio workbench with interactive cart and Login
+            frames, retained editor drafts, both command owners, repeated worker
+            and fallback handoff, credential refusal and complete byte accounting.
+            Verified three handoffs per mode across seven worker/four fallback
+            heaps, including both Login previews and the original response owner.
+            Twelve edits, native Save/build, retained controls and fresh trusted
+            cart mutations pass with no recovery requests. Credential-bearing
+            groups refuse until explicit clearing; automatic recovery stays off.
+            Complete totals peak at 3,351,409/3,350,537 bytes, including response
+            source and pin reservation under the unchanged 4 MiB ceiling.
+            Fixed Studio's reserved host-marker collision without weakening native
+            admission. TypeScript, 37 preview and 245 workbench tests, selected
+            action/recovery, nine deployed offline cases, Studio/cart builds,
+            deployment closure, theme/forced-color and offline shell checks pass.
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm

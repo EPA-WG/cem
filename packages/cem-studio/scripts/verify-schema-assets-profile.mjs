@@ -280,7 +280,7 @@ async function files(root, prefix = '') {
 async function treeHashes(root) { return Promise.all((await files(root)).map(async path => [path, sha256(await readFile(resolve(root, path)))])); }
 async function ready(page) {
     await page.waitForFunction(() => globalThis.__cemStudioApplication
-        && document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state') === 'ready', undefined, { timeout: 60_000 });
+        && document.querySelector('[data-studio-shell]')?.getAttribute('data-studio-state') === 'ready', undefined, { timeout: 60_000 });
 }
 async function verifyStudioDemand(page, outputFirst = false) {
     await page.waitForFunction(() => {

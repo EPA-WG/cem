@@ -15,7 +15,7 @@ import type { CemCheckpointRelationship } from './committed-checkpoint.js';
 import { captureCheckpointControls, checkpointScalarPortable, type CemCheckpointControlState, type CemCheckpointRuntimeState } from './checkpoint-controls.js';
 import { type CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOwner } from './checkpoint-publication.js';
 import { isDomInstance } from './dom-realm.js';
-import { cemMediaPreviewCheckpoint, prepareCemMediaPreviewGuard, CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
+import { cemMediaPreviewCheckpoint, cemMediaPreviewApplicationRecovery, prepareCemMediaPreviewGuard, CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
 import { validateLivePreviewFrames, validateLivePreviewNodes } from './live-preview-policy.js';
 import { resolveAriaReferenceProfile, DEFAULT_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp, type CemAriaReferenceProfile } from './aria-reference-profile.js';
 import { checkpointSuggestionIndex, isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding, type CemNativeSuggestionRow } from './native-suggestions-publication.js';
@@ -2020,6 +2020,10 @@ export class CemElementRuntime {
 
     private readonly recoveryScope?: import('./internal/runtime-support/native-generation.js').CemNativeRecoveryScope;
     private readonly previewApplicationHost?: import('./graphql-preview.js').CemPreviewApplicationHost;
+    /** Trusted host handoff for an application in this runtime's original frame. */
+    previewApplicationRecovery(instance: HTMLElement): import('./graphql-preview-recovery.js').CemGraphqlPreviewRecovery | undefined {
+        return cemMediaPreviewApplicationRecovery(instance, this);
+    }
     /** Trusted browser lifecycle setup, never taken from a resource-set envelope. */
     previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration' | 'processingNativeWork'> & { applicationHost?: import('./graphql-preview.js').CemPreviewApplicationHost; dispose(): void } {
         const publication = this.checkpointPublication?.fork();

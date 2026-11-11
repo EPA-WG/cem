@@ -1178,6 +1178,41 @@ changes refuse before service dispatch, and the WASM digest is checked before
 initialization. The browser verifier runs the deployed Studio against a loopback
 GraphQL service, including malformed-response refusal and blocked further writes.
 
+### Compiled application recovery acceptance
+
+The shared preview adapter enrolls the original native response/source heap with
+its rendering heap. A complete original group must capture, close admission,
+retire and allocate both physical owners before binding their fresh routes.
+Neither a serialized checkpoint nor copied media attributes grant replacement
+authority. The trusted runtime's `previewApplicationRecovery(host)` returns the
+original controller capability only for its own mounted frame; its byte counter
+reports the retained source capsule and existing bounded pin reservation.
+
+The optional Studio verifier also runs the actual shell, native command services,
+editable Login workbench and a retained production cart media view together.
+Both Login previews remain enrolled. Three recoveries in each mode preserve
+editor drafts, focus/selection, frame documents and cart controls, then permit
+native Save/build and fresh trusted quantity/removal actions. Worker groups
+contain seven physical heaps; fallback groups contain four because the four
+rendering domains share one heap. Entered credentials refuse the entire group
+until explicitly cleared. Recovery sends no initial read or mutation and keeps
+automatic Studio recovery disabled. Aggregate accounting includes rendering and
+command checkpoints, the response journal, source capsule and pin reservation
+under the unchanged 4 MiB ceiling.
+
+The deployed offline fixture additionally covers cached worker/fallback recovery,
+missing runtime assets, unavailable initial reads, HTTP 503 writes and lost
+mutation replies. Unknown mutation outcomes block recovery and subsequent writes.
+Trusted grants require `mutationIdempotency: "server-keyed"`; each POST carries
+the original journal operation ID as its `Idempotency-Key`. The fixture service
+deduplicates equal deliveries and rejects conflicting reuse. A production
+service must durably bind that key to the authenticated caller and original
+request: a browser can retransmit a connection-lost fetch below the application.
+
+Run `yarn nx run @epa-wg/cem-studio:verify:cart-preview` after the shared runtime
+build. The workspace fixture is development-only and composes the existing
+production controls; it is never imported by the application.
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module
@@ -1188,10 +1223,6 @@ GraphQL service, including malformed-response refusal and blocked further writes
   templates and dynamic styles available through the full/on-demand runtime.
 - Verify optional module installation through a deployable catalog and loader.
   Extend native link evidence as additional application profiles are assembled.
-- Add a native application resume adapter and original response/source owners
-  to the preview's recovery membership. Exercise complete worker and fallback
-  retirement, offline recovery and mutation disposition. The interactive host
-  currently refuses recovery with `cem.preview.application.resume_unsupported`.
 - Extend the isolated prototype to the complete compiled-UI + JSON distribution
   with verified native dependency/ABI closure. Verify optional module acquisition, offline
   behavior and worker/fallback recovery with the same app state and semantics.

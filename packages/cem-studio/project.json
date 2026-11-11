@@ -1257,7 +1257,8 @@
             "options": {
                 "commands": [
                     "node scripts/verify-navigation.mjs --shopping-cart-only --cart-preview",
-                    "node ../cem_ql/tests/verify-live-application-recovery.mjs --offline"
+                    "node ../cem_ql/tests/verify-live-application-recovery.mjs --offline",
+                    "node scripts/verify-cart-workspace-recovery.mjs"
                 ],
                 "parallel": false,
                 "cwd": "{projectRoot}"
