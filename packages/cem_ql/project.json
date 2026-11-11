@@ -205,7 +205,11 @@
             "executor": "nx:run-commands",
             "dependsOn": ["test:selected-application-runtime", "build:wasm"],
             "options": {
-                "command": "node packages/cem_ql/tests/verify-selected-application-actions.mjs",
+                "commands": [
+                    "node packages/cem_ql/tests/verify-selected-application-actions.mjs",
+                    "node packages/cem_ql/tests/verify-live-application-recovery.mjs"
+                ],
+                "parallel": false,
                 "cwd": "{workspaceRoot}"
             }
         },

@@ -41,9 +41,16 @@ accepted source intact and the host journal blocks further writes.
 
 The native response checkpoint reimports those original bytes under the linked
 entry/GraphQL pins and requires an exact terminal journal. Its inert capsule
-and retirement pin do not authorize allocation or UI binding. Complete preview
-recovery still requires the original frame/control generation adapters and
-physical group admission; it remains disabled.
+and retirement pin do not authorize allocation or UI binding. A checkpoint-enabled
+shared frame host connects the response and frame/control owners to the same
+original physical group. Both heaps must retire before fresh allocation; the
+original source binding ticket and every rendering owner ticket must join the
+same resume transaction. The frame document and live controls remain in place.
+
+This connection is verified for repeated worker and owned-fallback recovery,
+including actions after recovery, missing peers, stale frames and unknown
+mutation outcomes. Whole-Studio recovery and offline recovery still require
+complete host admission and verification; automatic recovery remains disabled.
 The capsule, including its metadata, is limited to 1 MiB. The retained-response
 byte census counts acquired bytes; it is not a native heap/RSS measurement.
 

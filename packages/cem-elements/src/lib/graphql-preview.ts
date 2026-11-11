@@ -3,6 +3,9 @@ import { bindCemGraphqlActions, readCemGraphqlQuery, type CemGraphqlActionRoute,
 import { validateLivePreviewDom } from './live-preview-policy.js';
 import { readByteStream, streamCemHttpResponseBody } from './http-resource-transport.js';
 import type { CemLivePreviewResource } from './live-preview.js';
+import { CemGraphqlPreviewResponseOwner, type CemGraphqlPreviewGuard, type CemGraphqlPreviewRecovery } from './graphql-preview-recovery.js';
+import type { CemCheckpointPublicationCoordinator as Publication } from './checkpoint-publication.js';
+import type { CemNativeRecoveryScope } from './internal/runtime-support/native-generation.js';
 
 export interface CemGraphqlPreviewGrant {
     readonly id: string;
@@ -24,18 +27,11 @@ export interface CemPreviewApplicationRequest {
     readonly resources: readonly CemLivePreviewResource[];
 }
 
-type Guard = CemGraphqlGuard & CemGraphqlQueryOptions['guard'] & {
-    applicationIdentity(): string;
-    retainResponse(operation: string, bytes: Uint8Array, uri: string): string;
-    claimMutation(operationId: string): number;
-    responseRevision(): string;
-    disposeResponse(): void;
-    release(): void;
-};
 export interface CemPreviewApplication {
     readonly baseUrl: string;
     readonly grant: CemGraphqlPreviewGrant;
-    readonly guard: Guard;
+    readonly guard: CemGraphqlPreviewGuard;
+    connectRecovery(scope: CemNativeRecoveryScope, journal: Publication, rendering: Publication, current: () => boolean): CemGraphqlPreviewRecovery;
     dispose(): void;
 }
 export type CemPreviewApplicationHost = (request: CemPreviewApplicationRequest, signal: AbortSignal) => Promise<CemPreviewApplication>;
@@ -76,20 +72,22 @@ export function createCemGraphqlPreviewHost(baseUrl: string, grants: readonly Ce
         signal.throwIfAborted();
         const factoryUrl = new URL(grant.factoryUrl, baseUrl).href;
         const factory = await import(/* @vite-ignore */ factoryUrl);
-        const guard: Guard & { initialize(module: WebAssembly.Module): Promise<void> } = factory.createCemComponentWasmBindings();
+        const module = await WebAssembly.compile(new Uint8Array(bytes));
+        const create = async () => {
+            const guard: CemGraphqlPreviewGuard & { initialize(module: WebAssembly.Module): Promise<void> } = factory.createCemComponentWasmBindings();
+            try { await guard.initialize(module); return guard; }
+            catch (error) { try { guard.release(); } catch { /* An initializer can already be retired. */ } throw error; }
+        };
+        const guard = await create();
         try {
-            if (!['applicationIdentity', 'retainResponse', 'claimMutation', 'responseRevision', 'disposeResponse']
-                .every(method => typeof guard[method as keyof Guard] === 'function'))
+            if (!['applicationIdentity', 'retainResponse', 'claimMutation', 'captureResponse', 'responseRevision', 'sealCheckpoint',
+                'confirmResponseRetirement', 'restoreResponse', 'disposeResponse', 'memory', 'inventory']
+                .every(method => typeof guard[method as keyof CemGraphqlPreviewGuard] === 'function'))
                 throw Error('cem.preview.application.runtime_contract');
-            await guard.initialize(await WebAssembly.compile(new Uint8Array(bytes)));
             signal.throwIfAborted();
-            let active = true;
-            return { baseUrl, grant: structuredClone(grant), guard, dispose() {
-                if (!active) return;
-                active = false;
-                guard.disposeResponse();
-                guard.release();
-            } };
+            const owner = new CemGraphqlPreviewResponseOwner(guard, create);
+            return { baseUrl, grant: structuredClone(grant), guard: owner.guard,
+                connectRecovery: (...args) => owner.connect(...args), dispose: () => owner.dispose() };
         } catch (error) {
             try { guard.release(); } catch { /* Initialization can already retire a failed heap. */ }
             throw error;
@@ -97,10 +95,11 @@ export function createCemGraphqlPreviewHost(baseUrl: string, grants: readonly Ce
     };
 }
 
-/** Shared DOM/action adapter for a guarded native application in a live frame.
- * Its journal refuses recovery until a native application resume adapter exists. */
+/** Shared DOM/action adapter. Original source/operation ownership stays outside
+ * the rendering heap and joins its physical group through the response route. */
 export async function mountCemGraphqlPreview(root: HTMLElement, application: CemPreviewApplication, signal: AbortSignal,
-    reportError: (message: string) => void): Promise<() => void> {
+    reportError: (message: string) => void, recovery?: { scope: CemNativeRecoveryScope; rendering: Publication; current: () => boolean;
+        connected: (owner: CemGraphqlPreviewRecovery) => void }): Promise<() => void> {
     const { baseUrl, grant, guard } = application;
     // Original bytes and source maps remain in the selected heap. Rendering an
     // invalid response leaves that source owner untouched.
@@ -110,11 +109,12 @@ export async function mountCemGraphqlPreview(root: HTMLElement, application: Cem
         validateQueryVariables: (operation, bytes, uri) => guard.validateQueryVariables(operation, bytes, uri),
         renderResponse: (operation, bytes, uri) => guard.retainResponse(operation, bytes, uri),
     };
-    const journal = new CemCheckpointPublicationCoordinator({
+    const seal = (candidate: string, receipt: string) => guard.sealCheckpoint(candidate, receipt);
+    const journal = recovery?.rendering.fork(seal) ?? new CemCheckpointPublicationCoordinator({
         runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'preview-application',
-        seal: () => { throw Error('cem.preview.application.resume_unsupported'); },
+        seal,
     });
-    const owner = journal.register('application', () => undefined);
+    const owner = journal.register('application', () => `cem-application-response/1:${guard.responseRevision()}`);
     let active = true;
     const publish = (response: { html: string }) => {
         if (!active || signal.aborted || !root.isConnected) return false;
@@ -142,6 +142,7 @@ export async function mountCemGraphqlPreview(root: HTMLElement, application: Cem
             admitMutation: operationId => { guard.claimMutation(operationId); owner.input(); },
             actions: grant.actions, bindings: grant.bindings, publish, reportError: error => reportError(String(error)) });
         if (signal.aborted) throw Error('cem.preview.disposed');
+        if (recovery) recovery.connected(application.connectRecovery(recovery.scope, journal, recovery.rendering, recovery.current));
         return () => { signal.removeEventListener('abort', dispose); dispose(); };
     } catch (error) {
         signal.removeEventListener('abort', dispose); dispose(); throw error;

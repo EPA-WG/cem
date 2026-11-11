@@ -161,11 +161,11 @@ export class CemCheckpointPublicationCoordinator {
 
     get lastError(): string | undefined { return this.error; }
 
-    /** Child previews inherit the original explicit privacy/sealing policy,
-     * with independent owners, journals and physical-generation coverage. */
-    fork(): CemCheckpointPublicationCoordinator {
+    /** Child domains inherit the original privacy policy and independent owner
+     * coverage. A trusted native source may supply its own native sealer. */
+    fork(seal: CemCheckpointSealer = this.options.seal): CemCheckpointPublicationCoordinator {
         if (this.disposed) throw Error('cem.checkpoint.unavailable');
-        const child = new CemCheckpointPublicationCoordinator({ ...this.options,
+        const child = new CemCheckpointPublicationCoordinator({ ...this.options, seal,
             runtimeId: crypto.randomUUID(), policyStamp: this.policyStamp,
             allowOwner: owner => !this.disposed && this.allowOwner?.(owner) === true && !this.disposed });
         child.parent = this; this.children.add(child);

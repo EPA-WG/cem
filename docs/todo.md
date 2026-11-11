@@ -548,12 +548,27 @@ Deferred execution gates, in order within this workstream:
           Verified 18 native runtime cases, 21 receiver handoffs, independent
           WASM/browser reimport, linked-code audit and Studio cart actions,
           cloning and offline sample rebuilds. Selected WASM: 7,996,636 bytes.
-          Full frame/control physical recovery remains the following gate.
-    - [ ] Enroll the selected response owner and the frame/control native peers
+          Physical response/frame integration is verified below.
+    - [x] Enroll the selected response owner and the frame/control native peers
           in the original physical generation group. Gate fresh allocation and
           binding on complete capture, drain, retirement and source tickets;
-          verify worker/fallback recovery and offline behavior without reissuing
+          verify worker/fallback recovery without reissuing
           the initial query or replaying a mutation.
+      - [x] Verify the original physical response/frame group with real selected
+            and rendering WASM heaps, retained controls, missing-peer/stale-frame
+            refusal and zero GraphQL requests during fresh source binding.
+            Verified two worker and two owned-fallback recoveries, post-resume
+            mutations, superseded-admission revocation, parked-action refusal,
+            inherited privacy and unknown-outcome refusal. Original documents
+            and input nodes survive; both native heaps must retire together.
+            TypeScript build, 37 live-preview regressions, Studio's 229-asset
+            deployment closure and cart/clone/offline sample workflows pass.
+    - [ ] Verify offline recovery of an accepted interactive response, including
+          worker/runtime asset acquisition and service unavailability. Preserve
+          the current frame and refuse unavailable sources without write replay.
+    - [ ] Verify complete Studio admission with the interactive cart enabled,
+          including original parent/child physical coverage, command owners,
+          credential refusals and the existing aggregate checkpoint budget.
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm

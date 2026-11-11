@@ -1,6 +1,7 @@
 import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 import { createCemDeclarationScope, type CemDeclarationScope } from './declaration-scope.js';
 import { mountCemGraphqlPreview, type CemPreviewApplication, type CemPreviewApplicationHost } from './graphql-preview.js';
+import type { CemGraphqlPreviewRecovery } from './graphql-preview-recovery.js';
 
 export interface CemLivePreviewResource { uri: string; contentType: string; text: string }
 /** Explicit transport envelope. Resource bodies stay original text until shared native import. */
@@ -21,6 +22,8 @@ export interface CemLivePreview {
     readonly ready: Promise<void>;
     /** Original host-only witness for a settled retained frame, never a restart permit. */
     checkpoint(): (() => boolean) | undefined;
+    /** Original selected-heap retirement/binding controls; no serialized permit. */
+    applicationRecovery(): CemGraphqlPreviewRecovery | undefined;
     dispose(): void;
 }
 const blank = (owner: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'"><meta name="referrer" content="no-referrer"><meta name="cem-live-preview-owner" content="${owner}"><title>Live CEM preview</title></head><body></body></html>`;
@@ -61,6 +64,8 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
     const lifetime = new AbortController();
     let application: CemPreviewApplication | undefined;
     let disposeApplication: (() => void) | undefined;
+    let disposeApplicationCommands: (() => void) | undefined;
+    let applicationRecovery: CemGraphqlPreviewRecovery | undefined;
     let scope: CemDeclarationScope | undefined;
     let previewDocument: Document | undefined;
     let resize: ResizeObserver | undefined;
@@ -70,6 +75,11 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
     const pendingEnrollment = options.runtimeOptions?.recoveryScope?.enroll({ id: `cem-preview-loading:${crypto.randomUUID()}`,
         kind: 'live-preview', prepare: async () => { throw Error(application ? 'cem.preview.application.resume_unsupported' : 'cem.preview.recovery.pending'); } });
     const current = () => { if (!active || !frame.isConnected) throw new Error('cem.preview.disposed'); };
+    const frameCurrent = () => active && !!previewDocument && !scope?.disposed && frame.isConnected
+        && mounts.get(frame) === controller && frame.contentDocument === previewDocument && frame.srcdoc === originalSrcdoc
+        && frame.getAttribute('sandbox') === 'allow-same-origin' && frame.getAttribute('referrerpolicy') === 'no-referrer'
+        && frame.getAttribute('allow') === '';
+    let originalSrcdoc = '';
     const ready = (async () => {
         frame.setAttribute('sandbox', 'allow-same-origin');
         frame.setAttribute('referrerpolicy', 'no-referrer');
@@ -85,6 +95,7 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
             cancelLoad = () => { frame.removeEventListener('load', loaded); reject(new Error('cem.preview.disposed')); };
             frame.addEventListener('load', loaded);
             frame.srcdoc = blank(owner);
+            originalSrcdoc = frame.srcdoc;
         });
         current();
         const document = frame.contentDocument, window = frame.contentWindow;
@@ -140,9 +151,17 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
             application = prepared;
             current();
             const root = document.createElement('div');
+            // The deployment grant supplies the shared GraphQL command service
+            // and its separate native journal. Authored attributes alone never
+            // enroll host commands in the frame's checkpoint domain.
+            disposeApplicationCommands = runtime.registerCheckpointCommands(root);
             document.body.append(root);
             disposeApplication = await mountCemGraphqlPreview(root, application, lifetime.signal,
-                message => { if (active) options.onError?.(message); });
+                message => { if (active) options.onError?.(message); },
+                options.runtimeOptions?.recoveryScope && options.runtimeOptions.checkpointPublication ? {
+                    scope: options.runtimeOptions.recoveryScope, rendering: options.runtimeOptions.checkpointPublication,
+                    current: frameCurrent, connected: owner => { applicationRecovery = owner; },
+                } : undefined);
             current();
         } else {
             // An authored template input boundary, not an external-data DOM parser.
@@ -169,22 +188,21 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
             if (!child) break;
             visited.add(child); await runtime.whenRenderSettled(child); check(runtime, child);
         }
-        // The selected application has no native resume adapter yet. Keep the
-        // refusing membership so whole-host recovery cannot omit its heap.
-        if (!application) pendingEnrollment?.remove();
+        applicationRecovery?.attachRenderingPeers();
+        if (!application || applicationRecovery) pendingEnrollment?.remove();
         settled = true;
     })();
     const controller = Object.freeze({ ready, checkpoint() {
-        if (!active || !settled || !previewDocument || scope?.disposed || application) return undefined;
+        if (!active || !settled || !previewDocument || scope?.disposed || application && !applicationRecovery) return undefined;
         const document = previewDocument, srcdoc = frame.srcdoc;
         return () => active && settled && !scope?.disposed && frame.isConnected && mounts.get(frame) === controller
             && frame.contentDocument === document && frame.srcdoc === srcdoc
             && frame.getAttribute('sandbox') === 'allow-same-origin' && frame.getAttribute('referrerpolicy') === 'no-referrer'
             && frame.getAttribute('allow') === '';
-    }, dispose() {
+    }, applicationRecovery() { return active && settled ? applicationRecovery : undefined; }, dispose() {
         if (!active) return;
         active = false; cancelLoad?.(); cancelLoad = undefined;
-        lifetime.abort(); disposeApplication?.(); application?.dispose();
+        lifetime.abort(); disposeApplication?.(); disposeApplicationCommands?.(); application?.dispose();
         pendingEnrollment?.remove();
         resize?.disconnect(); previewDocument?.body.replaceChildren(); scope?.dispose(); resources.clear();
         options.runtimeOptions?.dispose?.();
