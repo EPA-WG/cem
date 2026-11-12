@@ -126,6 +126,11 @@ Complete live-component integration into that reduced target remains open.
 The browser baseline retains the original full-profile comparator identified by
 its recorded hash. The pinned-admission browser/WASM tests use the newly rebuilt
 runtime; the audit records that current binary separately.
+The [repeated startup and memory measurements](cem-components-wasm-startup.md)
+now cover fresh browser processes, live dedicated workers and browser-family
+resident PSS. They measure the selected compiled cart/JSON API separately from
+full-runtime component workloads; this is not a complete reduced live-component
+comparison.
 
 The audited binary is dominated by its code section; data is a much smaller
 share. Those sections do not attribute bytes to removable languages or assets. The
@@ -135,8 +140,9 @@ that request them. The JSON-only cart does not request either at startup.
 Source metadata is conservative evidence, not a complete native call graph or
 an exhaustive dynamic-mode proof. The local no-store worker runs also fetch the
 same WASM twice, so unique file size and repeated transfer cost are reported
-separately. Repeated timing runs, active-worker/aggregate memory and the full
-capability/offline total remain follow-up measurements.
+separately. Repeated timing runs, live worker counts and combined browser-family
+resident memory are recorded in the startup report. All-capabilities/offline
+totals, clean npm consumers and fixed budget selection remain follow-up work.
 
 The [selected cart link audit and source-module handoff](cem-components-shopping-cart-profile.md#linked-audit-and-source-module-handoff)
 identifies retained lifecycle adapter and transform roots in the named optimizer

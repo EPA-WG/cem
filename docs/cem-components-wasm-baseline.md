@@ -62,9 +62,11 @@ use here: those implementations are already in the full binary.
 | editor | fallback | 5.33 | 3.79 / 3.79 | 9.13 / 9.25 |
 
 Unavailable counters are not zero. Do not infer a memory saving, OOM threshold
-or checkpoint size from these file sizes or partial heap samples. Multi-run
-latency, active-worker/aggregate memory and an all-capabilities/offline total
-remain follow-up baseline work in the [profile checklist](todo.md#component-application-wasm-profile-separate-target).
+or checkpoint size from these file sizes or partial heap samples. This historical
+single-context record is preserved. The newer [startup and memory report](cem-components-wasm-startup.md)
+adds repeated fresh-process latency, live workers and combined browser-family
+resident memory with separate native diagnostics. All-capabilities/offline totals
+and clean npm consumers remain in the [profile checklist](todo.md#component-application-wasm-profile-separate-target).
 
 The fixtures add no production UI behavior or parsing. Existing component code
 runs in isolated storage. Credential recovery refusal, manual recovery and the

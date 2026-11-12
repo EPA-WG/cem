@@ -2,17 +2,27 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { homedir } from 'node:os';
+import { homedir, platform, release, arch, cpus, totalmem } from 'node:os';
 import { resolve, join } from 'node:path';
 import { chromium } from 'playwright';
 import { readDemoInventory } from './demo-deployment.mjs';
 import { createDemoSiteHandler } from './serve-demo-site.mjs';
-import { summarizeTraffic, renderBrowserBaseline } from './audit-components-wasm.mjs';
+import { summarizeTraffic } from './audit-components-wasm.mjs';
+import { browserProcessMemory, summarizeStartup, renderStartupReport } from './browser-runtime-metrics.mjs';
+import { prepareComponentBenchmark } from './component-benchmark-deployment.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
-const args=process.argv.slice(2);
-assert(args.every(arg=>arg==='--write-doc'||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1, 'Usage: node tools/scripts/measure-components-wasm.mjs [deployment] [--write-doc]');
-const deployment = resolve(args.find(arg=>!arg.startsWith('-')) ?? join(homedir(),'cem-bin'));
+const args=process.argv.slice(2).filter(arg=>arg!=='--');
+const usage='Usage: node tools/scripts/measure-components-wasm.mjs [deployment | --prepare] [--runs=3] [--case=selected|controls|data|editor] [--write-doc]';
+if(args.length===1 && args[0]==='--help') { console.log(usage); process.exit(0); }
+assert(args.every(arg=>['--write-doc','--prepare'].includes(arg)||/^--runs=\d+$/.test(arg)||/^--case=(selected|controls|data|editor)$/.test(arg)||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1,usage);
+assert(args.filter(arg=>arg.startsWith('--runs=')).length<=1 && args.filter(arg=>arg.startsWith('--case=')).length<=1,usage);
+const runs=Number(args.find(arg=>arg.startsWith('--runs='))?.slice(7)??3);
+assert(Number.isInteger(runs)&&runs>=1&&runs<=20,'runs must be between 1 and 20');
+const only=args.find(arg=>arg.startsWith('--case='))?.slice(7);
+assert(!args.includes('--prepare')||!args.some(arg=>!arg.startsWith('-')),'--prepare uses its own isolated benchmark destination');
+const deployment = resolve(args.includes('--prepare') ? join(root,'dist/fixtures/component-browser-startup') : args.find(arg=>!arg.startsWith('-')) ?? join(homedir(),'cem-bin'));
+if(args.includes('--prepare')) await prepareComponentBenchmark(root,deployment);
 const output = resolve(root,'dist/reports/components-wasm');
 const expected = createHash('sha256').update(await readFile(resolve(root,'packages/cem_ql/dist/wasm/cem_ql_bg.wasm'))).digest('hex');
 assert.equal(createHash('sha256').update(await readFile(join(deployment,'packages/cem_ql/dist/wasm/cem_ql_bg.wasm'))).digest('hex'),expected,'deployment/core cohort mismatch');
@@ -22,7 +32,15 @@ const catalog=JSON.parse(await readFile(resolve(root,'packages/cem-components/di
 for(const component of catalog.components) {
     assert.deepEqual(await readFile(resolve(root,component.implementation.source)),await readFile(resolve(deployment,component.implementation.source)),`stale declaration ${component.tag}`);
 }
+const selectedDir=resolve(root,'packages/cem_ql/dist/wasm-selected-application');
+const selectedFiles=new Map(await Promise.all(['cem_ql_factory.js','cem_ql_bg.wasm'].map(async name=>[
+    `/__component_audit__/selected/${name}`,await readFile(join(selectedDir,name))])));
+const selectedSha256=createHash('sha256').update(selectedFiles.get('/__component_audit__/selected/cem_ql_bg.wasm')).digest('hex');
+const selectedOptimization=JSON.parse(await readFile(resolve(root,'dist/reports/wasm-optimization/cem-ql-selected-application.json'),'utf8'));
+assert.equal(selectedSha256,selectedOptimization.outputSha256,'selected optimizer/artifact mismatch');
+selectedFiles.set('/__component_audit__/cart.json',await readFile(resolve(root,'packages/cem_ql/fixtures/component-application/shopping-cart/cart.json')));
 const fixtures = {
+    selected: { tags:[],html:'' },
     controls: { tags:['cem-action','cem-text-field'], html:'<form><cem-text-field label="Item" name="item" value="Sample"></cem-text-field><cem-action label="Apply" type="button"></cem-action></form>' },
     data: { tags:['cem-data-view'], html:'<cem-data-view label="Inventory" format="json" value=""></cem-data-view>' },
     editor: { tags:['cem-source-editor'], html:'<cem-source-editor label="Source" content-type="text/plain"></cem-source-editor>' },
@@ -44,7 +62,45 @@ window.auditRuntime = installCemElementRuntime(window, { processingPoolPolicy: {
    }
   }); return worker;
  } });`;
+const selectedRunner = `import {createCemComponentWasmBindings} from './selected/cem_ql_factory.js';
+let app;
+export async function initialize() {
+ const module=await WebAssembly.compileStreaming(fetch(new URL('./selected/cem_ql_bg.wasm',import.meta.url)));
+ app=createCemComponentWasmBindings(); await app.initialize(module); app.applicationIdentity();
+}
+export async function firstUse() {
+ app.validateVariables('Cart',new TextEncoder().encode('{"id":"cart-1"}'),'app://shopping-cart/variables.json');
+ const bytes=new Uint8Array(await (await fetch(new URL('./cart.json',import.meta.url))).arrayBuffer());
+ const html=app.retainResponse('Cart',bytes,'app://shopping-cart/cart.json');
+ if(!/Tea.*value="2".*USD 18\\.00/s.test(html)) throw Error('selected cart native render mismatch');
+ return true;
+}
+export function memory() { return {status:'available',endpoint:'selected entry heap only',
+ linearMemoryBytes:app.memory().buffer.byteLength,allocator:{status:'unavailable',reason:'selected ABI does not expose allocator live bytes'}}; }`;
+const selectedWorker = `import * as api from './selected-runner.mjs';
+onmessage=async({data})=> {try {
+ if(!['initialize','firstUse','memory'].includes(data.operation)) throw Error('unknown measurement operation');
+ postMessage({id:data.id,value:await api[data.operation]()});
+ }catch(error){postMessage({id:data.id,error:String(error)});} };`;
+const selectedBootstrap = `window.auditWorkerCounters={created:0,ready:0,success:0,failure:0,operations:{}};
+const mode=new URL(import.meta.url).searchParams.get('mode');
+let api;
+if(mode==='worker') {
+ const worker=new Worker(new URL('./selected-worker.mjs',import.meta.url),{type:'module'});
+ auditWorkerCounters.created++; const pending=new Map(); let next=0;
+ const call=operation=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject,operation});worker.postMessage({id,operation});});
+ worker.onmessage=({data})=>{const request=pending.get(data.id);if(!request)return;pending.delete(data.id);
+  if(data.error){auditWorkerCounters.failure++;request.reject(Error(data.error));return;}
+  if(request.operation==='initialize')auditWorkerCounters.ready++;
+  if(request.operation==='firstUse')auditWorkerCounters.success++;
+  request.resolve(data.value);};
+ api={initialize:()=>call('initialize'),firstUse:()=>call('firstUse'),memory:()=>call('memory')};
+} else api=await import('./selected-runner.mjs');
+await api.initialize();window.auditSelectedUse=()=>api.firstUse();window.auditSelectedMemory=()=>api.memory();window.auditSelectedReady=true;`;
+for(const [path,source] of [['selected-runner.mjs',selectedRunner],['selected-worker.mjs',selectedWorker],['selected-bootstrap.mjs',selectedBootstrap]])
+ selectedFiles.set('/__component_audit__/'+path,Buffer.from(source));
 function html(fixture, mode) {
+    if(fixture===fixtures.selected) return `<!doctype html><html lang="en"><head><meta charset="utf-8"><script type="module" src="/__component_audit__/selected-bootstrap.mjs?mode=${mode}"></script></head><body></body></html>`;
     return `<!doctype html><html lang="en" class="cem-theme-light"><head><meta charset="utf-8">
 <link rel="stylesheet" href="/packages/cem-theme/dist/lib/css/cem-combined.css">
 <link rel="stylesheet" href="/packages/cem-components/dist/styles.css">
@@ -55,7 +111,8 @@ function html(fixture, mode) {
 const handler = createDemoSiteHandler({root:deployment});
 const server = createServer((request,response) => {
     const url = new URL(request.url,'http://fixture.test');
-    if (url.pathname === '/__component_audit__/bootstrap.mjs') response.writeHead(200,{'content-type':'text/javascript','cache-control':'no-store'}).end(bootstrap);
+    if (selectedFiles.has(url.pathname)) { const bytes=selectedFiles.get(url.pathname); response.writeHead(200,{'content-type':url.pathname.endsWith('.wasm')?'application/wasm':url.pathname.endsWith('.json')?'application/json':'text/javascript','cache-control':'no-store','content-length':bytes.length}).end(bytes); }
+    else if (url.pathname === '/__component_audit__/bootstrap.mjs') response.writeHead(200,{'content-type':'text/javascript','cache-control':'no-store'}).end(bootstrap);
     else if (url.pathname === '/__component_audit__/') {
         const fixture = fixtures[url.searchParams.get('case')], mode=url.searchParams.get('mode');
         if (!fixture || !['worker','fallback'].includes(mode)) response.writeHead(400).end();
@@ -65,12 +122,21 @@ const server = createServer((request,response) => {
 });
 await new Promise(done => server.listen(0,'127.0.0.1',done));
 const origin=`http://127.0.0.1:${server.address().port}`;
-const browser=await chromium.launch({headless:true,executablePath:process.env.CEM_STUDIO_CHROME});
+let browser,browserServer,chromiumVersion;
 const results=[];
+const kinds=Object.keys(fixtures).filter(kind=>!only||kind===only);
+const plan=[];
+for(let run=0;run<runs;run++) { const order=kinds.slice(run%kinds.length).concat(kinds.slice(0,run%kinds.length));
+ for(const kind of order) for(const mode of run%2?['fallback','worker']:['worker','fallback']) plan.push({run:run+1,kind,mode}); }
 try {
-    for (const mode of ['worker','fallback']) for (const kind of Object.keys(fixtures)) {
+    for (const {run,kind,mode} of plan) {
+        const launchStarted=performance.now();
+        browserServer=await chromium.launchServer({headless:true,executablePath:process.env.CEM_STUDIO_CHROME});
+        browser=await chromium.connect(browserServer.wsEndpoint()); chromiumVersion=browser.version();
+        const browserLaunchMs=performance.now()-launchStarted, browserPid=browserServer.process().pid;
         const context=await browser.newContext({viewport:{width:1280,height:800},serviceWorkers:'block'});
         const page=await context.newPage(); page.setDefaultTimeout(30000);
+        const blankMemory=await browserProcessMemory(browserPid);
         let phase='cold'; const requestPhases=new WeakMap(), pending=new Set(), responses=[], errors=[];
         context.on('request',request=>requestPhases.set(request,phase));
         context.on('response',response=> {
@@ -80,7 +146,8 @@ try {
                 // Inspect only counters/headers. DevTools body reads can be evicted
                 // for both worker scripts and large WASMs; match our served bytes.
                 let bytes;
-                if(url.pathname==='/__component_audit__/bootstrap.mjs') bytes=Buffer.from(bootstrap);
+                if(selectedFiles.has(url.pathname)) bytes=selectedFiles.get(url.pathname);
+                else if(url.pathname==='/__component_audit__/bootstrap.mjs') bytes=Buffer.from(bootstrap);
                 else if(url.pathname==='/__component_audit__/') bytes=Buffer.from(html(fixtures[url.searchParams.get('case')],url.searchParams.get('mode')));
                 else if(url.pathname==='/favicon.ico') bytes=Buffer.alloc(0);
                 else {
@@ -103,26 +170,29 @@ try {
         const cdp=await context.newCDPSession(page);
         const memory=async()=> {
             const host=await cdp.send('Runtime.getHeapUsage');
-            const native=mode==='fallback' ? await page.evaluate(async()=> {
+            const native=kind==='selected' ? await page.evaluate(()=>window.auditSelectedMemory()) : mode==='fallback' ? await page.evaluate(async()=> {
                 try {
                     const bindings=await import('/packages/cem-elements/dist/lib/internal/runtime-support/native-runtime.js');
                     return {status:'available',endpoint:'selected fallback facade only',sample:JSON.parse(bindings.runtimeMemoryStatus())};
                 } catch { return {status:'unavailable',reason:'selected fallback native endpoint not exposed/ready'}; }
             }) : {status:'unavailable',reason:'active worker native counters are not exposed by the current public component host'};
             return {mainThreadJsHeapUsedBytes:host.usedSize,mainThreadJsHeapTotalBytes:host.totalSize,
-                aggregateHostMemory:{status:'unavailable',reason:'main-thread JS heap is not total browser/worker/WASM memory'},native};
+                mainThreadEmbedderHeapBytes:host.embedderHeapUsedSize, mainThreadBackingStorageBytes:host.backingStorageSize,
+                browserFamily:await browserProcessMemory(browserPid),activeWorkers:page.workers().length,native};
         };
         const fence=async()=> {await page.waitForLoadState('networkidle');while(pending.size) await Promise.all([...pending]);};
         const started=performance.now();
         await page.goto(`${origin}/__component_audit__/?case=${kind}&mode=${mode}`);
-        if(kind==='controls') {
+        if(kind==='selected') await page.waitForFunction(()=>window.auditSelectedReady===true);
+        else if(kind==='controls') {
             await page.getByRole('button',{name:'Apply',exact:true}).waitFor();
             await page.getByRole('textbox',{name:'Item',exact:true}).waitFor();
         } else if(kind==='data') await page.locator('cem-data-view > [part~=root]').waitFor();
         else await page.getByRole('textbox',{name:'Source',exact:true}).waitFor();
         const readyMs=performance.now()-started; await fence(); const coldMemory=await memory();
         phase='first-use'; const used=performance.now();
-        if(kind==='controls') {
+        if(kind==='selected') assert.equal(await page.evaluate(()=>window.auditSelectedUse()),true);
+        else if(kind==='controls') {
             await page.getByRole('textbox',{name:'Item',exact:true}).fill('Edited');
             await page.getByRole('button',{name:'Apply',exact:true}).click();
             assert.equal(await page.locator('form').evaluate(form=>new FormData(form).get('item')),'Edited');
@@ -145,22 +215,43 @@ try {
         assert(responses.every(response=>response.status<400),JSON.stringify(responses.filter(r=>r.status>=400)));
         const traffic=summarizeTraffic(responses);
         assert(traffic.uniqueWasm.length>0,'native rendering must load WASM');
-        for(const wasm of traffic.uniqueWasm) assert.equal(wasm.sha256,expected,'unexpected second/mismatched runtime');
+        for(const wasm of traffic.uniqueWasm) assert.equal(wasm.sha256,kind==='selected'?selectedSha256:expected,'unexpected second/mismatched runtime');
         const workerCounters=await page.evaluate(()=>window.auditWorkerCounters);
         if(mode==='worker') {assert(workerCounters.ready>0 && workerCounters.success>0,'default worker must actually process successful jobs');assert.equal(workerCounters.failure,0);}
         else assert.equal(workerCounters.created,0,'fallback fixture must not create a worker');
-        const result={kind,mode,samples:1,readyMs,firstUseMs,coldMemory,afterMemory,workerCounters,traffic,
+        if(mode==='worker') assert(coldMemory.activeWorkers>0 && afterMemory.activeWorkers>0,'a live dedicated worker is required');
+        else assert.equal(afterMemory.activeWorkers,0,'fallback must have no active worker');
+        const result={kind,mode,run,browserPid,browserLaunchMs,blankMemory,samples:1,readyMs,firstUseMs,coldMemory,afterMemory,workerCounters,traffic,
             phases:Object.fromEntries(['cold','first-use'].map(name=>[name,summarizeTraffic(responses.filter(r=>r.phase===name))])),responses};
         results.push(result);
-        console.log(`${kind}/${mode}: ready ${Math.round(readyMs)} ms, first use ${Math.round(firstUseMs)} ms, ${traffic.wasmRequests} WASM requests / ${traffic.uniqueWasm.length} unique file.`);
-        await cdp.detach();await context.close();
+        console.log(`${kind}/${mode} run ${run}: ready ${Math.round(readyMs)} ms, first use ${Math.round(firstUseMs)} ms, ${traffic.wasmRequests} WASM requests / ${traffic.uniqueWasm.length} unique file.`);
+        await cdp.detach();await context.close();await browser.close();await browserServer.close();browser=undefined;browserServer=undefined;
     }
     await mkdir(output,{recursive:true});
-    const report={schemaVersion:1,scope:'current-full-profile-only',transport:'assembled-demo deduplicated adapters; matching canonical WASM; no Studio/demo-viewer bootstrap',coreSha256:expected,chromium:browser.version(),node:process.version,
-        methods:{cold:'fresh isolated context in a shared browser process (code caches may be reused), default module worker or explicit unsupported-worker fallback; no demo/Studio wrappers',
-            timing:'end-to-end automation wall time; one observation per workload/mode, no statistical or minimum-size claim',
-            network:'decoded bodies and wire body sizes separated; current local no-store server; unique URLs separate from repeated fetches; body hashes/sizes come from matching served artifacts/fixtures with response length validation; response body size from browser API is separate; no inspector payload retention',
-            memory:'main-thread CDP JS heap counters; selected fallback native sample where ready, active-worker and aggregate memory explicitly unavailable'},results};
-    await writeFile(join(output,'browser-baseline.json'),`${JSON.stringify(report,null,2)}\n`);
-    if(args.includes('--write-doc')) await writeFile(resolve(root,'docs/cem-components-wasm-baseline.md'),renderBrowserBaseline(report));
-} finally {await browser.close();server.closeAllConnections();await new Promise(done=>server.close(done));}
+    const report={schemaVersion:2,scope:'selected-native-entry-and-separate-full-runtime-workloads',runs,
+        transport:'assembled-demo deduplicated adapters; local no-store HTTP; selected original compiled cart/JSON API fixture',
+        coreSha256:expected,selectedSha256,chromium:chromiumVersion,node:process.version,
+        platform:`${platform()} ${release()} ${arch()}`,cpu:cpus()[0]?.model,cpuCount:cpus().length,hostMemoryBytes:totalmem(),
+        measuredAt:new Date().toISOString(),
+        harnessHashes:Object.fromEntries(await Promise.all(['measure-components-wasm.mjs','browser-runtime-metrics.mjs','component-benchmark-deployment.mjs'].map(async name=>[
+            name,createHash('sha256').update(await readFile(resolve(root,'tools/scripts',name))).digest('hex')]))),
+        fixtureHashes:Object.fromEntries([...selectedFiles].map(([path,bytes])=>[path,createHash('sha256').update(bytes).digest('hex')])),
+        methods:{cold:'fresh browser process/profile/context per observation; OS/server caches may be warm; browser launch separate',
+            timing:'automation wall time; rotated workload/mode order; descriptive median/min/max; no percentile or budget claim',
+            memory:'browser-family Linux smaps_rollup PSS, stable process identities/membership; main JS and native capacity separate, never added to PSS',
+            sampling:'snapshots after network/render idle outside timed intervals; no explicit GC; diagnostic work occurs between readiness and first use',
+            workers:'live dedicated workers observed by Playwright, separate from creation/job counters and OS processes'},
+        summary:summarizeStartup(results),results};
+    await writeFile(join(output,'browser-startup.json'),`${JSON.stringify(report,null,2)}\n`);
+    if(args.includes('--write-doc')) {
+        await writeFile(resolve(root,'docs/cem-components-wasm-startup.md'),renderStartupReport(report));
+        const compact = sample => { const {processes,...aggregate}=sample; return aggregate; };
+        const evidence={...report,results:results.map(row=>{
+            const {responses,...sample}=row;
+            return {...sample,blankMemory:compact(row.blankMemory),
+                coldMemory:{...row.coldMemory,browserFamily:compact(row.coldMemory.browserFamily)},
+                afterMemory:{...row.afterMemory,browserFamily:compact(row.afterMemory.browserFamily)}};
+        })};
+        await writeFile(resolve(root,'docs/cem-components-wasm-startup.json'),`${JSON.stringify(evidence,null,2)}\n`);
+    }
+} finally {await browser?.close();await browserServer?.close();server.closeAllConnections();await new Promise(done=>server.close(done));}

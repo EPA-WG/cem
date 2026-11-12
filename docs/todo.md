@@ -679,6 +679,21 @@ Deferred execution gates, in order within this workstream:
   WASM acquisition observed in local no-store worker runs (two transfers of one
   unique binary; fallback one). Retain matched hashes/toolchains and fixed budget
   selection after the native boundary/prototype report, not an invented minimum.
+  - [x] Measure repeated fresh-process cold starts and first use for the selected
+        cart entry/JSON API and full-runtime controls, data and editor workloads.
+    - [x] Verify process-family PSS accounting, missing-counter/PID-change refusal,
+          descriptive summaries and a real worker touching 32 MiB of WASM memory.
+    - [x] Stage a separate benchmark deployment from matched built bindings,
+          canonical declarations and CSS; refuse mixed glue/binary cohorts.
+    - [x] Record live workers, process-family combined resident memory and separate
+          native capacity/counters; publish matched hashes and measurement limits.
+
+  Verified five observations per workload/mode (40 fresh Chromium processes),
+  120 complete process-family PSS snapshots and 14 collector/audit tests. Selected
+  entry readiness medians: 109/99 ms (worker/fallback); first use: 21/24 ms.
+  Browser-family PSS after use: 264.8/261.2 MiB, including browser overhead.
+  Full worker workloads retain two WASM transfers with one live worker; see the
+  [startup report and per-run evidence](cem-components-wasm-startup.md).
 
 - [ ] Prove native call reachability and dynamic mode/provider/template closure
   alongside module extraction. Keep the conservative source matrix separate

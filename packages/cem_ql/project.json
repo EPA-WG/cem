@@ -23,6 +23,25 @@
         ]
     },
     "targets": {
+        "test:browser-runtime-metrics": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "node --test tools/scripts/browser-runtime-metrics.test.mjs tools/scripts/audit-components-wasm.test.mjs",
+                "cwd": ""
+            }
+        },
+        "measure:browser-startup": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "parallelism": false,
+            "dependsOn": ["test:browser-runtime-metrics"],
+            "outputs": ["{workspaceRoot}/dist/reports/components-wasm/browser-startup.json"],
+            "options": {
+                "command": "node tools/scripts/measure-components-wasm.mjs --prepare",
+                "cwd": ""
+            }
+        },
         "test:ssr-render:stripped": {
             "executor": "nx:run-commands",
             "cache": true,

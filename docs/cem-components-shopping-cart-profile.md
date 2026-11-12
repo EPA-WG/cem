@@ -1204,6 +1204,17 @@ The frozen baseline and current link reports live under
 their verified byte/hash/ABI comparison is
 `dist/reports/components-wasm/selected-dependency-comparison.json`.
 
+### Startup and memory measurements
+
+The [repeated browser measurements](cem-components-wasm-startup.md) record
+five fresh-process observations per workload/mode, including selected cart/JSON
+readiness and its first guarded native render. This selected-entry fixture has
+one worker or one main-thread heap and no DOM/control host. Full-runtime controls,
+data and editor workloads are measured separately. Live worker counts and Linux
+browser-family resident PSS include the host and native pages; native capacity
+and available allocator counters are separate diagnostics. These measurements do
+not establish a whole-cart UI speedup or a complete reduced distribution.
+
 ### HTTP transport for cart actions
 
 The [shared POST transport](../packages/cem-elements/README.md#explicit-http-post-transport)

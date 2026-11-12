@@ -1,0 +1,6042 @@
+{
+  "schemaVersion": 2,
+  "scope": "selected-native-entry-and-separate-full-runtime-workloads",
+  "runs": 5,
+  "transport": "assembled-demo deduplicated adapters; local no-store HTTP; selected original compiled cart/JSON API fixture",
+  "coreSha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76",
+  "selectedSha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600",
+  "chromium": "148.0.7778.96",
+  "node": "v24.16.0",
+  "platform": "linux 6.18.58.1-microsoft-standard-WSL2 x64",
+  "cpu": "Intel(R) Core(TM) Ultra 7 258V",
+  "cpuCount": 8,
+  "hostMemoryBytes": 20975349760,
+  "measuredAt": "2026-11-12T23:43:07.001Z",
+  "harnessHashes": {
+    "measure-components-wasm.mjs": "213b23db02ce910da3e1e97eb1436df072dd7c6601defb5af613e2f556994821",
+    "browser-runtime-metrics.mjs": "465cd70d4bbf9f5f0b362b4c780c584f92a1905cd83327fed2ff37da19adb0c7",
+    "component-benchmark-deployment.mjs": "cdc50d50f6e1050d136a1d558047c9002264153e74d126cb0a52b058c887a4ae"
+  },
+  "fixtureHashes": {
+    "/__component_audit__/selected/cem_ql_factory.js": "a469ffa4b35b8673b0d02a19457d02a4b626acc9a0c6abc5b704adfc4f05a450",
+    "/__component_audit__/selected/cem_ql_bg.wasm": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600",
+    "/__component_audit__/cart.json": "32c05a0e17cfbe9b6e9a8656a9d2c1624f60d115b98196bfac4390d63c2dd1bd",
+    "/__component_audit__/selected-runner.mjs": "890955dae091d8b6ad73aff2ed2d18400004b2e7cf44488ccc6693ec359c26f1",
+    "/__component_audit__/selected-worker.mjs": "a85e1ce7aeee129ba3dac02d8980de12df08a86be7ba0bb773aa1c7c08dfafe0",
+    "/__component_audit__/selected-bootstrap.mjs": "2b7a96af89926cfe59d5623f0c5f30b7420ed9f34e7ecd053dcfc4d14ca3933c"
+  },
+  "methods": {
+    "cold": "fresh browser process/profile/context per observation; OS/server caches may be warm; browser launch separate",
+    "timing": "automation wall time; rotated workload/mode order; descriptive median/min/max; no percentile or budget claim",
+    "memory": "browser-family Linux smaps_rollup PSS, stable process identities/membership; main JS and native capacity separate, never added to PSS",
+    "sampling": "snapshots after network/render idle outside timed intervals; no explicit GC; diagnostic work occurs between readiness and first use",
+    "workers": "live dedicated workers observed by Playwright, separate from creation/job counters and OS processes"
+  },
+  "summary": [
+    {
+      "kind": "selected",
+      "mode": "worker",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 54.27306200000021,
+        "median": 58.18936099999701,
+        "max": 72.04591999999991
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 101.66757400000006,
+        "median": 108.66803000000073,
+        "max": 122.03075999999783
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 19.289441000000807,
+        "median": 21.141288000002532,
+        "max": 26.36374799999612
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 212586496,
+        "median": 213626880,
+        "max": 214168576
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 267885568,
+        "median": 268372992,
+        "max": 268584960
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 275228672,
+        "median": 277654528,
+        "max": 278845440
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 1586516,
+        "median": 1586528,
+        "max": 1586540
+      },
+      "readyNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 1900544,
+        "median": 1900544,
+        "max": 1900544
+      },
+      "afterNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 1966080,
+        "median": 1966080,
+        "max": 1966080
+      },
+      "readyNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "fallback",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 53.36040800000001,
+        "median": 54.45059699999911,
+        "max": 61.34628399999929
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 87.34686699999997,
+        "median": 98.85222400000202,
+        "max": 113.3339730000007
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 19.8037230000009,
+        "median": 24.02049299999635,
+        "max": 27.46466099999816
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 213124096,
+        "median": 213755904,
+        "max": 214030336
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 264060928,
+        "median": 264880128,
+        "max": 265277440
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 271627264,
+        "median": 273849344,
+        "max": 276467712
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 1943340,
+        "median": 1950604,
+        "max": 1951528
+      },
+      "readyNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 1900544,
+        "median": 1900544,
+        "max": 1900544
+      },
+      "afterNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 1966080,
+        "median": 1966080,
+        "max": 1966080
+      },
+      "readyNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 52.481651000000056,
+        "median": 52.95407499999419,
+        "max": 58.72613799999817
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 1046.6992049999972,
+        "median": 1095.9017510000012,
+        "max": 1221.0877779999992
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 75.61893100000088,
+        "median": 79.91405899999518,
+        "max": 126.42318700000033
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 210376704,
+        "median": 213159936,
+        "max": 214146048
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 401246208,
+        "median": 405279744,
+        "max": 431296512
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 405558272,
+        "median": 406835200,
+        "max": 409073664
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 6569384,
+        "median": 6679564,
+        "max": 7084744
+      },
+      "readyNativeCapacityBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeCapacityBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 2,
+        "median": 2,
+        "max": 2
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 54.95982999999978,
+        "median": 57.571876000001794,
+        "max": 65.49563300000227
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 795.0930139999982,
+        "median": 818.5124600000004,
+        "max": 883.2344439999943
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 85.67444400000022,
+        "median": 98.76268100000016,
+        "max": 99.0903049999979
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 212774912,
+        "median": 213215232,
+        "max": 213285888
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 330729472,
+        "median": 331231232,
+        "max": 332053504
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 336398336,
+        "median": 336946176,
+        "max": 337350656
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 5277676,
+        "median": 5310624,
+        "max": 5330680
+      },
+      "readyNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 25886720,
+        "median": 26279936,
+        "max": 26279936
+      },
+      "afterNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 26869760,
+        "median": 26869760,
+        "max": 26869760
+      },
+      "readyNativeLiveBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 18476822,
+        "median": 18476822,
+        "max": 18476822
+      },
+      "afterNativeLiveBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 18476858,
+        "median": 18476858,
+        "max": 18476858
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 53.00953699999991,
+        "median": 56.319735999999466,
+        "max": 58.191125999997894
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 1066.0081960000025,
+        "median": 1103.3185090000006,
+        "max": 1143.1003
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 81.83492000000024,
+        "median": 90.07558099999733,
+        "max": 103.99269400000048
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 211597312,
+        "median": 213303296,
+        "max": 213481472
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 421530624,
+        "median": 422341632,
+        "max": 505680896
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 448660480,
+        "median": 455530496,
+        "max": 462230528
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 5225528,
+        "median": 5284060,
+        "max": 6724608
+      },
+      "readyNativeCapacityBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeCapacityBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 2,
+        "median": 2,
+        "max": 2
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 54.67785500000082,
+        "median": 56.37847099999999,
+        "max": 64.93164799999795
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 720.2753389999998,
+        "median": 760.219090999999,
+        "max": 1246.290860000001
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 69.49630900000011,
+        "median": 79.21176800000103,
+        "max": 99.20090399999754
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 212610048,
+        "median": 213561344,
+        "max": 214030336
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 358762496,
+        "median": 359050240,
+        "max": 359764992
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 382844928,
+        "median": 391914496,
+        "max": 396199936
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 6827876,
+        "median": 6850544,
+        "max": 6916168
+      },
+      "readyNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 8519680,
+        "median": 8519680,
+        "max": 8519680
+      },
+      "afterNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 8781824,
+        "median": 8781824,
+        "max": 8781824
+      },
+      "readyNativeLiveBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 2812130,
+        "median": 2812130,
+        "max": 2812130
+      },
+      "afterNativeLiveBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 2828459,
+        "median": 2828459,
+        "max": 2828459
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 54.67940300000191,
+        "median": 63.30966900000203,
+        "max": 67.42550800000026
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 1049.880253000003,
+        "median": 1076.4555540000001,
+        "max": 1127.5051649999996
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 144.5532400000011,
+        "median": 154.56774099999893,
+        "max": 158.48856499999965
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 212951040,
+        "median": 213411840,
+        "max": 213738496
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 425039872,
+        "median": 426633216,
+        "max": 449582080
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 463777792,
+        "median": 465039360,
+        "max": 465820672
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 5248464,
+        "median": 5277072,
+        "max": 5289320
+      },
+      "readyNativeCapacityBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeCapacityBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "afterNativeLiveBytes": {
+        "status": "unavailable",
+        "samples": 5,
+        "availableSamples": 0,
+        "reason": "one or more observations unavailable; no partial-sample aggregate"
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 2,
+        "median": 2,
+        "max": 2
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "samples": 5,
+      "browserLaunchMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 53.966448000002856,
+        "median": 57.41267599999992,
+        "max": 60.68473499999527
+      },
+      "readyMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 633.8797530000011,
+        "median": 740.1741499999989,
+        "max": 769.8420850000002
+      },
+      "firstUseMs": {
+        "status": "available",
+        "samples": 5,
+        "min": 137.09475700000075,
+        "median": 148.21616799999902,
+        "max": 162.12186900000233
+      },
+      "blankPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 212602880,
+        "median": 213728256,
+        "max": 214030336
+      },
+      "readyPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 361142272,
+        "median": 362096640,
+        "max": 362256384
+      },
+      "afterPssBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 399874048,
+        "median": 400156672,
+        "max": 401160192
+      },
+      "afterMainJsBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 5478348,
+        "median": 5508280,
+        "max": 5511016
+      },
+      "readyNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 9568256,
+        "median": 9568256,
+        "max": 9568256
+      },
+      "afterNativeCapacityBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 9568256,
+        "median": 9568256,
+        "max": 9568256
+      },
+      "readyNativeLiveBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 3972856,
+        "median": 3972856,
+        "max": 3972856
+      },
+      "afterNativeLiveBytes": {
+        "status": "available",
+        "samples": 5,
+        "min": 3972874,
+        "median": 3972874,
+        "max": 3972874
+      },
+      "readyWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "afterWorkers": {
+        "status": "available",
+        "samples": 5,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "wasmRequests": {
+        "status": "available",
+        "samples": 5,
+        "min": 1,
+        "median": 1,
+        "max": 1
+      }
+    }
+  ],
+  "results": [
+    {
+      "kind": "selected",
+      "mode": "worker",
+      "run": 1,
+      "browserPid": 1165129,
+      "browserLaunchMs": 72.04591999999991,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 214168576,
+        "privateBytes": 132820992,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431263744,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 31.105530999999928
+      },
+      "samples": 1,
+      "readyMs": 101.66757400000006,
+      "firstUseMs": 20.944770000000062,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1565104,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 268584960,
+          "privateBytes": 183664640,
+          "swapPssBytes": 0,
+          "rssSumBytes": 493957120,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.072068000000172
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1586528,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 276825088,
+          "privateBytes": 191754240,
+          "swapPssBytes": 0,
+          "rssSumBytes": 502657024,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.03458599999999
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 1,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 7,
+        "decodedBodyBytes": 6544630,
+        "uniqueDecodedBodyBytes": 6544630,
+        "wireBodyBytes": 6544323,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 6,
+          "decodedBodyBytes": 6544417,
+          "uniqueDecodedBodyBytes": 6544417,
+          "wireBodyBytes": 6544110,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "fallback",
+      "run": 1,
+      "browserPid": 1165195,
+      "browserLaunchMs": 53.36040800000001,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213534720,
+        "privateBytes": 132444160,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429264896,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.627620999999863
+      },
+      "samples": 1,
+      "readyMs": 87.34686699999997,
+      "firstUseMs": 21.201746000000185,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1843288,
+        "mainThreadJsHeapTotalBytes": 2670592,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 32912,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 264060928,
+          "privateBytes": 178978816,
+          "swapPssBytes": 0,
+          "rssSumBytes": 488345600,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.49924400000009
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1951528,
+        "mainThreadJsHeapTotalBytes": 2932736,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 33921,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 271627264,
+          "privateBytes": 186281984,
+          "swapPssBytes": 0,
+          "rssSumBytes": 496275456,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 22.747004999999717
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 6,
+        "decodedBodyBytes": 6544314,
+        "uniqueDecodedBodyBytes": 6544314,
+        "wireBodyBytes": 6544325,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 5,
+          "decodedBodyBytes": 6544101,
+          "uniqueDecodedBodyBytes": 6544101,
+          "wireBodyBytes": 6544112,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 1,
+      "browserPid": 1165258,
+      "browserLaunchMs": 52.481651000000056,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212620288,
+        "privateBytes": 132141056,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429137920,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.656020000000353
+      },
+      "samples": 1,
+      "readyMs": 1094.0400550000004,
+      "firstUseMs": 81.35116500000004,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 6105908,
+        "mainThreadJsHeapTotalBytes": 9748480,
+        "mainThreadEmbedderHeapBytes": 2549544,
+        "mainThreadBackingStorageBytes": 2285532,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 401246208,
+          "privateBytes": 313286656,
+          "swapPssBytes": 0,
+          "rssSumBytes": 632365056,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.537958999999773
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 7084744,
+        "mainThreadJsHeapTotalBytes": 11108352,
+        "mainThreadEmbedderHeapBytes": 2784920,
+        "mainThreadBackingStorageBytes": 2307760,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 406771712,
+          "privateBytes": 318279680,
+          "swapPssBytes": 0,
+          "rssSumBytes": 638750720,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.592510999999831
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824888,
+        "uniqueDecodedBodyBytes": 26762569,
+        "wireBodyBytes": 51811625,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 151,
+          "decodedBodyBytes": 51824888,
+          "uniqueDecodedBodyBytes": 26762569,
+          "wireBodyBytes": 51811625,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 1,
+      "browserPid": 1165328,
+      "browserLaunchMs": 54.95982999999978,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213215232,
+        "privateBytes": 133640192,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429289472,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 28.98078499999974
+      },
+      "samples": 1,
+      "readyMs": 818.5124600000004,
+      "firstUseMs": 85.88033900000028,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4184468,
+        "mainThreadJsHeapTotalBytes": 9748480,
+        "mainThreadEmbedderHeapBytes": 1501240,
+        "mainThreadBackingStorageBytes": 2253528,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 331231232,
+          "privateBytes": 243429376,
+          "swapPssBytes": 0,
+          "rssSumBytes": 561651712,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.801816000000144
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476822,
+              "allocatorPeakBytes": 19711608,
+              "linearMemoryBytes": 25886720
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5330680,
+        "mainThreadJsHeapTotalBytes": 10321920,
+        "mainThreadEmbedderHeapBytes": 1551464,
+        "mainThreadBackingStorageBytes": 2286106,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 337125376,
+          "privateBytes": 248803328,
+          "swapPssBytes": 0,
+          "rssSumBytes": 568438784,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 7.8457909999997355
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476858,
+              "allocatorPeakBytes": 20424064,
+              "linearMemoryBytes": 26869760
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749284,
+        "uniqueDecodedBodyBytes": 26749284,
+        "wireBodyBytes": 26749308,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 126,
+          "decodedBodyBytes": 26749284,
+          "uniqueDecodedBodyBytes": 26749284,
+          "wireBodyBytes": 26749308,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 1,
+      "browserPid": 1165393,
+      "browserLaunchMs": 53.00953699999991,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213481472,
+        "privateBytes": 133103616,
+        "swapPssBytes": 0,
+        "rssSumBytes": 428466176,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.369698999999855
+      },
+      "samples": 1,
+      "readyMs": 1143.1003,
+      "firstUseMs": 81.83492000000024,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 5600420,
+        "mainThreadJsHeapTotalBytes": 9224192,
+        "mainThreadEmbedderHeapBytes": 2281808,
+        "mainThreadBackingStorageBytes": 2194309,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 422341632,
+          "privateBytes": 332423168,
+          "swapPssBytes": 0,
+          "rssSumBytes": 653869056,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.508293999999296
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5284060,
+        "mainThreadJsHeapTotalBytes": 9797632,
+        "mainThreadEmbedderHeapBytes": 2532432,
+        "mainThreadBackingStorageBytes": 2199548,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 459848704,
+          "privateBytes": 368717824,
+          "swapPssBytes": 0,
+          "rssSumBytes": 692744192,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 16.053906999999526
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804099,
+        "uniqueDecodedBodyBytes": 26741780,
+        "wireBodyBytes": 51790836,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51804099,
+          "uniqueDecodedBodyBytes": 26741780,
+          "wireBodyBytes": 51790836,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 1,
+      "browserPid": 1165468,
+      "browserLaunchMs": 54.67785500000082,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213872640,
+        "privateBytes": 133361664,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431607808,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.406909000000269
+      },
+      "samples": 1,
+      "readyMs": 720.2753389999998,
+      "firstUseMs": 69.49630900000011,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4487472,
+        "mainThreadJsHeapTotalBytes": 10010624,
+        "mainThreadEmbedderHeapBytes": 2282128,
+        "mainThreadBackingStorageBytes": 2206093,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 359050240,
+          "privateBytes": 269225984,
+          "swapPssBytes": 0,
+          "rssSumBytes": 592236544,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.519744000000173
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2812130,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8519680
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6916168,
+        "mainThreadJsHeapTotalBytes": 10846208,
+        "mainThreadEmbedderHeapBytes": 2531872,
+        "mainThreadBackingStorageBytes": 2248612,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 393469952,
+          "privateBytes": 302366720,
+          "swapPssBytes": 0,
+          "rssSumBytes": 628125696,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.72858400000041
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2828459,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8781824
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728495,
+        "uniqueDecodedBodyBytes": 26728495,
+        "wireBodyBytes": 26728519,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26728495,
+          "uniqueDecodedBodyBytes": 26728495,
+          "wireBodyBytes": 26728519,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 1,
+      "browserPid": 1165534,
+      "browserLaunchMs": 56.510150999999496,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213643264,
+        "privateBytes": 132194304,
+        "swapPssBytes": 0,
+        "rssSumBytes": 432099328,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.090839000000415
+      },
+      "samples": 1,
+      "readyMs": 1127.5051649999996,
+      "firstUseMs": 153.11575999999877,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4413860,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2272120,
+        "mainThreadBackingStorageBytes": 2199992,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 426633216,
+          "privateBytes": 335683584,
+          "swapPssBytes": 0,
+          "rssSumBytes": 661352448,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.83898500000032
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5287308,
+        "mainThreadJsHeapTotalBytes": 9797632,
+        "mainThreadEmbedderHeapBytes": 2559056,
+        "mainThreadBackingStorageBytes": 2204651,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 465820672,
+          "privateBytes": 372420608,
+          "swapPssBytes": 0,
+          "rssSumBytes": 703217664,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 13.017684000000372
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802559,
+        "uniqueDecodedBodyBytes": 26740240,
+        "wireBodyBytes": 51789296,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51802559,
+          "uniqueDecodedBodyBytes": 26740240,
+          "wireBodyBytes": 51789296,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 1,
+      "browserPid": 1165604,
+      "browserLaunchMs": 56.39158700000007,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 214018048,
+        "privateBytes": 133431296,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430813184,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 8.561659000000873
+      },
+      "samples": 1,
+      "readyMs": 769.8420850000002,
+      "firstUseMs": 137.09475700000075,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4640544,
+        "mainThreadJsHeapTotalBytes": 9748480,
+        "mainThreadEmbedderHeapBytes": 2297080,
+        "mainThreadBackingStorageBytes": 2223262,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 362256384,
+          "privateBytes": 272064512,
+          "swapPssBytes": 0,
+          "rssSumBytes": 595173376,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.067286999999851
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972856,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5508280,
+        "mainThreadJsHeapTotalBytes": 11108352,
+        "mainThreadEmbedderHeapBytes": 2558712,
+        "mainThreadBackingStorageBytes": 2238708,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 401160192,
+          "privateBytes": 308355072,
+          "swapPssBytes": 0,
+          "rssSumBytes": 637009920,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 11.45491100000072
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972874,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26726955,
+        "uniqueDecodedBodyBytes": 26726955,
+        "wireBodyBytes": 26726979,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26726955,
+          "uniqueDecodedBodyBytes": 26726955,
+          "wireBodyBytes": 26726979,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 2,
+      "browserPid": 1165690,
+      "browserLaunchMs": 56.35679100000016,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212982784,
+        "privateBytes": 131989504,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429621248,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.142823000000135
+      },
+      "samples": 1,
+      "readyMs": 808.606002999999,
+      "firstUseMs": 85.67444400000022,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4184400,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 1480664,
+        "mainThreadBackingStorageBytes": 2253528,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 330729472,
+          "privateBytes": 241934336,
+          "swapPssBytes": 0,
+          "rssSumBytes": 561889280,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.53013699999974
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476822,
+              "allocatorPeakBytes": 19711608,
+              "linearMemoryBytes": 25886720
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5286828,
+        "mainThreadJsHeapTotalBytes": 10846208,
+        "mainThreadEmbedderHeapBytes": 1560296,
+        "mainThreadBackingStorageBytes": 2286106,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 336946176,
+          "privateBytes": 247656448,
+          "swapPssBytes": 0,
+          "rssSumBytes": 568897536,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.617826000001514
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476858,
+              "allocatorPeakBytes": 20424064,
+              "linearMemoryBytes": 26869760
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749284,
+        "uniqueDecodedBodyBytes": 26749284,
+        "wireBodyBytes": 26749308,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 126,
+          "decodedBodyBytes": 26749284,
+          "uniqueDecodedBodyBytes": 26749284,
+          "wireBodyBytes": 26749308,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 2,
+      "browserPid": 1165758,
+      "browserLaunchMs": 55.20492100000047,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 214146048,
+        "privateBytes": 133435392,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430403584,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 29.22832500000004
+      },
+      "samples": 1,
+      "readyMs": 1221.0877779999992,
+      "firstUseMs": 75.61893100000088,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 6115092,
+        "mainThreadJsHeapTotalBytes": 9224192,
+        "mainThreadEmbedderHeapBytes": 2548848,
+        "mainThreadBackingStorageBytes": 2285532,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 402252800,
+          "privateBytes": 312942592,
+          "swapPssBytes": 0,
+          "rssSumBytes": 634228736,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 11.894539999999324
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6679564,
+        "mainThreadJsHeapTotalBytes": 11108352,
+        "mainThreadEmbedderHeapBytes": 2790320,
+        "mainThreadBackingStorageBytes": 2292865,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 407892992,
+          "privateBytes": 318115840,
+          "swapPssBytes": 0,
+          "rssSumBytes": 640770048,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 11.366355000000112
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824888,
+        "uniqueDecodedBodyBytes": 26762569,
+        "wireBodyBytes": 51811625,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 151,
+          "decodedBodyBytes": 51824888,
+          "uniqueDecodedBodyBytes": 26762569,
+          "wireBodyBytes": 51811625,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 2,
+      "browserPid": 1165827,
+      "browserLaunchMs": 56.37847099999999,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213561344,
+        "privateBytes": 133046272,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430882816,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 29.436663999998927
+      },
+      "samples": 1,
+      "readyMs": 760.219090999999,
+      "firstUseMs": 76.63814999999886,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4479744,
+        "mainThreadJsHeapTotalBytes": 9748480,
+        "mainThreadEmbedderHeapBytes": 2297960,
+        "mainThreadBackingStorageBytes": 2206093,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 358762496,
+          "privateBytes": 269537280,
+          "swapPssBytes": 0,
+          "rssSumBytes": 591626240,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.990305000001172
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2812130,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8519680
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6867336,
+        "mainThreadJsHeapTotalBytes": 10321920,
+        "mainThreadEmbedderHeapBytes": 2535696,
+        "mainThreadBackingStorageBytes": 2248612,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 396199936,
+          "privateBytes": 305696768,
+          "swapPssBytes": 0,
+          "rssSumBytes": 630575104,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 14.953590000000986
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2828459,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8781824
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728495,
+        "uniqueDecodedBodyBytes": 26728495,
+        "wireBodyBytes": 26728519,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26728495,
+          "uniqueDecodedBodyBytes": 26728495,
+          "wireBodyBytes": 26728519,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 2,
+      "browserPid": 1165893,
+      "browserLaunchMs": 56.319735999999466,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 211597312,
+        "privateBytes": 132481024,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431419392,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.6069750000006024
+      },
+      "samples": 1,
+      "readyMs": 1103.3185090000006,
+      "firstUseMs": 87.10090800000035,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 5558552,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2278984,
+        "mainThreadBackingStorageBytes": 2194309,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 421688320,
+          "privateBytes": 332832768,
+          "swapPssBytes": 0,
+          "rssSumBytes": 657092608,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.922539000001052
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6724084,
+        "mainThreadJsHeapTotalBytes": 10059776,
+        "mainThreadEmbedderHeapBytes": 2534088,
+        "mainThreadBackingStorageBytes": 2199548,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 462230528,
+          "privateBytes": 372109312,
+          "swapPssBytes": 0,
+          "rssSumBytes": 699035648,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 26.756913000001077
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804099,
+        "uniqueDecodedBodyBytes": 26741780,
+        "wireBodyBytes": 51790836,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51804099,
+          "uniqueDecodedBodyBytes": 26741780,
+          "wireBodyBytes": 51790836,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 2,
+      "browserPid": 1165965,
+      "browserLaunchMs": 58.136083999997936,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212866048,
+        "privateBytes": 132591616,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431046656,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.812333999998373
+      },
+      "samples": 1,
+      "readyMs": 740.1741499999989,
+      "firstUseMs": 153.4541680000002,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4593488,
+        "mainThreadJsHeapTotalBytes": 10010624,
+        "mainThreadEmbedderHeapBytes": 2281016,
+        "mainThreadBackingStorageBytes": 2223262,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 361142272,
+          "privateBytes": 271273984,
+          "swapPssBytes": 0,
+          "rssSumBytes": 594980864,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.121383000001515
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972856,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5510220,
+        "mainThreadJsHeapTotalBytes": 10846208,
+        "mainThreadEmbedderHeapBytes": 2559656,
+        "mainThreadBackingStorageBytes": 2238708,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 400156672,
+          "privateBytes": 307585024,
+          "swapPssBytes": 0,
+          "rssSumBytes": 637095936,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 13.578283000002557
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972874,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26726955,
+        "uniqueDecodedBodyBytes": 26726955,
+        "wireBodyBytes": 26726979,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26726955,
+          "uniqueDecodedBodyBytes": 26726955,
+          "wireBodyBytes": 26726979,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 2,
+      "browserPid": 1166033,
+      "browserLaunchMs": 54.67940300000191,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213273600,
+        "privateBytes": 132235264,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431595520,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 5.772181000000273
+      },
+      "samples": 1,
+      "readyMs": 1084.5802210000002,
+      "firstUseMs": 154.56774099999893,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4414344,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2282576,
+        "mainThreadBackingStorageBytes": 2199992,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 425039872,
+          "privateBytes": 334082048,
+          "swapPssBytes": 0,
+          "rssSumBytes": 659894272,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.383579000001191
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5277072,
+        "mainThreadJsHeapTotalBytes": 9797632,
+        "mainThreadEmbedderHeapBytes": 2556584,
+        "mainThreadBackingStorageBytes": 2204651,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 465039360,
+          "privateBytes": 371642368,
+          "swapPssBytes": 0,
+          "rssSumBytes": 702636032,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 13.808160000000498
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802559,
+        "uniqueDecodedBodyBytes": 26740240,
+        "wireBodyBytes": 51789296,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51802559,
+          "uniqueDecodedBodyBytes": 26740240,
+          "wireBodyBytes": 51789296,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "fallback",
+      "run": 2,
+      "browserPid": 1166101,
+      "browserLaunchMs": 61.06088000000091,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213755904,
+        "privateBytes": 132988928,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431325184,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 28.59389200000078
+      },
+      "samples": 1,
+      "readyMs": 94.67910699999993,
+      "firstUseMs": 26.275798000002396,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1843288,
+        "mainThreadJsHeapTotalBytes": 2670592,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 32912,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 264880128,
+          "privateBytes": 180330496,
+          "swapPssBytes": 0,
+          "rssSumBytes": 490680320,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.2333409999992
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1948396,
+        "mainThreadJsHeapTotalBytes": 2932736,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 33921,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 276467712,
+          "privateBytes": 191803392,
+          "swapPssBytes": 0,
+          "rssSumBytes": 502579200,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.551165000000765
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 6,
+        "decodedBodyBytes": 6544314,
+        "uniqueDecodedBodyBytes": 6544314,
+        "wireBodyBytes": 6544325,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 5,
+          "decodedBodyBytes": 6544101,
+          "uniqueDecodedBodyBytes": 6544101,
+          "wireBodyBytes": 6544112,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "worker",
+      "run": 2,
+      "browserPid": 1166164,
+      "browserLaunchMs": 54.27306200000021,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213977088,
+        "privateBytes": 132259840,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430403584,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.055472000000009
+      },
+      "samples": 1,
+      "readyMs": 108.66803000000073,
+      "firstUseMs": 19.289441000000807,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1565092,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 268514304,
+          "privateBytes": 182923264,
+          "swapPssBytes": 0,
+          "rssSumBytes": 493215744,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.925011999999697
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1586516,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 277758976,
+          "privateBytes": 192016384,
+          "swapPssBytes": 0,
+          "rssSumBytes": 502800384,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.596052999997482
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 1,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 7,
+        "decodedBodyBytes": 6544630,
+        "uniqueDecodedBodyBytes": 6544630,
+        "wireBodyBytes": 6544323,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 6,
+          "decodedBodyBytes": 6544417,
+          "uniqueDecodedBodyBytes": 6544417,
+          "wireBodyBytes": 6544110,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 3,
+      "browserPid": 1166229,
+      "browserLaunchMs": 53.748288999999204,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213303296,
+        "privateBytes": 132706304,
+        "swapPssBytes": 0,
+        "rssSumBytes": 426536960,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 8.380589999997028
+      },
+      "samples": 1,
+      "readyMs": 1066.0081960000025,
+      "firstUseMs": 90.07558099999733,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 5544104,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2275896,
+        "mainThreadBackingStorageBytes": 2194309,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 421530624,
+          "privateBytes": 331661312,
+          "swapPssBytes": 0,
+          "rssSumBytes": 651149312,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 29.667545000000246
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5225528,
+        "mainThreadJsHeapTotalBytes": 10059776,
+        "mainThreadEmbedderHeapBytes": 2529672,
+        "mainThreadBackingStorageBytes": 2199548,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 451247104,
+          "privateBytes": 359989248,
+          "swapPssBytes": 0,
+          "rssSumBytes": 682352640,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.576350999999704
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804099,
+        "uniqueDecodedBodyBytes": 26741780,
+        "wireBodyBytes": 51790836,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51804099,
+          "uniqueDecodedBodyBytes": 26741780,
+          "wireBodyBytes": 51790836,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 3,
+      "browserPid": 1166295,
+      "browserLaunchMs": 55.38417800000025,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212610048,
+        "privateBytes": 131751936,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430788608,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.937440999998216
+      },
+      "samples": 1,
+      "readyMs": 754.2299050000001,
+      "firstUseMs": 81.53015999999843,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4479920,
+        "mainThreadJsHeapTotalBytes": 10010624,
+        "mainThreadEmbedderHeapBytes": 2282496,
+        "mainThreadBackingStorageBytes": 2206093,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 358839296,
+          "privateBytes": 268869632,
+          "swapPssBytes": 0,
+          "rssSumBytes": 592191488,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 25.658307000001514
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2812130,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8519680
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6850544,
+        "mainThreadJsHeapTotalBytes": 10846208,
+        "mainThreadEmbedderHeapBytes": 2532240,
+        "mainThreadBackingStorageBytes": 2248612,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 387445760,
+          "privateBytes": 296255488,
+          "swapPssBytes": 0,
+          "rssSumBytes": 622125056,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.906458999997994
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2828459,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8781824
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728495,
+        "uniqueDecodedBodyBytes": 26728495,
+        "wireBodyBytes": 26728519,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26728495,
+          "uniqueDecodedBodyBytes": 26728495,
+          "wireBodyBytes": 26728519,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 3,
+      "browserPid": 1166366,
+      "browserLaunchMs": 63.30966900000203,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213738496,
+        "privateBytes": 132706304,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431161344,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.495414000000892
+      },
+      "samples": 1,
+      "readyMs": 1053.0322420000011,
+      "firstUseMs": 144.5532400000011,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4399764,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2276720,
+        "mainThreadBackingStorageBytes": 2199992,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 425577472,
+          "privateBytes": 335048704,
+          "swapPssBytes": 0,
+          "rssSumBytes": 659144704,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 11.90055499999653
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5248464,
+        "mainThreadJsHeapTotalBytes": 9797632,
+        "mainThreadEmbedderHeapBytes": 2558576,
+        "mainThreadBackingStorageBytes": 2204651,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 464432128,
+          "privateBytes": 371449856,
+          "swapPssBytes": 0,
+          "rssSumBytes": 700682240,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 11.927779999998165
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802559,
+        "uniqueDecodedBodyBytes": 26740240,
+        "wireBodyBytes": 51789296,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51802559,
+          "uniqueDecodedBodyBytes": 26740240,
+          "wireBodyBytes": 51789296,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 3,
+      "browserPid": 1166433,
+      "browserLaunchMs": 57.41267599999992,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 214030336,
+        "privateBytes": 133500928,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431681536,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 5.758707000000868
+      },
+      "samples": 1,
+      "readyMs": 721.6392629999973,
+      "firstUseMs": 148.21616799999902,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4619544,
+        "mainThreadJsHeapTotalBytes": 9748480,
+        "mainThreadEmbedderHeapBytes": 2283024,
+        "mainThreadBackingStorageBytes": 2223262,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 362030080,
+          "privateBytes": 272826368,
+          "swapPssBytes": 0,
+          "rssSumBytes": 595324928,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.822464000000764
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972856,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5511016,
+        "mainThreadJsHeapTotalBytes": 10846208,
+        "mainThreadEmbedderHeapBytes": 2559136,
+        "mainThreadBackingStorageBytes": 2238708,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 400053248,
+          "privateBytes": 308240384,
+          "swapPssBytes": 0,
+          "rssSumBytes": 636157952,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.685341000000335
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972874,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26726955,
+        "uniqueDecodedBodyBytes": 26726955,
+        "wireBodyBytes": 26726979,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26726955,
+          "uniqueDecodedBodyBytes": 26726955,
+          "wireBodyBytes": 26726979,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "worker",
+      "run": 3,
+      "browserPid": 1166500,
+      "browserLaunchMs": 56.92479000000094,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212586496,
+        "privateBytes": 133263360,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431034368,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.1955850000013015
+      },
+      "samples": 1,
+      "readyMs": 122.03075999999783,
+      "firstUseMs": 21.141288000002532,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1565116,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 267885568,
+          "privateBytes": 185028608,
+          "swapPssBytes": 0,
+          "rssSumBytes": 494424064,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.209365000002435
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1586540,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 278845440,
+          "privateBytes": 195915776,
+          "swapPssBytes": 0,
+          "rssSumBytes": 505655296,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.294540000002598
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 1,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 7,
+        "decodedBodyBytes": 6544630,
+        "uniqueDecodedBodyBytes": 6544630,
+        "wireBodyBytes": 6544323,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 6,
+          "decodedBodyBytes": 6544417,
+          "uniqueDecodedBodyBytes": 6544417,
+          "wireBodyBytes": 6544110,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "fallback",
+      "run": 3,
+      "browserPid": 1166565,
+      "browserLaunchMs": 54.45059699999911,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213124096,
+        "privateBytes": 132931584,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430981120,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.483289000003424
+      },
+      "samples": 1,
+      "readyMs": 113.3339730000007,
+      "firstUseMs": 19.8037230000009,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1843288,
+        "mainThreadJsHeapTotalBytes": 2670592,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 32912,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 264166400,
+          "privateBytes": 180441088,
+          "swapPssBytes": 0,
+          "rssSumBytes": 489967616,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.375076000000263
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1951312,
+        "mainThreadJsHeapTotalBytes": 2932736,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 33921,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 273773568,
+          "privateBytes": 189992960,
+          "swapPssBytes": 0,
+          "rssSumBytes": 499888128,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 7.95533400000204
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 6,
+        "decodedBodyBytes": 6544314,
+        "uniqueDecodedBodyBytes": 6544314,
+        "wireBodyBytes": 6544325,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 5,
+          "decodedBodyBytes": 6544101,
+          "uniqueDecodedBodyBytes": 6544101,
+          "wireBodyBytes": 6544112,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 3,
+      "browserPid": 1166629,
+      "browserLaunchMs": 58.72613799999817,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 210376704,
+        "privateBytes": 131391488,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430825472,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.633463000001939
+      },
+      "samples": 1,
+      "readyMs": 1095.9017510000012,
+      "firstUseMs": 77.09034500000053,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 6022204,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2551800,
+        "mainThreadBackingStorageBytes": 2285517,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 405279744,
+          "privateBytes": 318586880,
+          "swapPssBytes": 0,
+          "rssSumBytes": 639688704,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 15.945686999999452
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6569384,
+        "mainThreadJsHeapTotalBytes": 10846208,
+        "mainThreadEmbedderHeapBytes": 2789568,
+        "mainThreadBackingStorageBytes": 2292869,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 405558272,
+          "privateBytes": 318423040,
+          "swapPssBytes": 0,
+          "rssSumBytes": 640667648,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 11.651296000000002
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824888,
+        "uniqueDecodedBodyBytes": 26762569,
+        "wireBodyBytes": 51811625,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 151,
+          "decodedBodyBytes": 51824888,
+          "uniqueDecodedBodyBytes": 26762569,
+          "wireBodyBytes": 51811625,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 3,
+      "browserPid": 1166699,
+      "browserLaunchMs": 65.49563300000227,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213278720,
+        "privateBytes": 133468160,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429158400,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.645072000002983
+      },
+      "samples": 1,
+      "readyMs": 795.0930139999982,
+      "firstUseMs": 98.76268100000016,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4184224,
+        "mainThreadJsHeapTotalBytes": 9224192,
+        "mainThreadEmbedderHeapBytes": 1491848,
+        "mainThreadBackingStorageBytes": 2254356,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 332053504,
+          "privateBytes": 244322304,
+          "swapPssBytes": 0,
+          "rssSumBytes": 562536448,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.50742000000173
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476822,
+              "allocatorPeakBytes": 20096133,
+              "linearMemoryBytes": 26279936
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5310624,
+        "mainThreadJsHeapTotalBytes": 10059776,
+        "mainThreadEmbedderHeapBytes": 1563392,
+        "mainThreadBackingStorageBytes": 2286106,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 337350656,
+          "privateBytes": 249081856,
+          "swapPssBytes": 0,
+          "rssSumBytes": 568717312,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.037825999999768
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476858,
+              "allocatorPeakBytes": 20424064,
+              "linearMemoryBytes": 26869760
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749284,
+        "uniqueDecodedBodyBytes": 26749284,
+        "wireBodyBytes": 26749308,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 126,
+          "decodedBodyBytes": 26749284,
+          "uniqueDecodedBodyBytes": 26749284,
+          "wireBodyBytes": 26749308,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 4,
+      "browserPid": 1166766,
+      "browserLaunchMs": 53.966448000002856,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212602880,
+        "privateBytes": 132976640,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430039040,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 5.318320999998832
+      },
+      "samples": 1,
+      "readyMs": 633.8797530000011,
+      "firstUseMs": 146.3898819999995,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4597136,
+        "mainThreadJsHeapTotalBytes": 10010624,
+        "mainThreadEmbedderHeapBytes": 2283328,
+        "mainThreadBackingStorageBytes": 2223262,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 362210304,
+          "privateBytes": 274407424,
+          "swapPssBytes": 0,
+          "rssSumBytes": 594214912,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 9.508396000001085
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972856,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5500928,
+        "mainThreadJsHeapTotalBytes": 11108352,
+        "mainThreadEmbedderHeapBytes": 2559376,
+        "mainThreadBackingStorageBytes": 2238708,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 400499712,
+          "privateBytes": 310034432,
+          "swapPssBytes": 0,
+          "rssSumBytes": 635449344,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.354418999999325
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972874,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26726955,
+        "uniqueDecodedBodyBytes": 26726955,
+        "wireBodyBytes": 26726979,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26726955,
+          "uniqueDecodedBodyBytes": 26726955,
+          "wireBodyBytes": 26726979,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 4,
+      "browserPid": 1166832,
+      "browserLaunchMs": 65.2700619999996,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212951040,
+        "privateBytes": 133959680,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429420544,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.140706999998656
+      },
+      "samples": 1,
+      "readyMs": 1049.880253000003,
+      "firstUseMs": 158.48856499999965,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4411180,
+        "mainThreadJsHeapTotalBytes": 9224192,
+        "mainThreadEmbedderHeapBytes": 2276952,
+        "mainThreadBackingStorageBytes": 2199992,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 448825344,
+          "privateBytes": 359907328,
+          "swapPssBytes": 0,
+          "rssSumBytes": 681889792,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.889884000003804
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5289320,
+        "mainThreadJsHeapTotalBytes": 10321920,
+        "mainThreadEmbedderHeapBytes": 2558312,
+        "mainThreadBackingStorageBytes": 2204651,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 465467392,
+          "privateBytes": 373944320,
+          "swapPssBytes": 0,
+          "rssSumBytes": 701530112,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 15.16578500000469
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802559,
+        "uniqueDecodedBodyBytes": 26740240,
+        "wireBodyBytes": 51789296,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51802559,
+          "uniqueDecodedBodyBytes": 26740240,
+          "wireBodyBytes": 51789296,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "fallback",
+      "run": 4,
+      "browserPid": 1166905,
+      "browserLaunchMs": 61.34628399999929,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 214009856,
+        "privateBytes": 132575232,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431747072,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 30.867354000001797
+      },
+      "samples": 1,
+      "readyMs": 98.85222400000202,
+      "firstUseMs": 27.46466099999816,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1836948,
+        "mainThreadJsHeapTotalBytes": 2670592,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 32912,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 265277440,
+          "privateBytes": 180092928,
+          "swapPssBytes": 0,
+          "rssSumBytes": 491143168,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.260728000001109
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1943340,
+        "mainThreadJsHeapTotalBytes": 2932736,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 33921,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 273849344,
+          "privateBytes": 188424192,
+          "swapPssBytes": 0,
+          "rssSumBytes": 500113408,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.381876999999804
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 6,
+        "decodedBodyBytes": 6544314,
+        "uniqueDecodedBodyBytes": 6544314,
+        "wireBodyBytes": 6544325,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 5,
+          "decodedBodyBytes": 6544101,
+          "uniqueDecodedBodyBytes": 6544101,
+          "wireBodyBytes": 6544112,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "worker",
+      "run": 4,
+      "browserPid": 1166970,
+      "browserLaunchMs": 58.205093000004126,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213626880,
+        "privateBytes": 132476928,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431800320,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.964568999996118
+      },
+      "samples": 1,
+      "readyMs": 112.18632700000308,
+      "firstUseMs": 22.118516999995336,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1565116,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 268372992,
+          "privateBytes": 183640064,
+          "swapPssBytes": 0,
+          "rssSumBytes": 494850048,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.937430999998469
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1586540,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 277654528,
+          "privateBytes": 192778240,
+          "swapPssBytes": 0,
+          "rssSumBytes": 504401920,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.091680999998061
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 1,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 7,
+        "decodedBodyBytes": 6544630,
+        "uniqueDecodedBodyBytes": 6544630,
+        "wireBodyBytes": 6544323,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 6,
+          "decodedBodyBytes": 6544417,
+          "uniqueDecodedBodyBytes": 6544417,
+          "wireBodyBytes": 6544110,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 4,
+      "browserPid": 1167036,
+      "browserLaunchMs": 57.571876000001794,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 212774912,
+        "privateBytes": 132083712,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430624768,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.466912000003504
+      },
+      "samples": 1,
+      "readyMs": 840.897778999999,
+      "firstUseMs": 98.80084500000521,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4184012,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 1656848,
+        "mainThreadBackingStorageBytes": 2254356,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 330872832,
+          "privateBytes": 242851840,
+          "swapPssBytes": 0,
+          "rssSumBytes": 562524160,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.50032099999953
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476822,
+              "allocatorPeakBytes": 20096133,
+              "linearMemoryBytes": 26279936
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5329920,
+        "mainThreadJsHeapTotalBytes": 10321920,
+        "mainThreadEmbedderHeapBytes": 1719480,
+        "mainThreadBackingStorageBytes": 2286106,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 336571392,
+          "privateBytes": 247799808,
+          "swapPssBytes": 0,
+          "rssSumBytes": 569135104,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.09914199999912
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476858,
+              "allocatorPeakBytes": 20424064,
+              "linearMemoryBytes": 26869760
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749284,
+        "uniqueDecodedBodyBytes": 26749284,
+        "wireBodyBytes": 26749308,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 126,
+          "decodedBodyBytes": 26749284,
+          "uniqueDecodedBodyBytes": 26749284,
+          "wireBodyBytes": 26749308,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 4,
+      "browserPid": 1167101,
+      "browserLaunchMs": 52.95407499999419,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213462016,
+        "privateBytes": 132366336,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430456832,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.707637999999861
+      },
+      "samples": 1,
+      "readyMs": 1046.6992049999972,
+      "firstUseMs": 126.42318700000033,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 6012744,
+        "mainThreadJsHeapTotalBytes": 10010624,
+        "mainThreadEmbedderHeapBytes": 2558680,
+        "mainThreadBackingStorageBytes": 2283579,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 425499648,
+          "privateBytes": 336576512,
+          "swapPssBytes": 0,
+          "rssSumBytes": 657866752,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 40.60219700000016
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6687732,
+        "mainThreadJsHeapTotalBytes": 11108352,
+        "mainThreadEmbedderHeapBytes": 2799208,
+        "mainThreadBackingStorageBytes": 2305807,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 409073664,
+          "privateBytes": 319660032,
+          "swapPssBytes": 0,
+          "rssSumBytes": 642228224,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.749344000003475
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824888,
+        "uniqueDecodedBodyBytes": 26762569,
+        "wireBodyBytes": 51811625,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 151,
+          "decodedBodyBytes": 51824888,
+          "uniqueDecodedBodyBytes": 26762569,
+          "wireBodyBytes": 51811625,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 4,
+      "browserPid": 1167193,
+      "browserLaunchMs": 64.93164799999795,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213195776,
+        "privateBytes": 133840896,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429740032,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 9.041542999999365
+      },
+      "samples": 1,
+      "readyMs": 877.3212009999988,
+      "firstUseMs": 99.20090399999754,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4465584,
+        "mainThreadJsHeapTotalBytes": 10010624,
+        "mainThreadEmbedderHeapBytes": 2277392,
+        "mainThreadBackingStorageBytes": 2206093,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 359764992,
+          "privateBytes": 270925824,
+          "swapPssBytes": 0,
+          "rssSumBytes": 592355328,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 13.022554000002856
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2812130,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8519680
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6827876,
+        "mainThreadJsHeapTotalBytes": 10584064,
+        "mainThreadEmbedderHeapBytes": 2531424,
+        "mainThreadBackingStorageBytes": 2248612,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 391914496,
+          "privateBytes": 301740032,
+          "swapPssBytes": 0,
+          "rssSumBytes": 626020352,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.954931000000215
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2828459,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8781824
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728495,
+        "uniqueDecodedBodyBytes": 26728495,
+        "wireBodyBytes": 26728519,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26728495,
+          "uniqueDecodedBodyBytes": 26728495,
+          "wireBodyBytes": 26728519,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 4,
+      "browserPid": 1167260,
+      "browserLaunchMs": 58.191125999997894,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213350400,
+        "privateBytes": 132669440,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429445120,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.3682950000002165
+      },
+      "samples": 1,
+      "readyMs": 1128.5921240000025,
+      "firstUseMs": 103.99269400000048,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 5586868,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2297064,
+        "mainThreadBackingStorageBytes": 2194309,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 446588928,
+          "privateBytes": 356528128,
+          "swapPssBytes": 0,
+          "rssSumBytes": 678858752,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 16.897203999993508
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6724608,
+        "mainThreadJsHeapTotalBytes": 10321920,
+        "mainThreadEmbedderHeapBytes": 2532624,
+        "mainThreadBackingStorageBytes": 2199548,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 455530496,
+          "privateBytes": 364085248,
+          "swapPssBytes": 0,
+          "rssSumBytes": 689319936,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 15.342256999996607
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804099,
+        "uniqueDecodedBodyBytes": 26741780,
+        "wireBodyBytes": 51790836,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51804099,
+          "uniqueDecodedBodyBytes": 26741780,
+          "wireBodyBytes": 51790836,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "worker",
+      "run": 5,
+      "browserPid": 1167330,
+      "browserLaunchMs": 58.18936099999701,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213357568,
+        "privateBytes": 133775360,
+        "swapPssBytes": 0,
+        "rssSumBytes": 432386048,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 8.174143000003824
+      },
+      "samples": 1,
+      "readyMs": 104.3692680000022,
+      "firstUseMs": 26.36374799999612,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1565104,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 268094464,
+          "privateBytes": 183947264,
+          "swapPssBytes": 0,
+          "rssSumBytes": 495190016,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 14.005621999996947
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1586528,
+        "mainThreadJsHeapTotalBytes": 2146304,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 1538,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 275228672,
+          "privateBytes": 190935040,
+          "swapPssBytes": 0,
+          "rssSumBytes": 502661120,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.811660000006668
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 1,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 7,
+        "decodedBodyBytes": 6544630,
+        "uniqueDecodedBodyBytes": 6544630,
+        "wireBodyBytes": 6544323,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 6,
+          "decodedBodyBytes": 6544417,
+          "uniqueDecodedBodyBytes": 6544417,
+          "wireBodyBytes": 6544110,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "selected",
+      "mode": "fallback",
+      "run": 5,
+      "browserPid": 1167393,
+      "browserLaunchMs": 53.7061029999968,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 214030336,
+        "privateBytes": 133308416,
+        "swapPssBytes": 0,
+        "rssSumBytes": 429764608,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.422425000004296
+      },
+      "samples": 1,
+      "readyMs": 102.44144600000436,
+      "firstUseMs": 24.02049299999635,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 1843288,
+        "mainThreadJsHeapTotalBytes": 2670592,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 32912,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 265245696,
+          "privateBytes": 180346880,
+          "swapPssBytes": 0,
+          "rssSumBytes": 489508864,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 8.57536799999798
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1900544,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 1950604,
+        "mainThreadJsHeapTotalBytes": 2932736,
+        "mainThreadEmbedderHeapBytes": 1244272,
+        "mainThreadBackingStorageBytes": 33921,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 274310144,
+          "privateBytes": 189161472,
+          "swapPssBytes": 0,
+          "rssSumBytes": 498970624,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.310043999998015
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected entry heap only",
+          "linearMemoryBytes": 1966080,
+          "allocator": {
+            "status": "unavailable",
+            "reason": "selected ABI does not expose allocator live bytes"
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 6,
+        "decodedBodyBytes": 6544314,
+        "uniqueDecodedBodyBytes": 6544314,
+        "wireBodyBytes": 6544325,
+        "uniqueWasm": [
+          {
+            "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+            "bytes": 6511691,
+            "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 5,
+          "decodedBodyBytes": 6544101,
+          "uniqueDecodedBodyBytes": 6544101,
+          "wireBodyBytes": 6544112,
+          "uniqueWasm": [
+            {
+              "path": "/__component_audit__/selected/cem_ql_bg.wasm",
+              "bytes": 6511691,
+              "sha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 1,
+          "decodedBodyBytes": 213,
+          "uniqueDecodedBodyBytes": 213,
+          "wireBodyBytes": 213,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 5,
+      "browserPid": 1167456,
+      "browserLaunchMs": 52.60435100000177,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213159936,
+        "privateBytes": 131809280,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430415872,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.569922000002407
+      },
+      "samples": 1,
+      "readyMs": 1096.8781509999972,
+      "firstUseMs": 79.91405899999518,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 6023616,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2551680,
+        "mainThreadBackingStorageBytes": 2285517,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 431296512,
+          "privateBytes": 342302720,
+          "swapPssBytes": 0,
+          "rssSumBytes": 663130112,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 15.314080000003742
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6604080,
+        "mainThreadJsHeapTotalBytes": 11370496,
+        "mainThreadEmbedderHeapBytes": 2789184,
+        "mainThreadBackingStorageBytes": 2292869,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 406835200,
+          "privateBytes": 317239296,
+          "swapPssBytes": 0,
+          "rssSumBytes": 639700992,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.584753999995883
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824888,
+        "uniqueDecodedBodyBytes": 26762569,
+        "wireBodyBytes": 51811625,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 151,
+          "decodedBodyBytes": 51824888,
+          "uniqueDecodedBodyBytes": 26762569,
+          "wireBodyBytes": 51811625,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 5,
+      "browserPid": 1167525,
+      "browserLaunchMs": 61.531904999996186,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213285888,
+        "privateBytes": 131940352,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430272512,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.854821999993874
+      },
+      "samples": 1,
+      "readyMs": 883.2344439999943,
+      "firstUseMs": 99.0903049999979,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4184268,
+        "mainThreadJsHeapTotalBytes": 10010624,
+        "mainThreadEmbedderHeapBytes": 1512792,
+        "mainThreadBackingStorageBytes": 2254356,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 331524096,
+          "privateBytes": 242688000,
+          "swapPssBytes": 0,
+          "rssSumBytes": 562601984,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 7.725823999993736
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476822,
+              "allocatorPeakBytes": 20096133,
+              "linearMemoryBytes": 26279936
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5277676,
+        "mainThreadJsHeapTotalBytes": 10321920,
+        "mainThreadEmbedderHeapBytes": 1560712,
+        "mainThreadBackingStorageBytes": 2286106,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 336398336,
+          "privateBytes": 247111680,
+          "swapPssBytes": 0,
+          "rssSumBytes": 568217600,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.971193999997922
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 18476858,
+              "allocatorPeakBytes": 20424064,
+              "linearMemoryBytes": 26869760
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749284,
+        "uniqueDecodedBodyBytes": 26749284,
+        "wireBodyBytes": 26749308,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 126,
+          "decodedBodyBytes": 26749284,
+          "uniqueDecodedBodyBytes": 26749284,
+          "wireBodyBytes": 26749308,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 5,
+      "browserPid": 1167595,
+      "browserLaunchMs": 57.75043600000208,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213023744,
+        "privateBytes": 131973120,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430911488,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.7072470000057365
+      },
+      "samples": 1,
+      "readyMs": 1086.144997000003,
+      "firstUseMs": 102.2489840000053,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 5582004,
+        "mainThreadJsHeapTotalBytes": 9224192,
+        "mainThreadEmbedderHeapBytes": 2282816,
+        "mainThreadBackingStorageBytes": 2194309,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 505680896,
+          "privateBytes": 415416320,
+          "swapPssBytes": 0,
+          "rssSumBytes": 739803136,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 16.23932600000262
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5269336,
+        "mainThreadJsHeapTotalBytes": 10584064,
+        "mainThreadEmbedderHeapBytes": 2533184,
+        "mainThreadBackingStorageBytes": 2199548,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 448660480,
+          "privateBytes": 357015552,
+          "swapPssBytes": 0,
+          "rssSumBytes": 684318720,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 14.160694000005606
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804099,
+        "uniqueDecodedBodyBytes": 26741780,
+        "wireBodyBytes": 51790836,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51804099,
+          "uniqueDecodedBodyBytes": 26741780,
+          "wireBodyBytes": 51790836,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 5,
+      "browserPid": 1167666,
+      "browserLaunchMs": 59.07748400000128,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 214030336,
+        "privateBytes": 133492736,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431542272,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.4917700000005425
+      },
+      "samples": 1,
+      "readyMs": 1246.290860000001,
+      "firstUseMs": 79.21176800000103,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 5975456,
+        "mainThreadJsHeapTotalBytes": 9486336,
+        "mainThreadEmbedderHeapBytes": 2280264,
+        "mainThreadBackingStorageBytes": 2208031,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 359763968,
+          "privateBytes": 270319616,
+          "swapPssBytes": 0,
+          "rssSumBytes": 592781312,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 24.298142999999982
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2812130,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8519680
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 6846416,
+        "mainThreadJsHeapTotalBytes": 11108352,
+        "mainThreadEmbedderHeapBytes": 2528808,
+        "mainThreadBackingStorageBytes": 2248612,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 382844928,
+          "privateBytes": 292151296,
+          "swapPssBytes": 0,
+          "rssSumBytes": 617238528,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.14607700000488
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 2828459,
+              "allocatorPeakBytes": 4266738,
+              "linearMemoryBytes": 8781824
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728495,
+        "uniqueDecodedBodyBytes": 26728495,
+        "wireBodyBytes": 26728519,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26728495,
+          "uniqueDecodedBodyBytes": 26728495,
+          "wireBodyBytes": 26728519,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 5,
+      "browserPid": 1167731,
+      "browserLaunchMs": 67.42550800000026,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213411840,
+        "privateBytes": 131653632,
+        "swapPssBytes": 0,
+        "rssSumBytes": 431591424,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 7.980196999997133
+      },
+      "samples": 1,
+      "readyMs": 1076.4555540000001,
+      "firstUseMs": 158.17154799999844,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4420340,
+        "mainThreadJsHeapTotalBytes": 9224192,
+        "mainThreadEmbedderHeapBytes": 2275336,
+        "mainThreadBackingStorageBytes": 2199992,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 449582080,
+          "privateBytes": 358629376,
+          "swapPssBytes": 0,
+          "rssSumBytes": 684134400,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 12.94708399999945
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5265692,
+        "mainThreadJsHeapTotalBytes": 9797632,
+        "mainThreadEmbedderHeapBytes": 2556040,
+        "mainThreadBackingStorageBytes": 2204651,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 463777792,
+          "privateBytes": 370176000,
+          "swapPssBytes": 0,
+          "rssSumBytes": 701227008,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 13.715486000000965
+        },
+        "activeWorkers": 1,
+        "native": {
+          "status": "unavailable",
+          "reason": "active worker native counters are not exposed by the current public component host"
+        }
+      },
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802559,
+        "uniqueDecodedBodyBytes": 26740240,
+        "wireBodyBytes": 51789296,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "phases": {
+        "cold": {
+          "requests": 150,
+          "decodedBodyBytes": 51802559,
+          "uniqueDecodedBodyBytes": 26740240,
+          "wireBodyBytes": 51789296,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 2
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 5,
+      "browserPid": 1167797,
+      "browserLaunchMs": 60.68473499999527,
+      "blankMemory": {
+        "status": "available",
+        "method": "Linux smaps_rollup PSS across the browser process family",
+        "pssBytes": 213728256,
+        "privateBytes": 132349952,
+        "swapPssBytes": 0,
+        "rssSumBytes": 430993408,
+        "explicitHugePageBytes": 0,
+        "processCount": 6,
+        "attempts": 1,
+        "durationMs": 6.325794999997015
+      },
+      "samples": 1,
+      "readyMs": 759.3359379999965,
+      "firstUseMs": 162.12186900000233,
+      "coldMemory": {
+        "mainThreadJsHeapUsedBytes": 4616664,
+        "mainThreadJsHeapTotalBytes": 9748480,
+        "mainThreadEmbedderHeapBytes": 2275984,
+        "mainThreadBackingStorageBytes": 2223262,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 362096640,
+          "privateBytes": 271581184,
+          "swapPssBytes": 0,
+          "rssSumBytes": 595152896,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 10.565195999995922
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972856,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "afterMemory": {
+        "mainThreadJsHeapUsedBytes": 5478348,
+        "mainThreadJsHeapTotalBytes": 10846208,
+        "mainThreadEmbedderHeapBytes": 2558736,
+        "mainThreadBackingStorageBytes": 2238708,
+        "browserFamily": {
+          "status": "available",
+          "method": "Linux smaps_rollup PSS across the browser process family",
+          "pssBytes": 399874048,
+          "privateBytes": 306675712,
+          "swapPssBytes": 0,
+          "rssSumBytes": 635998208,
+          "explicitHugePageBytes": 0,
+          "processCount": 6,
+          "attempts": 1,
+          "durationMs": 14.424180000001797
+        },
+        "activeWorkers": 0,
+        "native": {
+          "status": "available",
+          "endpoint": "selected fallback facade only",
+          "sample": {
+            "config": {
+              "softLimitBytes": 805306368,
+              "hardLimitBytes": 1073741824,
+              "recoveryHeadroomBytes": 67108864,
+              "maxConcurrentOperations": 64
+            },
+            "sample": {
+              "allocatorLiveBytes": 3972874,
+              "allocatorPeakBytes": 5157230,
+              "linearMemoryBytes": 9568256
+            },
+            "reservedBytes": 0,
+            "activeOperations": 0,
+            "softPressure": false,
+            "hardPressure": false
+          }
+        }
+      },
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26726955,
+        "uniqueDecodedBodyBytes": 26726955,
+        "wireBodyBytes": 26726979,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "phases": {
+        "cold": {
+          "requests": 125,
+          "decodedBodyBytes": 26726955,
+          "uniqueDecodedBodyBytes": 26726955,
+          "wireBodyBytes": 26726979,
+          "uniqueWasm": [
+            {
+              "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+              "bytes": 24476684,
+              "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+            }
+          ],
+          "wasmRequests": 1
+        },
+        "first-use": {
+          "requests": 0,
+          "decodedBodyBytes": 0,
+          "uniqueDecodedBodyBytes": 0,
+          "wireBodyBytes": 0,
+          "uniqueWasm": [],
+          "wasmRequests": 0
+        }
+      }
+    }
+  ]
+}
