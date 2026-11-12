@@ -1,5 +1,7 @@
 # Todo
 
+- [x] Clarify Studio's project actions with titled small contextual icon buttons using locally bundled Google Material Icons (`add`, `content_copy`, `delete`), header-height alignment and a contextual hover contour. Native Studio build/output verification passes. Isolated production-browser checks pass for create, the full Login clone, removal to Trash, all six themes, offline icon-font reload and forced-color focus; buttons match the 19.19px navigation header and produce no page errors. Include the font license and shell-cache entries.
+
 This is the authoritative checklist for unfinished execution work. Product/module
 sequencing lives in [roadmap.md](../roadmap.md); wishlist work lives in
 [wishlist.md](wishlist.md).

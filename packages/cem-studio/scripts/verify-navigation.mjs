@@ -290,7 +290,7 @@ try {
     assert.equal((await state()).selected.name, 'notes.cem');
     await click('Clone selected'); await submit('notes-copy.cem', 'Clone');
     assert.equal((await state()).selected.name, 'notes-copy.cem');
-    await click('Delete selected'); await submit(undefined, 'Delete');
+    await click('Remove selected'); await submit(undefined, 'Delete');
     assert.equal((await state()).content, 'project');
     await page.goto(bookmarked); await ready();
     const fileUrl = page.url();

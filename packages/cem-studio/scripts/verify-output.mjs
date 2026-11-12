@@ -206,6 +206,7 @@ for (const [specifier, entry] of Object.entries(destinationMap.imports)) {
 assert.doesNotMatch(html, /node_modules/);
 assert.match(html, /import '@epa-wg\/cem-studio\/main'/);
 assert.match(html, /data-cem-studio-root/);
+assert.match(html, /<link rel="stylesheet" href="\.\/material-icons\.css"\s*\/?>/);
 assert.match(html, /<base href="\.\/" data-cem-studio-scope\s*\/?>/);
 assert.doesNotMatch(html, /preview\.css/);
 
@@ -360,6 +361,9 @@ for (const required of [
     'module-map.json',
     'security-headers.json',
     'icon.svg',
+    'material-icons.css',
+    'fonts/MaterialIcons-Regular.woff2',
+    'fonts/LICENSE.material-icons.txt',
     'service-worker.js',
     'samples/index.json',
     ...sampleIndex.cacheUrls.map((path) => `samples/${path.slice(2)}`),

@@ -1,0 +1,22 @@
+/* Google Material Icons v145; Apache-2.0. See fonts/LICENSE.material-icons.txt. */
+@font-face {
+    font-family: 'Material Icons';
+    font-style: normal;
+    font-weight: 400;
+    font-display: block;
+    src: url('./fonts/MaterialIcons-Regular.woff2') format('woff2');
+}
+
+/* Glyph sizing and action colors remain owned by the shared cem-icon controls. */
+.material-icons {
+    font-family: 'Material Icons';
+    font-style: normal;
+    font-weight: 400;
+    font-feature-settings: 'liga';
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+}

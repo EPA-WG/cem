@@ -17,7 +17,9 @@
 :scope { display: block; block-size: 100%; min-block-size: 0; min-inline-size: 0; }
 :scope[section='actions'] { display: inline-flex; block-size: auto; }
 [part~='navigation'] { block-size: 100%; min-block-size: 0; }
-[part~='actions'] { display: inline-flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
+[part~='actions'] { display: inline-flex; align-items: stretch; gap: max(0.5rem, var(--cem-coupling-guard-min)); white-space: nowrap; --cem-control-height-small: 1lh; }
+[part~='actions'] > cem-icon-button { min-inline-size: 1lh; }
+[part~='actions'] > cem-icon-button:where(:hover:not([disabled])) { --cem-action-outline-display: block; }
 [part~='count'] { font-size: var(--cem-typography-ui-font-size); }
 ```}
  {cem:if @test=datadom.slices.state |
@@ -27,9 +29,9 @@
   {cem:if @test='section == "actions" &amp;&amp; nav' |
    {span @part=actions @role=group @aria-label="Selection actions" |
     {span @part=count @aria-live=polite | {$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}
-    {cem-icon-button @image="+" @aria-label="Create" @variant=contextual @host-command=create-selected @disabled={if busy || !nav.canCreate { true } else { null }}}
-    {cem-icon-button @image="▣" @aria-label="Clone selected" @variant=contextual @host-command=clone-selected @disabled={if busy || !nav.canClone { true } else { null }}}
-    {cem-icon-button @image="×" @aria-label="Delete selected" @variant=contextual @host-command=delete-selected @disabled={if busy || !nav.canDelete { true } else { null }}}
+    {cem-icon-button @image=add @aria-label="Create" @title="Create" @size=small @variant=contextual @host-command=create-selected @disabled={if busy || !nav.canCreate { true } else { null }}}
+    {cem-icon-button @image=content_copy @aria-label="Clone selected" @title="Clone selected" @size=small @variant=contextual @host-command=clone-selected @disabled={if busy || !nav.canClone { true } else { null }}}
+    {cem-icon-button @image=delete @aria-label="Remove selected" @title="Remove selected" @size=small @variant=contextual @host-command=delete-selected @disabled={if busy || !nav.canDelete { true } else { null }}}
    }
   }
   {cem:if @test='section != "actions"' |

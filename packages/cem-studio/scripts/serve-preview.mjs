@@ -42,7 +42,7 @@ function findModuleAssetManifest(value) {
     for (const child of Object.values(value)) { const result = findModuleAssetManifest(child); if (result) return result; }
 }
 function contentType(filename) {
-    return { '.html': 'text/html; charset=utf-8', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' }[extname(filename)] ?? 'application/octet-stream';
+    return { '.html': 'text/html; charset=utf-8', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' }[extname(filename)] ?? 'application/octet-stream';
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

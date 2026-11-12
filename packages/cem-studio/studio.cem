@@ -61,4 +61,22 @@
     {export @id=studio-icon-output @out="dist/static/icon.svg"
         @content-type="image/svg+xml"}
   }
+
+  {import @id=studio-material-icons-css @src="src/material-icons.css"
+      @content-type="text/css" @opaque=true |
+    {export @id=studio-material-icons-css-output @out="dist/static/material-icons.css"
+        @content-type="text/css"}
+  }
+
+  {import @id=studio-material-icons-font @src="src/fonts/MaterialIcons-Regular.woff2"
+      @content-type="font/woff2" @opaque=true |
+    {export @id=studio-material-icons-font-output @out="dist/static/fonts/MaterialIcons-Regular.woff2"
+        @content-type="font/woff2"}
+  }
+
+  {import @id=studio-material-icons-license @src="src/fonts/LICENSE.material-icons.txt"
+      @content-type="text/plain" @opaque=true |
+    {export @id=studio-material-icons-license-output @out="dist/static/fonts/LICENSE.material-icons.txt"
+        @content-type="text/plain"}
+  }
 }

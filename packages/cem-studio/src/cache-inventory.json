@@ -9,6 +9,8 @@
                 "./index.html",
                 "./manifest.webmanifest",
                 "./icon.svg",
+                "./material-icons.css",
+                "./fonts/MaterialIcons-Regular.woff2",
                 "./build.json",
                 "./cache-inventory.json",
                 "./module-map.json",
