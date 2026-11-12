@@ -19,6 +19,14 @@ const targetDir = selectedApplication ? 'dist/target/cem_ql_selected_application
 const wasmInput = `${targetDir}/wasm32-unknown-unknown/release/cem_ql.wasm`;
 const outDir = `packages/cem_ql/dist/${selectedApplication ? 'wasm-selected-application' : componentRuntime ? 'wasm-component' : 'wasm'}`;
 
+if (selectedApplication) {
+    // Build-owned canonical bindings replace runtime schema compilation. Refuse
+    // stale or edited generated code before linking the selected application.
+    run('cargo', ['run', '--locked', '--package', 'cem-ml', '--bin', 'cem-ml-json-contracts-emit',
+        '--target-dir', 'dist/target/cem_ml', '--', '--check',
+        'packages/cem_ml/src/validation/json/builtin_contracts.rs']);
+}
+
 run('cargo', [
     'build',
     '--locked',

@@ -191,22 +191,27 @@ try {
     const dot = readFileSync(dotPath);
     const edges = directCalls(dot.toString('utf8'));
     const exportFunctions = functionExports(sections.find(section => section.name === 'export'), names);
-    const roots = ['renderSelectedApplicationResponse', 'validateSelectedApplicationVariables', 'validateSelectedApplicationQueryVariables',
-        'retainSelectedApplicationResponse', 'restoreSelectedApplicationResponse',
-        'captureSelectedApplicationResponse', 'claimSelectedApplicationMutation',
-        'confirmSelectedApplicationResponseRetirement', 'sealSelectedApplicationCheckpoint',
-        'compileddeclarationowner_new', 'compileddeclarationowner_renderJson', 'compileddeclarationowner_stylesheet'];
+    const roots = [...exportFunctions.keys()].filter(name => name.startsWith('compileddeclarationowner_')
+        || name.startsWith('__wbg_compileddeclarationowner_') || name === 'compiledDeclarationInventory'
+        || name.includes('SelectedApplication') || name.startsWith('selectedApplication'));
     const traces = new Map(roots.map(name => {
         const root = exportFunctions.get(name);
-        assert(edges.has(root), `missing direct-call root: ${name}`);
+        assert(root && definedNames.includes(root), `missing named application export: ${name}`);
         return [name, trace(edges, [root])];
     }));
     const table = tableFunctions(sections.find(section => section.name === 'element'), names);
     const tableTrace = trace(edges, table);
     const categories = {
         compiledEntry: /cem_ql::application_runtime::selected::SelectedApplication::/,
-        selectedEvaluator: /cem_ql::eval::selected::(?:call|pipeline_step)::/,
+        selectedEvaluator: /cem_ql::eval::selected::(?:call|pipeline_step)(?:_linked)?::/,
         graphqlGuard: /cem_ml::validation::json::graphql::GraphqlContracts::/,
+        jsonGrammar: /cem_ml::validation::json::JsonParser::parse_value::/,
+        jsonSourceContractCompilation: /cem_ml::validation::json::JsonSchemaContractCatalog::from_schema_source::/,
+        schemaSourceCompilation: /cem_ml::schema::document_model::(?:compile_document_model_with_seen|parse_cem_document)::/,
+        cemSourceTokenizer: /cem_ml::tokenizer::cem::CemTokenizer::from_source_inner::/,
+        legacyPipelineDispatch: /cem_ql::eval::pipeline::apply_builtin_step::/,
+        unselectedStringCase: /<str>::to_(?:lower|upper)case$/,
+        unselectedSequenceQuantifiers: /cem_ql::eval::pipeline::any_all_sequence::/,
         graphqlBuildCompiler: /apollo_(?:compiler|parser)::/,
         optionalApplicationEndpoint: /cem_ql::application_source_endpoint::/,
         optionalQueryEndpoint: /cem_ql::query_source_endpoint::/,
@@ -238,9 +243,14 @@ try {
     for (const family of ['compiledEntry', 'selectedEvaluator', 'graphqlGuard']) {
         assert(witnesses[family].directPaths.renderSelectedApplicationResponse, `missing selected response path to ${family}`);
     }
+    assert(witnesses.jsonGrammar.namedBodies > 0, 'selected profile lost its native JSON grammar');
+    assert(witnesses.jsonGrammar.directPaths.renderSelectedApplicationResponse, 'guarded responses lost native JSON parsing');
+    assert(witnesses.jsonGrammar.directPaths.compileddeclarationowner_renderJson, 'declarations lost native JSON parsing');
 
     for (const family of ['deferredLifecycleAdapters', 'deferredParserProviders', 'transformEncoderRegistration',
-        'csv', 'yaml', 'markdown', 'xslt', 'highlight', 'scss']) {
+        'csv', 'yaml', 'markdown', 'xslt', 'highlight', 'scss', 'jsonSourceContractCompilation',
+        'schemaSourceCompilation', 'cemSourceTokenizer', 'legacyPipelineDispatch',
+        'unselectedStringCase', 'unselectedSequenceQuantifiers']) {
         assert.equal(witnesses[family].namedBodies, 0, `selected profile retained ${family}`);
     }
 
@@ -250,7 +260,7 @@ try {
         wasmBindgen, optimization,
         linkerOutputSha256: sha(readFileSync(raw)), namedOptimizerInputSha256: sha(named),
         directCallGraphSha256: sha(dot),
-        linked: { definedFunctions, namedDefinedFunctions: definedNames.length, directCallSources: edges.size, tableFunctions: table.size, witnesses },
+        linked: { definedFunctions, namedDefinedFunctions: definedNames.length, directCallSources: edges.size, tableFunctions: table.size, applicationExports: roots, witnesses },
         shipped: { imports, exports, sections: wasmSections(shipped) },
         scope: 'Named function bodies and direct calls in the exact pre-optimization input. The shipped stripped ABI and hash match the optimization record.',
         limits: ['A path from a table function proves a linked reference and direct edges from it. Dynamic targets, table liveness, inlining and optimized per-language bytes remain open.'],

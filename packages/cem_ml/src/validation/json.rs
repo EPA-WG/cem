@@ -15,7 +15,12 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
 pub mod graphql;
 
+#[cfg(not(all(target_arch = "wasm32", feature = "selected-application-runtime")))]
 const JSON_PACKAGE_ID: &str = "json";
+
+#[cfg(all(target_arch = "wasm32", feature = "selected-application-runtime"))]
+#[rustfmt::skip]
+mod builtin_contracts;
 
 #[derive(Debug, Clone, Copy)]
 pub struct JsonSourceValidationRequest<'a> {
@@ -586,9 +591,16 @@ pub struct JsonDiagnosticBinding {
 
 impl JsonSchemaContractCatalog {
     pub fn from_builtin() -> Self {
-        let source = crate::schema::package_sources::builtin_schema_package_source(JSON_PACKAGE_ID)
-            .expect("built-in JSON schema package source must be registered");
-        Self::from_schema_source(source.schema_source)
+        #[cfg(all(target_arch = "wasm32", feature = "selected-application-runtime"))]
+        {
+            return builtin_contracts::catalog();
+        }
+        #[cfg(not(all(target_arch = "wasm32", feature = "selected-application-runtime")))]
+        {
+            let source = crate::schema::package_sources::builtin_schema_package_source(JSON_PACKAGE_ID)
+                .expect("built-in JSON schema package source must be registered");
+            Self::from_schema_source(source.schema_source)
+        }
     }
 
     pub fn from_schema_source(schema_source: &str) -> Self {

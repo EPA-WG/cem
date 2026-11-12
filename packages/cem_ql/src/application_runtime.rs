@@ -43,6 +43,12 @@ mod generated {
 }
 pub const MAX_INPUT_BYTES: usize = crate::instance_island::LIMITS.max_bytes;
 
+// Build-owned specialization only; runtime registries cannot widen this mask.
+#[cfg(all(target_arch = "wasm32", cem_selected_application))]
+pub(crate) const fn selected_builtin_link_mask() -> u32 {
+    generated::SELECTED_BUILTIN_LINK_MASK
+}
+
 /// A deliberately small prototype boundary: one pinned template and one native
 /// JSON document. It does not promise component ownership, CSS installation,
 /// shared providers or checkpoint handoff. Production defaults use the full ABI.

@@ -123,9 +123,13 @@ pub(crate) fn registry_rust_source(
     entries: &BTreeSet<SelectedBuiltin>,
     inventory_hash: &str,
 ) -> String {
+    let link_mask = entries
+        .iter()
+        .map(|entry| format!(" | (1 << SelectedBuiltin::{} as u32)", entry.rust_variant()))
+        .collect::<String>();
     let entries = entries
         .iter()
         .map(|entry| format!("        SelectedBuiltin::{},\n", entry.rust_variant()))
         .collect::<String>();
-    format!("// Generated from {inventory_hash}; no runtime grants or link-closure claim.\nuse cem_ql::selected_registry::{{SelectedBuiltin, SelectedFunctionRegistry}};\npub fn selected_registry() -> SelectedFunctionRegistry {{\n    SelectedFunctionRegistry::new([\n{entries}    ]).expect(\"reviewed generated registry\")\n}}\n")
+    format!("// Generated from {inventory_hash}; no runtime grants or link-closure claim.\nuse cem_ql::selected_registry::{{SelectedBuiltin, SelectedFunctionRegistry}};\npub const SELECTED_BUILTIN_LINK_MASK: u32 = 0{link_mask};\npub fn selected_registry() -> SelectedFunctionRegistry {{\n    SelectedFunctionRegistry::new([\n{entries}    ]).expect(\"reviewed generated registry\")\n}}\n")
 }

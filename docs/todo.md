@@ -557,7 +557,7 @@ Deferred execution gates, in order within this workstream:
         operations and response fixtures. Exercise variable coercion, aliases,
         partial errors, malformed responses and unresolved native demands.
 
-- [ ] Bind generated registry/artifact/input contracts to the selected application
+- [x] Bind generated registry/artifact/input contracts to the selected application
   build and specialize remaining execution/type/source roots. Audit linked symbols
   and optional-module handoff before claiming unused language/schema/function
   implementations are absent; source inventories and fingerprints are not proof.
@@ -570,6 +570,27 @@ Deferred execution gates, in order within this workstream:
   - [x] Narrow lifecycle adapter and transform encoder roots in the selected
         build. Verify profile registration, retained CSS, guarded cart render,
         source-module handoff and matched linked-symbol evidence.
+  - [x] Remove unused schema compiler and pipeline roots from the selected
+        runtime without weakening native JSON parsing, type contracts, CSS
+        admission or recovery guards.
+    - [x] Add native fixtures comparing build-compiled JSON diagnostic contracts
+          with canonical source compilation, original source ranges and refusal
+          behavior; reject stale source pins and tampered generated bindings.
+    - [x] Generate the selected JSON contracts from the canonical schema and
+          eliminate runtime schema compilation on JSON admission paths.
+    - [x] Audit remaining selected execution/type/source roots against a matched
+          baseline and specialize only dependencies outside the admitted profile.
+      - [x] Add native selected-pipeline fixtures for registered sequence calls,
+            field navigation and refusal of unregistered source/reference paths.
+      - [x] Generate a build-owned builtin link mask; verify calls and pipelines
+            refuse registry entries outside that mask and audit omitted bodies.
+    - [x] Verify native contracts, selected WASM rendering/actions and optional
+          source handoff; record exact linked witnesses and remaining limits.
+
+  Verified matched cohort: 7,991,282 → 6,511,691 optimized bytes (18.5% smaller),
+  unchanged ABI/deployment identity, 25 audited public function roots and passing
+  native, browser-action and source-handoff checks. Complete dynamic/native link
+  closure remains gated below; see the [measured dependency reduction](cem-components-shopping-cart-profile.md#build-compiled-json-contracts-and-selected-execution-roots).
 
 - [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
   Add declarative shared GraphQL transport only if existing resource capabilities

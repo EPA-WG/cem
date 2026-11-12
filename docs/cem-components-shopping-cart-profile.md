@@ -5,8 +5,9 @@ registration, declarative static-closure loading and compiled-form recovery in
 worker/fallback hosts, plus an isolated compiled-template/JSON WASM prototype.
 Quantity and removal now have guarded GraphQL action bindings exercised in
 Chromium. Studio ships an editable snapshot example and an optional interactive
-preview deployment. Native application resume and the reduced browser
-distribution remain pending.
+preview deployment. Native response/frame/control recovery is verified in
+worker and fallback groups. The complete reduced browser distribution remains
+pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
 
@@ -1128,6 +1129,80 @@ The specialized artifact's SHA-256 is
 `e3cfafc32916730d498dc620bdef41749f237f7feec76d2514075163fba122be`.
 The audit records named linker evidence for this profile. Dynamic call targets
 and complete native link closure remain open.
+
+### Build-compiled JSON contracts and selected execution roots
+
+The selected target uses generated native JSON diagnostic bindings from the
+canonical `json.cem` schema. `cem-ml-json-contracts-emit --check` compiles that
+schema through the ordinary native compiler and compares the complete generated
+Rust file before linking. A compile-time byte pin also refuses a stale schema
+when Cargo builds the selected WASM directly. Regenerate after an intentional
+schema/compiler change:
+
+```bash
+cargo run --locked -p cem-ml --bin cem-ml-json-contracts-emit -- \
+  --out packages/cem_ml/src/validation/json/builtin_contracts.rs
+```
+
+These bindings preserve the native JSON grammar, source owners, diagnostics and
+original byte ranges. They replace runtime compilation of diagnostic metadata;
+native build tools and ordinary runtime profiles retain canonical schema-source
+compilation. Native fixtures compare both catalogs and diagnostic reports,
+including Unicode, duplicate keys, malformed input and invalid UTF-8, and refuse
+stale source pins and edited generated bindings.
+
+Selected pipelines dispatch only admitted sequence operations and native field
+navigation. They cannot fall through the general source-reference dispatcher.
+The generated application registry also supplies a compile-time builtin mask
+from the original requirement inventory. Both calls and pipelines use that mask
+to omit unselected implementation branches. A runtime registry cannot widen it;
+native tests exercise registered-but-unlinked refusal and ordinary-profile
+behavior. The cart selects `first`, `count` and `where`; native type contracts,
+retained CSS admission and recovery protections remain required.
+
+The strengthened link audit traces every public application function, including
+compiled declaration rendering and stylesheet ownership. It requires native
+JSON parsing and zero named bodies for schema-source compilation, CEM source
+tokenization, the legacy pipeline dispatcher, unselected string case conversion
+and sequence quantifiers. These are witnesses in the exact optimizer input,
+not a proof of dynamic table liveness or complete native link closure.
+
+This later matched cohort includes the response-owner and recovery exports added
+since the registration-profile measurement above. Both artifacts use
+wasm-bindgen 0.2.122 and Binaryen 132.0.0 `-Oz`.
+
+| Measure | Matched baseline | Reduced |
+| --- | ---: | ---: |
+| Optimized WASM bytes | 7,991,282 | 6,511,691 |
+| Optimized code section payload bytes | 6,681,163 | 5,807,415 |
+| Optimized data section payload bytes | 1,298,764 | 693,402 |
+| Named defined functions before optimization | 7,659 | 7,083 |
+| Unique function table entries before optimization | 1,954 | 1,893 |
+
+The reduced artifact is 18.5% smaller and retains the same 10 import and 33
+export descriptors; export ordering can differ between builds. Independent
+baseline/reduced heaps return the identical deployment identity and operation
+document. Baseline SHA-256:
+`5daf8434d7a86993cc9b80470ba9c507640ac6fab76aa857c4d0e4b15c352057`.
+Reduced SHA-256:
+`2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600`.
+The audit inspects 25 public application function roots. Native JSON parsing
+remains reachable from declaration JSON admission and guarded response paths.
+Native type/field contracts, CSS parsing and regex validation remain admitted
+dependencies; `nativeLinkClosureVerified` stays `false`.
+
+Verification passed: 265 native library tests (four existing profiling fixtures
+ignored), three generated-contract tests, eight original source-operation
+regressions and four application-build contract tests. The final selected WASM
+passes guarded variables, all six responses, retained CSS and response-owner
+reimport on independent heaps. Chromium cart actions and physical worker/fallback
+recovery pass without replaying requests. The freshly built optional source
+probe passes its source/receiver checks, and the completed selected binary passes
+all 24 physical handoff scenarios plus semantic renewal/refusal cases.
+The frozen baseline and current link reports live under
+`dist/reports/components-wasm/selected-dependency-baseline` and `selected-link`;
+their verified byte/hash/ABI comparison is
+`dist/reports/components-wasm/selected-dependency-comparison.json`.
 
 ### HTTP transport for cart actions
 

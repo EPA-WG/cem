@@ -6,6 +6,8 @@ pub(super) mod record_read;
 pub(crate) mod field_profile_tests;
 #[cfg(test)]
 pub(crate) mod record_read_profile_tests;
+#[cfg(test)]
+mod selected_profile_tests;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -95,7 +97,9 @@ fn apply_step(input: ItemStream, step: &IrStep, ctx: &mut EvalCtx<'_>) -> ItemSt
             args,
         } => {
             let Some(binding) = binding else {
-                return apply_builtin_step(input, name, args, ctx);
+                return apply_unowned_named_step::<{
+                    cfg!(all(target_arch = "wasm32", feature = "selected-application-runtime"))
+                }>(input, name, args, ctx);
             };
             let mut out = ItemStream::empty();
             for item in input.items {
@@ -134,6 +138,32 @@ fn apply_lambda_step(input: ItemStream, lambda: IrId, ctx: &mut EvalCtx<'_>) -> 
         }
     }
     out
+}
+
+fn apply_unowned_named_step<const SELECTED: bool>(
+    input: ItemStream,
+    name: &QName,
+    args: &[IrId],
+    ctx: &mut EvalCtx<'_>,
+) -> ItemStream {
+    if SELECTED {
+        if matches!(
+            name.local.as_str(),
+            "first" | "last" | "take" | "drop" | "nth" | "target" | "where"
+        ) {
+            return ctx.unknown_function(
+                args.first().copied().unwrap_or(IrId(0)),
+                "compiled application requires a selected registry",
+            );
+        }
+        return record_field(input, &name.local).unwrap_or_else(|| {
+            ctx.unknown_function(
+                args.first().copied().unwrap_or(IrId(0)),
+                "unknown pipeline step",
+            )
+        });
+    }
+    apply_builtin_step(input, name, args, ctx)
 }
 
 pub(super) fn apply_builtin_step(
@@ -1261,7 +1291,11 @@ fn describe_node(doc: &CemDocument, node: &CemAstNode) -> String {
     }
 }
 
-fn where_step(input: ItemStream, predicate: Option<IrId>, ctx: &mut EvalCtx<'_>) -> ItemStream {
+pub(super) fn where_step(
+    input: ItemStream,
+    predicate: Option<IrId>,
+    ctx: &mut EvalCtx<'_>,
+) -> ItemStream {
     let Some(predicate) = predicate else {
         return input;
     };
