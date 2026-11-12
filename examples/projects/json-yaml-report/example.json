@@ -1,7 +1,7 @@
 {
   "id": "json-yaml-report",
   "name": "JSON and YAML report",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Inspect a JSON API payload and YAML configuration through retained native trees, filter service records and generate HTML, JSON and YAML reports with syntax failure and repair.",
   "collections": [
     "content-types-data",
@@ -271,6 +271,37 @@
         "none"
       ],
       "expectedOutput": "expected-formatted-json"
+    },
+    {
+      "id": "json-to-cem",
+      "name": "Export JSON as CEM-ML",
+      "kind": "conversion",
+      "source": "api-payload",
+      "description": "Export the retained native source as literal typed CEM-ML with original source provenance; keep the saved input unchanged.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--to-format",
+        "cem",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@doc cem-ml 1",
+        "cem:generic-data",
+        "data:object",
+        "data:array",
+        "data:number",
+        "API-101",
+        "Harbor weather"
+      ]
     },
     {
       "id": "query-json",

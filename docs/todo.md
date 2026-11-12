@@ -45,6 +45,22 @@ for the current native work and the conditional diagnostic items on recurrence.
 
 ## Direct structured-data CEM-ML exports
 
+- [x] Refresh Studio's runtime and verify JSON and JSON Schema to CEM-ML in the UI.
+  - [x] Add ordinary saved export configurations to the JSON/YAML report and
+        JSON Schema samples; regenerate runtime manifests and sample bundles.
+  - [x] Add a focused browser acceptance fixture for UI selection, cloned
+        source edits, source identity, failure/repair and offline conversion.
+  - [x] Rebuild the deployment, verify its runtime hashes and output closure,
+        and run the production UI workflow before committing and pushing.
+    Rebuilt the CLI host, generated samples and Studio deployment. All 229
+    declared assets / 348 files pass output verification; generated-file checks
+    pass for 32 schema packages/examples. The browser verifies the deployed WASM
+    against the current 25,669,508-byte runtime and both saved export commands
+    through actual UI controls: native CLI byte parity, original input hashes
+    and source ranges, exact copy/download, unsaved/saved revisions, JSON/schema
+    refusal and repair, offline reload/rerun and unchanged read-only originals.
+    `verify:structured-cem` passes and also runs within the navigation gate.
+
 - [x] Export admitted YAML through the shared retained-data CEM writer.
   - [x] Add native fixtures for typed values, literal escaping, nested/multiple
         documents, original source maps and refusal of invalid or unsafe YAML.

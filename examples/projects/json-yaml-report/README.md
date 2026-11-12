@@ -49,6 +49,7 @@ contract; other configurations use the versioned native command contract.
 | **Inspect imported JSON tree** (`inspect-json`) / **Inspect imported YAML tree** (`inspect-yaml`) | CEM-ML AST presentation of the imported generic-data tree, with original source start offsets. |
 | **Validate JSON source** (`validate-json`) / **Validate YAML source** (`validate-yaml`) | Native source diagnostics; both valid inputs pass. |
 | **Format JSON source** (`format-json`) / **Format YAML source** (`format-yaml`) | Native package formatting using the `tabular` profile, without overwriting saved source. |
+| **Export JSON as CEM-ML** (`json-to-cem`) | Tabular typed CEM-ML from the original JSON source, with literal values and original source provenance. |
 | **Select active API record IDs** (`query-json`) | Explicit JSON query result containing `API-101` and `API-103`. |
 | **Inspect report settings** (`query-yaml`) | Explicit JSON query result containing `title=Active service report` and `status=active`. |
 | **Repair malformed JSON** (`invalid-json`) / **Repair malformed YAML** (`invalid-yaml`) | Intentional source failure, with the exact repairs below. |

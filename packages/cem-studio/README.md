@@ -252,6 +252,29 @@ workload runs alone within the Nx invocation; unrelated work keeps Nx's normal
 parallelism. Existing internal test/profile concurrency, assertions and action
 deadlines are unchanged.
 
+### JSON and JSON Schema to CEM-ML
+
+Open **Examples → Content types and schemas → Data → JSON and YAML report**,
+or **Schema authoring → JSON Schema source authoring**. Use **Clone selected**
+to create an editable copy. Under **Structure → Configurations**, choose
+**Export JSON as CEM-ML** or **Export JSON Schema as CEM-ML**, then click
+**Run configuration**. The output preview displays tabular typed CEM-ML.
+
+Open **Commands and results → Results → Operation output** for **Copy exact
+output** and **Download exact output**. Exports keep property names, string
+values, number lexemes and source provenance; schema references remain data.
+Commands use the saved source revision. Use **Save and validate** before
+rerunning an edit. Invalid JSON or unsupported schema dialects publish no output;
+repairing the source restores conversion. Saved copies rerun offline after
+Studio's runtime and sample cache is ready.
+
+The focused production-browser gate checks both examples, the deployed runtime
+hash, CLI parity, exact transfers, saved revisions, refusal/repair and offline use:
+
+```sh
+yarn nx run @epa-wg/cem-studio:verify:structured-cem
+```
+
 Run release work in one Nx invocation. For prepared dependencies, the focused
 source/deployed gate combination is:
 

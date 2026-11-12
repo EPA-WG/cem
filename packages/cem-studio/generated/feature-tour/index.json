@@ -258,24 +258,24 @@
       "id": "json-schema",
       "name": "JSON Schema source authoring",
       "description": "Author Draft 2020-12 declarations with local definitions and reference syntax, format native schema source and repair an unsupported dialect without claiming instance validation.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "collections": [
         "content-types-schema-authoring"
       ],
       "archive": "./examples/json-schema.cem-studio.json",
-      "sha256": "d679df089771da2c16b7b7ea3e2dd0b08440a7348d9b89ceca17c1a05f0253ce"
+      "sha256": "818aaf2898604c89acdbc1f91f6788e2c02775afc4a9003097eaa8c48c7f382e"
     },
     {
       "id": "json-yaml-report",
       "name": "JSON and YAML report",
       "description": "Inspect a JSON API payload and YAML configuration through retained native trees, filter service records and generate HTML, JSON and YAML reports with syntax failure and repair.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "collections": [
         "content-types-data",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/json-yaml-report.cem-studio.json",
-      "sha256": "a49745aad813572aca94aea02a1e3223b8673bd933745258b11ac49ee9f84e0a"
+      "sha256": "6d20b7f541ff27aaf2827c3cf9aae2c2399def8b30efdf684e41af33d673298e"
     },
     {
       "id": "login",
@@ -384,7 +384,7 @@
         "content-types-data"
       ],
       "archive": "./examples/shopping-cart.cem-studio.json",
-      "sha256": "8fcacd4c1ab1ed023e4eb8c16d3c8410bd3bc00f43209c9a12eeb01d340fd737"
+      "sha256": "785eaf56414df5588d98b97711fdec8e143d60eedb25a4aaffb9348415e5c40a"
     },
     {
       "id": "supplier-pipeline",

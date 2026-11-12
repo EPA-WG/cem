@@ -35,6 +35,7 @@ operation.
 | `inspect-schema` | Inspect the common imported data tree; `$defs` and `$ref` remain inert source data. |
 | `validate-schema` | Parse JSON Schema source and validate its Draft 2020-12 dialect declaration. |
 | `format-schema` | Format through the native JSON Schema lifecycle writer and compare the complete expected source bytes. |
+| **Export JSON Schema as CEM-ML** (`schema-to-cem`) | Export the admitted schema as tabular typed data, retaining literal keywords, references and original source provenance. |
 | `validate-data-syntax` | Parse `data/note.json` as ordinary JSON syntax only. |
 | `repair-dialect` | Replace the unsupported Draft 7 dialect with Draft 2020-12. |
 

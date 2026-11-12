@@ -989,6 +989,10 @@
                 "{projectRoot}/scripts/verify-svg-mathml-projects.mjs",
                 "{projectRoot}/scripts/verify-html-cem-card.mjs",
                 "{projectRoot}/scripts/verify-data-projects.mjs",
+                "{projectRoot}/scripts/verify-structured-cem-exports.mjs",
+                "{projectRoot}/runtime/destination.module-map.json",
+                "{workspaceRoot}/packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml",
                 "{projectRoot}/scripts/verify-xml-xhtml-projects.mjs",
                 "{projectRoot}/scripts/verify-csv-inventory.mjs",
                 "{projectRoot}/dist/static/**/*",
@@ -1314,6 +1318,31 @@
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/svg-mathml-projects.json"
             ]
+        },
+        "verify:structured-cem": {
+            "parallelism": false,
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:output"],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --structured-cem-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-structured-cem-exports.mjs",
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/runtime/destination.module-map.json",
+                "{workspaceRoot}/examples/projects/json-yaml-report/**/*",
+                "{workspaceRoot}/examples/projects/json-schema/**/*",
+                "{workspaceRoot}/packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml",
+                "{projectRoot}/dist/static/**/*",
+                { "dependentTasksOutputFiles": "**/*", "transitive": false }
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/structured-cem-exports.json"]
         },
         "verify:stylesheets": {
             "parallelism": false,

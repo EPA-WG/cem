@@ -5,6 +5,7 @@ import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { verifyMarkdownSite } from './verify-markdown-site.mjs';
 import { verifyDataProjects } from './verify-data-projects.mjs';
+import { verifyStructuredCemExports } from './verify-structured-cem-exports.mjs';
 import { verifyCsvInventory } from './verify-csv-inventory.mjs';
 import { verifyXmlXhtmlProjects } from './verify-xml-xhtml-projects.mjs';
 import { verifyHtmlCemCard } from './verify-html-cem-card.mjs';
@@ -34,6 +35,7 @@ const shoppingCartOnly = process.argv.includes('--shopping-cart-only');
 const svgMathmlOnly = process.argv.includes('--svg-mathml-only');
 const stylesheetsOnly = process.argv.includes('--stylesheets-only');
 const dataQueriesOnly = process.argv.includes('--data-queries-only');
+const structuredCemOnly = process.argv.includes('--structured-cem-only');
 const transformationsSchemasOnly = process.argv.includes('--transformations-schemas-only');
 const moduleConfigsOnly = process.argv.includes('--module-configs-only');
 const nativeProjectionsOnly = process.argv.includes('--native-projections-only');
@@ -44,7 +46,7 @@ const catalogProject = process.argv.find(argument => argument.startsWith('--cata
 if (catalogProject && !catalogProjectsOnly) throw new Error('Catalog project filtering requires the project census scope.');
 const schemaAssets = process.argv.includes('--schema-assets');
 const cartPreview = process.argv.includes('--cart-preview');
-if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, shoppingCartOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly, catalogDocsOnly, catalogProjectsOnly, catalogCommandsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
+if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, shoppingCartOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, structuredCemOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly, catalogDocsOnly, catalogProjectsOnly, catalogCommandsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 if (cartPreview && !shoppingCartOnly) throw new Error('Cart preview requires the shopping cart verification scope.');
 const cartService = cartPreview ? await createInteractiveCartService() : undefined;
@@ -71,7 +73,14 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (catalogCommandsOnly || catalogProjectsOnly) {
+    if (structuredCemOnly) {
+        const structuredCemExports = await verifyStructuredCemExports({ page, context, url: server.url });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(await catalogAcceptanceStamp(resolve(projectRoot, '../..')), acceptanceStamp, 'Deployment changed during CEM export acceptance');
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/structured-cem-exports.json'), `${JSON.stringify({ schemaVersion: 1, ...acceptanceStamp, structuredCemExports }, null, 2)}\n`);
+        console.log('Studio structured CEM exports: refreshed runtime, native parity, UI edits, exact transfers, refusal/repair and offline passed.');
+    } else if (catalogCommandsOnly || catalogProjectsOnly) {
         const commands = catalogCommandsOnly;
         const { identity } = await catalogAcceptanceInputs(resolve(projectRoot, '../..'));
         const verifierIdentity = await catalogCensusVerifierIdentity(resolve(projectRoot, '../..'));
@@ -395,6 +404,7 @@ try {
     await context.setOffline(false);
     const markdownSite = await verifyMarkdownSite({ page, context, url: server.url });
     const dataProjects = await verifyDataProjects({ page, context, url: server.url });
+    const structuredCemExports = await verifyStructuredCemExports({ page, context, url: server.url });
     const csvInventory = await verifyCsvInventory({ page, context, url: server.url });
     const xmlXhtmlProjects = await verifyXmlXhtmlProjects({ page, context, url: server.url });
     const htmlCemCard = await verifyHtmlCemCard({ page, context, url: server.url });
@@ -410,7 +420,7 @@ try {
     assert.deepEqual(await catalogAcceptanceStamp(resolve(projectRoot, '../..')), acceptanceStamp, 'Deployment changed during navigation acceptance');
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, ...acceptanceStamp, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, nativeProjectionProject, catalogDocumentation, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, ...acceptanceStamp, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, structuredCemExports, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, nativeProjectionProject, catalogDocumentation, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
     console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory/XML and XHTML builds passed.');
     }
 } catch (error) {

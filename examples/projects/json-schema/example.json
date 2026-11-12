@@ -1,7 +1,7 @@
 {
   "id": "json-schema",
   "name": "JSON Schema source authoring",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Author Draft 2020-12 declarations with local definitions and reference syntax, format native schema source and repair an unsupported dialect without claiming instance validation.",
   "collections": [
     "content-types-schema-authoring"
@@ -148,6 +148,37 @@
         "--no-color"
       ],
       "expectedOutput": "formatted-schema"
+    },
+    {
+      "id": "schema-to-cem",
+      "name": "Export JSON Schema as CEM-ML",
+      "kind": "conversion",
+      "source": "note-schema",
+      "description": "Export the retained native source as literal typed CEM-ML with original source provenance; keep the saved input unchanged.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/schema+json",
+        "--schema",
+        "https://cem.dev/ns/data/json-schema/1",
+        "--to-format",
+        "cem",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@doc cem-ml 1",
+        "cem:generic-data",
+        "data:object",
+        "data:string",
+        "$schema",
+        "$defs",
+        "#/$defs/label"
+      ]
     },
     {
       "id": "validate-data-syntax",
