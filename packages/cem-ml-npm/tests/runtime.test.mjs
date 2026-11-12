@@ -1417,37 +1417,48 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
   });
 }
 
-for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
-  test(`YAML CEM export retains typed data and terminal output in ${runtimeKind}`, async () => {
+for (const example of [
+  { name: 'YAML', contentType: 'application/yaml', schema: 'https://cem.dev/ns/data/yaml/1',
+    source: "service:\n  name: 'Café {$never()} {#never}'\n  enabled: true\n  retries: 3\n  empty: null\n",
+    invalid: ['items: [\n', 'value: !unsafe literal\n'] },
+  { name: 'JSON', contentType: 'application/json', schema: 'https://cem.dev/ns/data/json/1',
+    source: '{"literal":"Café {$never()} {#never}","enabled":true,"retries":3,"empty":null}',
+    invalid: ['{"items":[1,}', '{} {}'] },
+  { name: 'JSON Schema', contentType: 'application/schema+json', schema: 'https://cem.dev/ns/data/json-schema/1',
+    source: '{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Café {$never()} {#never}","x-enabled":true,"x-retries":3,"x-empty":null}',
+    invalid: ['{"properties":[}', '{} {}', '{}'] },
+]) for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`${example.name} CEM export retains typed data and terminal output in ${runtimeKind}`, async () => {
     const runtime = runtimeKind === 'wasm-node'
       ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
     if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
     let sequence = 0;
     const execute = async (source, color, valid = true) => {
-      const uri = 'studio://yaml-cem/source.yml', destination = 'studio://yaml-cem/result.cem';
+      const projectId = example.name.toLowerCase().replaceAll(' ', '-') + '-cem';
+      const uri = `studio://${projectId}/source`, destination = `studio://${projectId}/result.cem`;
       const bytes = new TextEncoder().encode(source);
       const request = {
-        protocolVersion: 1, requestId: `yaml-cem:${runtimeKind}:${++sequence}`,
-        project: { projectId: 'yaml-cem', revision: 1 },
+        protocolVersion: 1, requestId: `${projectId}:${runtimeKind}:${++sequence}`,
+        project: { projectId, revision: 1 },
         resourceVersions: { [uri]: { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') } },
         operation: { kind: 'convert', inputId: 'input:0', toFormat: 'cem', preserveSourceOffsets: true },
         runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
           ...new TextEncoder().encode(JSON.stringify({
-            inputs: [{ uri, rootScope: { defaultContentType: 'application/yaml', schema: 'https://cem.dev/ns/data/yaml/1' } }],
+            inputs: [{ uri, rootScope: { defaultContentType: example.contentType, schema: example.schema } }],
             outputs: [{ destination, rootScope: { defaultContentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1',
               cemtFormatterProfile: 'tabular', cemtColorProfile: color, outputColorType: color } }],
           })),
         ] }))),
-        resources: { [uri]: { bytes: [...bytes], identity: { contentType: 'application/yaml', schema: 'https://cem.dev/ns/data/yaml/1' } } },
-        policyStamp: { resolver: 'yaml-cem-resolver', safety: 'yaml-cem-safety', budget: 'yaml-cem-budget' },
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType: example.contentType, schema: example.schema } } },
+        policyStamp: { resolver: 'data-cem-resolver', safety: 'data-cem-safety', budget: 'data-cem-budget' },
       };
       let published;
       try {
         const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
-          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:yaml-cem', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:data-cem', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
           async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
           async () => assert.fail('inline source must not fetch'),
-          async (_, output) => { assert.equal(published, undefined); published = Uint8Array.from(output); return JSON.stringify({ token: 'yaml-cem-output' }); },
+          async (_, output) => { assert.equal(published, undefined); published = Uint8Array.from(output); return JSON.stringify({ token: 'data-cem-output' }); },
           async () => JSON.stringify({ uri: destination }), async () => assert.fail('publication must not roll back'),
         ));
         assert.equal(result.status, valid ? 'succeeded' : 'failed', JSON.stringify(result));
@@ -1459,7 +1470,7 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
         return new TextDecoder().decode(published);
       } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
     };
-    const source = "service:\n  name: 'Café {$never()} {#never}'\n  enabled: true\n  retries: 3\n  empty: null\n";
+    const source = example.source;
     const plain = await execute(source, 'none');
     assert.ok(plain.startsWith('@doc cem-ml 1\n'));
     for (const tag of ['object', 'property', 'string', 'boolean', 'number', 'null']) assert.ok(plain.includes(`data:${tag}`), tag);
@@ -1468,7 +1479,6 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     assert.ok(terminal.includes('\u001b['));
     const ansi = new RegExp(String.fromCodePoint(27) + String.raw`\[[0-?]*[ -/]*[@-~]`, 'g');
     assert.equal(terminal.replace(ansi, ''), plain);
-    await execute('items: [\n', 'terminal', false);
-    await execute('value: !unsafe literal\n', 'terminal', false);
+    for (const invalid of example.invalid) await execute(invalid, 'terminal', false);
   });
 }

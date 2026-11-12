@@ -61,8 +61,21 @@ for the current native work and the conditional diagnostic items on recurrence.
     unsafe input publishes nothing; file output stays plain. The project-root
     command prints ANSI-colored tabular CEM-ML without saving a file.
 
-- [ ] Extend the shared direct CEM export to JSON and JSON Schema, preserving
+- [x] Extend the shared direct CEM export to JSON and JSON Schema, preserving
       literal property names/values, source provenance and atomic error behavior.
+  - [x] Add native JSON/JSON Schema export fixtures for typed values, literal
+        property names, whitespace, scalar roots, source ranges and invalid-input
+        refusal, then admit both retained AST owners through the shared writer.
+  - [x] Add CLI fixtures for colored tabular stdout, explicit CEM targets and
+        atomic plain-file output, and document project-root usage.
+  - [x] Verify the same exports through the Node/browser WASM command boundary.
+    Verified three JSON/JSON Schema export cases, eight retained-source cases,
+    four existing YAML cases, five CLI cases and six optimized default-profile
+    Node/browser WASM entry-point checks. Literal property names, whitespace,
+    original number lexemes and native source ranges survive export. Invalid
+    syntax, non-UTF-8 bytes and unsupported/missing schema dialects publish
+    nothing. Both documented project-root commands print colored CEM-ML without
+    saving output or changing their original inputs.
 
 ## Amsterdam presentation samples: active Studio priority
 

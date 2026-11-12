@@ -56,6 +56,15 @@ Schema reference traversal remains loader-owned. `$ref` and `$dynamicRef`
 resolution must account for `$id`, anchors, dynamic anchors, dialect, and
 dynamic scope instead of reducing those edges to generic URL joining.
 
+## Direct CEM-ML data export
+
+An explicit JSON Schema source identity can export to CEM-ML through the shared
+retained-data writer. Schema keywords and references remain literal data with
+their original source provenance; this export does not traverse references or
+evaluate embedded expressions. Existing dialect checks still apply. See the
+[native CLI examples](../../../../cem_ml_cli/README.md#json-and-json-schema-to-cem-ml)
+for colored tabular stdout and plain-file output with atomic error refusal.
+
 ## Verification
 
 The package-local `cem_ml_schema_package_json_schema_v1:verify` target checks:

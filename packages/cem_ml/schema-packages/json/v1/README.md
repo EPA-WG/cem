@@ -41,6 +41,15 @@ The schema describes JSON values as a lossless resource model:
 - strings, numbers, booleans, and null preserve their JSON value kind;
 - parsers should retain lexical/source-map information when available.
 
+## Direct CEM-ML data export
+
+`convert source.json --to-format cem --tabular` prints the retained JSON data as
+colored CEM-ML without creating an output file. The shared CEM writer preserves
+property order, literal names and strings, number lexemes and original source
+provenance in the `cem:generic-data` vocabulary. Explicit CEM content-type/schema
+targets select the same route. `--no-color` prints plain text; `--out result.cem`
+writes plain CEM-ML. Invalid JSON refuses publication before replacing output.
+
 ## Verification
 
 `cem_ml_schema_package_json_v1:verify` validates the package manifest, checks

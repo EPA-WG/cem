@@ -41,6 +41,29 @@ or `--output-color-type none` for plain stdout. An explicit `--out result.cem`
 writes plain CEM-ML without ANSI codes. Invalid YAML, unsupported tags, anchors
 or aliases refuse publication and preserve any existing output file.
 
+## JSON and JSON Schema to CEM-ML
+
+The same direct retained-data export supports JSON and JSON Schema. From the
+workspace root, print either source as colored tabular CEM-ML without saving it:
+
+```bash
+./dist/target/cem_ml_cli/debug/cem-ml convert \
+  examples/projects/json-yaml-report/data/payload.json \
+  --content-type application/json --to-format cem --tabular
+
+./dist/target/cem_ml_cli/debug/cem-ml convert \
+  examples/projects/json-schema/schemas/note.schema.json \
+  --content-type application/schema+json \
+  --schema https://cem.dev/ns/data/json-schema/1 --to-format cem --tabular
+```
+
+Property names, string whitespace and number lexemes remain literal and retain
+original source provenance. Schema keywords export as data; conversion does not
+resolve `$ref` or execute embedded expressions. JSON Schema keeps its original
+dialect checks, including the required supported `$schema` declaration for
+object schemas. The same color overrides and plain `--out result.cem` behavior
+apply. Invalid input publishes nothing and preserves existing output files.
+
 ## Verification
 
 Native inline-page SSR uses `transform` with the packaged `ssr-page.cemt`,

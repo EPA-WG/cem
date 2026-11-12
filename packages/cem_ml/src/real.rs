@@ -12876,7 +12876,8 @@ impl CemMlEngine for RealCemMlEngine {
                         primary = Some(Value::Null);
                         return;
                     }
-                    native @ (LoadedInputAstStream::CsvDocument(_) | LoadedInputAstStream::YamlDocument(_))
+                    native @ (LoadedInputAstStream::CsvDocument(_) | LoadedInputAstStream::YamlDocument(_)
+                        | LoadedInputAstStream::JsonDocument(_) | LoadedInputAstStream::JsonSchemaDocument(_))
                         if to_format == LayerFormat::Cem =>
                     {
                         primary = Some(Value::Null);
@@ -12884,6 +12885,8 @@ impl CemMlEngine for RealCemMlEngine {
                         let (source_type, adapter_id, converter_id) = match &native {
                             LoadedInputAstStream::CsvDocument(_) => (CSV_CONTENT_TYPE, "csv", "csv-typed-import-to-cem-output"),
                             LoadedInputAstStream::YamlDocument(_) => (YAML_CONTENT_TYPE, "yaml", "yaml-typed-import-to-cem-output"),
+                            LoadedInputAstStream::JsonDocument(_) => (JSON_CONTENT_TYPE, "json", "json-typed-import-to-cem-output"),
+                            LoadedInputAstStream::JsonSchemaDocument(_) => (JSON_SCHEMA_CONTENT_TYPE, "json-schema", "json-schema-typed-import-to-cem-output"),
                             _ => unreachable!(),
                         };
                         let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), &request.target_scope);
