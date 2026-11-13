@@ -6,3 +6,4 @@ pub mod dispatch;
 mod publication;
 mod ssr_network;
 mod project_filesystem;
+mod project_bootstrap;

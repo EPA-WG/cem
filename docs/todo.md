@@ -127,9 +127,33 @@ for the current native work and the conditional diagnostic items on recurrence.
       Include presets for a Markdown-based site, transformation pipeline, simple
       conversion, schema-validation project and a minimal custom project; allow
       users to review and adjust generated folders, resources and pipeline stages.
-  - [ ] Define one versioned bootstrap configuration/schema and producer consumed
-        by all three hosts; keep editor integrations thin and avoid separate
-        scaffolding/semantic implementations.
+  - [x] Define one versioned bootstrap configuration/schema and native producer
+        reusable by all three hosts, with the native CLI control transport and
+        Studio's owned browser API; keep editor integrations thin and avoid
+        separate scaffolding/semantic implementations.
+    - [x] Add native fixtures for all five presets, stable resolver references,
+          independent identities, schema/version/path failures and graph closure;
+          execute generated commands against materialized projects.
+    - [x] Verify the rebuilt browser runtime and
+          Studio's owned native bridge without publishing partial projects.
+      Verified 2026-11-13: six native producer cases and three native CLI
+      integration cases pass, including all five presets materialized with
+      original and moved paths (eight runnable commands). Fourteen native/WASM
+      response comparisons match, and the emitted Draft 2020-12 JSON Schema
+      accepts every preset. Both new Studio browser cases pass for generated
+      builds, manifest round trips, invalid commands, cancellation before result
+      delivery and retired bindings. The npm CLI suite passes 65/65; its full
+      Chromium suite passes, including bootstrap authoring across two generation
+      replacements, stale aliases and preparation invalidation. Generation
+      performs no workspace writes; host publication and creation UI remain
+      below. Runtime/package/Studio builds, lint, Studio typecheck, UI
+      classification and both packaged-output checks pass; existing lint
+      warnings remain.
+  - [ ] Build the declarative Studio questionnaire and review step over this
+        producer; connect **New project** and publish through the existing
+        validated repository transaction only after review/current-state checks.
+  - [ ] Add thin VS Code and IntelliJ creation adapters over the same native
+        control transport, with review and cancellation-safe publication.
   - [ ] Verify preset/questionnaire transitions, pipeline and path validation,
         generated hierarchy/build parity, cancellation and failed-generation
         atomicity, independent project identities, accessibility and themes.
@@ -363,6 +387,14 @@ These historical investigations remain behind presentation functionality.
       see the [HTTP observation](browser-stabilization-review.tmp.md#http-startup-observation-without-a-reproduced-failure).
 
 ## Deferred Roadmap Work
+
+- [ ] Evaluate graph-converter parity before expanding bootstrap conversion
+      stages: native graph YAML-to-generic-CEM currently reports
+      `cem.transform_runtime.convert_edge_unavailable`; XML-to-DOM projection
+      selects `XmlDomProjectionConverter` but reports
+      `cem.transform_runtime.convert_execution_unsupported`. Standalone YAML
+      conversion works. Keep the verified XML-to-native-template pipeline
+      preset usable and preserve the shared typed import boundary.
 
 The Edge/SSR host fixtures belong to Phase 3.5 after the browser substrate is
 stable. Moving `@epa-wg/custom-element` into the monorepo and deciding final

@@ -72,10 +72,18 @@ pub enum Command {
     Transform(TransformArgs),
     #[command(about = "Execute an explicitly identified CSS selector, CEM-QL, or XPath query")]
     Query(QueryArgs),
+    #[command(about = "Read one project-bootstrap v1 control JSON request and emit its JSON response (no workspace writes)")]
+    ProjectBootstrap(ProjectBootstrapArgs),
     #[command(subcommand, about = "Reserved: schema workflows (not yet implemented)")]
     Schema(SchemaCmd),
     #[command(subcommand, about = "Reserved: plugin workflows (not yet implemented)")]
     Plugin(PluginCmd),
+}
+
+#[derive(Args, Debug)]
+pub struct ProjectBootstrapArgs {
+    #[arg(value_name = "REQUEST", default_value = "-", help = "Control JSON request file; - reads stdin")]
+    pub request: PathBuf,
 }
 
 #[cfg(feature = "debug-control")]

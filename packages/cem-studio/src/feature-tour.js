@@ -463,6 +463,30 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
             if (response.error) throw new Error(response.error);
             return response;
         },
+        /** Shared native authoring only. The caller reviews and atomically
+         * imports the returned archive; this operation never persists it. */
+        async bootstrapProject(request, { signal } = {}) {
+            const generated = await nativeOperation(signal, async current => {
+                packageDemand?.assertReady();
+                const response = JSON.parse(invocationBinding.projectBootstrapV1(JSON.stringify(request)));
+                current();
+                if (response.error) {
+                    const error = new Error(response.error.message);
+                    Object.assign(error, response.error);
+                    throw error;
+                }
+                if (response.bundle) {
+                    for (const resource of request.configuration.resources) {
+                        if (resource.role !== 'run-config') continue;
+                        const command = decodeResourceCommand(new TextEncoder().encode(resource.text));
+                        if (command.metaAction || !PORTABLE_STUDIO_OPERATIONS.has(command.commandPath[0])) throw new TypeError('Choose a portable project resource command');
+                    }
+                }
+                return response;
+            });
+            signal?.throwIfAborted();
+            return generated;
+        },
         validateResource,
         async decodeProjectManifest(bytes, { signal } = {}) {
             const converted = await convertProjectManifest(

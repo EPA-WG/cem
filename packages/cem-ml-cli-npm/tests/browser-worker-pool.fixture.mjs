@@ -1049,6 +1049,9 @@ async function runOwnedInvocationFixture() {
     const graph = '{run | {import @id=data @src=data.xml | {export @id=result @out=result.xml}}}';
     const edit = JSON.stringify({ source: graph, edit: { node: 'result', attribute: 'out', value: 'changed.xml' } });
     const author = binding.authorTransformConfigV1, build = binding.buildInvocation, present = binding.projectPresentation;
+    const bootstrap = binding.projectBootstrapV1, bootstrapRequest = '{"action":"catalog"}';
+    const baselineBootstrap = bootstrap(bootstrapRequest);
+    if (JSON.parse(baselineBootstrap).presets.length !== 5) throw Error('missing native bootstrap presets');
     const baseline = author(edit);
     if (!JSON.parse(baseline).source.includes('changed.xml')) throw Error(baseline);
     const parsed = parseCemMlCommand(['version'], { runtime: 'wasm-browser-worker' });
@@ -1076,10 +1079,13 @@ async function runOwnedInvocationFixture() {
         if (failedResolution?.code !== 'cem.browser_command.resolve' || failedResolution.exitCode !== 6 || failedResolution.message !== 'resolver refused') throw Error('command error changed');
         const beforeGraph = await scope.prepare(); author(edit);
         if (beforeGraph.current()) throw Error('late synchronous graph work did not invalidate preparation');
+        const beforeBootstrap = await scope.prepare(); bootstrap(bootstrapRequest);
+        if (beforeBootstrap.current()) throw Error('bootstrap authoring did not invalidate preparation');
         const staleHost = await scope.prepare(); epoch++;
         if (staleHost.current()) throw Error('host witness stayed current');
         for (let round = 0; round < 2; round++) {
             const old = binding.runtime, oldAuthor = old.authorTransformConfigV1;
+            const oldBootstrap = old.projectBootstrapV1;
             const owner = old.claimNativeEmbedding();
             const copiedOwner = await old.closeNativeAdmission([{ ...owner }]).then(() => 'admitted', error => error.message);
             if (copiedOwner === 'admitted') throw Error('copied owner admitted');
@@ -1101,6 +1107,8 @@ async function runOwnedInvocationFixture() {
             try { binding.resume(admission); throw Error('used admission accepted'); }
             catch (error) { if (!error.message.includes('allocation.admission')) throw error; }
             try { oldAuthor(edit); throw Error('retired alias accepted'); } catch (error) { if (!error.message.includes('generation.retired')) throw error; }
+            try { oldBootstrap(bootstrapRequest); throw Error('retired bootstrap alias accepted'); } catch (error) { if (!error.message.includes('generation.retired')) throw error; }
+            if (bootstrap(bootstrapRequest) !== baselineBootstrap) throw Error('fresh bootstrap native result drift');
             if (author('{}') !== baselineError || author(edit) !== baseline || JSON.stringify(present(invocation.presentation, result)) !== baselinePresentation || other.authorTransformConfigV1(edit) !== baseline) throw Error('fresh synchronous native result drift');
             if (round) { admissions[0].revoke(); if (author(edit) !== baseline) throw Error('old revocation fenced new binding'); }
         }

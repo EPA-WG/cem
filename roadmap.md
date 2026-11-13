@@ -1723,20 +1723,31 @@ Goal: provide one versioned project-bootstrap configuration and native producer
 for Studio, VS Code and IntelliJ, with host-specific entry points over shared
 project/schema and transformation-graph contracts.
 
-- [ ] Define a bootstrap schema describing project type, resources/folders,
+- [x] Define a bootstrap schema describing project type, resources/folders,
       inputs/outputs, schema identities and transformation-pipeline stages.
       Include Markdown-based site, transformation pipeline, simple conversion,
       schema-validation and minimal custom presets with expandable choices.
+      Implemented 2026-11-13 as the shared native project-bootstrap v1
+      configuration and pure producer; paths define resource folders and
+      ordinary project entries retain grouping. Native graph resources retain
+      the existing stage/dependency language. See
+      [the shared contract](docs/cem-studio.md#shared-project-bootstrap-v1).
 - [ ] Make Studio's **New project** action open a guided questionnaire built from
       declarative CEM components. Collect the project structure and pipeline,
       display the proposed hierarchy and let users review/edit it before creation.
-- [ ] Generate the project hierarchy, original resources and saved build/validation
+- [x] Generate the project hierarchy, original resources and saved build/validation
       configurations through the shared native producer. Validate paths, stage
-      dependencies and identities, and publish atomically with cancellation and
-      failure preserving the existing workspace.
-- [ ] Expose the same bootstrap configuration and producer through the CLI/tooling
+      dependencies and identities before returning a complete archive and
+      native-written manifest; failures return no partial bundle.
+- [ ] Publish reviewed projects atomically with cancellation and failure
+      preserving the existing workspace.
+- [x] Expose the same bootstrap configuration and producer through the CLI/tooling
       contract for **VS Code** and **IntelliJ** project-creation flows. Reuse schema
       defaults, validation and generation rather than duplicating them per editor.
+      `cem-ml project-bootstrap` and Studio's owned `projectBootstrapV1` API share
+      the producer. The actual editor dialogs/plugins remain below.
+- [ ] Implement the thin VS Code and IntelliJ project-creation dialogs over the
+      shared transport, with generated-tree review and transactional publication.
 - [ ] Verify preset and custom flows, generated structure/build parity across
       hosts, independent identities, invalid-rule/pipeline repair, keyboard and
       accessibility behavior, theme survivability and offline Studio creation.

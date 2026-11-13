@@ -30,7 +30,7 @@ const cleanup = new Set([
 const ordinary = new Set([
     'schemaAssetPackBootstrapV1', 'schemaAssetPackSummaryV1', 'schemaAssetPackImportV1',
     'schemaAssetOwnerOpenV1', 'schemaAssetOwnerAdmitV1', 'schemaAssetOwnerActivateV1',
-    'authorTransformConfigV1', 'buildCommandInvocationV1', 'projectCommandPresentationV1',
+    'authorTransformConfigV1', 'projectBootstrapV1', 'buildCommandInvocationV1', 'projectCommandPresentationV1',
     'executeCommandServiceV1', 'readCommandArtifactV1', 'initializeResumableOperationHost',
     'startResumableOperation', 'replaceResumableOperationWorker', 'executeOperationWork',
     'continueResumableOperation', 'stepResumableOperation',

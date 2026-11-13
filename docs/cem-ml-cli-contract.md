@@ -1292,4 +1292,29 @@ CEM-ML reports are the primary structured projection. JSON is a machine-validati
 
 ## Verification Scope
 
+### Project bootstrap control transport
+
+`cem-ml project-bootstrap [REQUEST]` reads one UTF-8 JSON control request from
+REQUEST (stdin by default, also `-`) and emits one JSON response to stdout. It
+delegates to the same native producer as Studio's owned `projectBootstrapV1`
+binding; VS Code and IntelliJ adapters must reuse this transport and its schema.
+It performs no project publication or source-document parsing. It is native-only
+in the generated command grammar; browser integrations use the owned authoring
+binding rather than lowering this management command to a document operation.
+
+From the repository root after the native CLI build:
+
+```bash
+printf '%s\n' '{"action":"catalog"}' | ./dist/target/cem_ml_cli/debug/cem-ml project-bootstrap
+printf '%s\n' '{"action":"preset","preset":"simple-conversion","projectId":"my-project","name":"My project","createdAt":"2026-11-13T00:00:00Z"}' | ./dist/target/cem_ml_cli/debug/cem-ml project-bootstrap
+```
+
+`catalog` returns the configuration JSON Schema and five presets. `preset`
+returns an editable configuration; `generate` takes that complete configuration
+and returns a standard Studio archive plus native `project.cem` text. Invalid
+requests produce a structured error response, exit 2 and no partial archive;
+transport I/O failures exit 6. Hosts own review and transactional publication.
+See [Shared project bootstrap v1](cem-studio.md#shared-project-bootstrap-v1)
+for request fields, identity rules, limits and integration status.
+
 Rust-side tests should assert functional behavior, option parsing, JSON/report fields, diagnostics, and exit codes.

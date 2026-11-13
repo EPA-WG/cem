@@ -59,6 +59,7 @@ export class OwnedBrowserCommandInvocation {
         finally { release(); this.#changed(); }
     }
     authorTransformConfigV1 = (json: string): string => this.#runtime.authorTransformConfigV1(json);
+    projectBootstrapV1 = (json: string): string => this.#call('projectBootstrapV1', [json]) as string;
     /** Optional native planning only. The returned package identities are not
      * admission grants and this captured method never changes generations. */
     planSchemaAssetDemandV1 = (json: string): string => this.#call('schemaAssetDemandPlanV1', [json]) as string;
@@ -185,6 +186,7 @@ export class BrowserCommandInvocationBinding {
         return this.#runtime;
     }
     authorTransformConfigV1 = (json: string): string => this.runtime.authorTransformConfigV1(json);
+    projectBootstrapV1 = (json: string): string => this.runtime.projectBootstrapV1(json);
     planSchemaAssetDemandV1 = (json: string): string => this.runtime.planSchemaAssetDemandV1(json);
     buildInvocation = (parsed: ParsedCemMlCommand, resolver: BrowserCommandInvocationResolver, options?: BrowserCommandInvocationOptions): Promise<CommandInvocationV1> =>
         this.runtime.buildInvocation(parsed, resolver, options);

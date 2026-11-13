@@ -99,6 +99,7 @@ test('raw main heap closure catches admitted callbacks and retained roots, prese
             () => native.onParseEvent(() => undefined)]) assert.throws(retain, closed);
         assert.equal(JSON.parse(native.compileTemplate('{p | denied}', '{}')).error.code, 'cem.runtime.admission.closed');
         assert.equal(JSON.parse(native.authorTransformConfigV1('{}')).error.code, 'cem.runtime.admission.closed');
+        assert.equal(JSON.parse(native.projectBootstrapV1('{"action":"catalog"}')).error.code, 'cem.runtime.admission.closed');
         let calls = 0; const forbidden = () => { calls++; throw Error('unexpected callback'); };
         const denied = JSON.parse(await native.executeCommandServiceV1('{}', capability, forbidden, forbidden, forbidden, forbidden, forbidden));
         assert.equal(denied.error.code, 'cem.runtime.admission.closed'); assert.equal(calls, 0);

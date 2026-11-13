@@ -123,6 +123,8 @@ export interface CemStudioBrowserValidator {
     previewResourceCommand(options: CemStudioResourceCommandPreviewOptions): Promise<CemStudioResourceCommandPreview>;
     serializeResourceCommand(command: Readonly<Record<string, unknown>>): string;
     validateResource(options: CemStudioResourceCommandOptions): Promise<CemStudioBrowserCommandOutcome>;
+    /** Calls the shared native project-bootstrap v1 producer without persistence. */
+    bootstrapProject(request: Readonly<Record<string, unknown>>, options?: { signal?: AbortSignal }): Promise<Readonly<Record<string, unknown>>>;
     decodeProjectManifest(
         bytes: Uint8Array | ArrayBuffer,
         options?: { signal?: AbortSignal },

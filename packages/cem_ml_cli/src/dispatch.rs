@@ -27152,6 +27152,7 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
         cli::Command::Version => run_version(s),
         cli::Command::Transform(a) => run_transform(engine, a, s),
         cli::Command::Query(a) => run_query(a, s),
+        cli::Command::ProjectBootstrap(a) => crate::project_bootstrap::run(a, s),
         cli::Command::Schema(cli::SchemaCmd::Emit) => run_reserved("schema emit", s),
         cli::Command::Schema(cli::SchemaCmd::Sample) => run_reserved("schema sample", s),
         cli::Command::Schema(cli::SchemaCmd::Replace) => run_reserved("schema replace", s),

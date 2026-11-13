@@ -161,3 +161,11 @@ test('project filesystem mappings round-trip as a native-only host option', asyn
     await assert.rejects(buildCommandInvocationWith(undefined, undefined, parsed, undefined), error => error.code === 'cem.cli_command.native_only_argument');
     await assert.rejects(nodeApi.buildNodeCommandInvocation(parsed, undefined), error => error.code === 'cem.cli_command.native_only_argument');
 });
+
+test('project bootstrap management uses native transport and the owned browser API', () => {
+    const parsed = nodeApi.parseCemMlCommand(['project-bootstrap', '-'], { runtime: 'native' });
+    assert.deepEqual(parsed.commandPath, ['project-bootstrap']);
+    for (const runtime of ['wasm-node', 'wasm-browser-worker']) {
+        assert.throws(() => nodeApi.parseCemMlCommand(['project-bootstrap'], { runtime }), error => error.code === 'cem.command.unavailable');
+    }
+});

@@ -152,6 +152,13 @@ pub fn author_transform_config_v1(request_json: &str) -> String {
     crate::transform_config_authoring::author_transform_config_json(request_json)
 }
 
+/// Shared project authoring; uses this generation's existing admission owner.
+#[wasm_bindgen(js_name = "projectBootstrapV1")]
+pub fn project_bootstrap_v1(request_json: &str) -> String {
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
+    crate::project_bootstrap::project_bootstrap_json(request_json)
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WasmModuleUrlResolutionRequest {

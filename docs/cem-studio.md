@@ -4034,3 +4034,80 @@ the command resource through the project tree. External changes require reload,
 and changes during execution mark results stale. Source byte counts refer to
 actual bytes, never a decoded placeholder. All existing source/resource-set and
 recovery budgets, credential refusals and timeouts remain unchanged.
+
+## Shared project bootstrap v1
+
+Studio, VS Code and IntelliJ project creation share the native
+`cem_ml::project_bootstrap` producer. Its configuration identity is
+`https://cem.dev/ns/project-bootstrap/1`, with `schemaVersion: 1` and an exact
+`commonVersion` pin. Hosts obtain the configuration JSON Schema and the five
+preset descriptions through a `catalog` request. The schema reuses the portable
+project's entry, identity and resource metadata definitions.
+
+The shared requests are explicit control JSON:
+
+```json
+{"action":"catalog"}
+```
+
+```json
+{"action":"preset","preset":"simple-conversion","projectId":"my-project","name":"My project","createdAt":"2026-11-13T00:00:00Z"}
+```
+
+`preset` returns an editable `configuration`. Send that complete value as
+`{"action":"generate","configuration": ...}` after review. Configuration
+contains the project identity/name/timestamp, preset, ordinary project `entries`
+and UTF-8 `resources` (`id`, `role`, `path`, `contentType`, optional `schema`,
+`text`). Resource paths define the folder hierarchy; subproject entries define
+groups. Empty filesystem directories are not portable project resources.
+Pipeline resources use the existing transform-graph CEM-ML grammar, including
+its dependency and cycle checks. Hosts use the shared native graph authoring API
+to edit stages rather than inventing a second pipeline language.
+
+| Preset | Initial runnable configuration |
+| --- | --- |
+| `markdown-site` | Markdown home page to `generated/index.html` through a shared graph. |
+| `transformation-pipeline` | XML source through a native CEM template to `generated/result.html`. |
+| `simple-conversion` | YAML to tabular CEM-ML in `generated/result.cem`, without terminal escapes. |
+| `schema-validation` | Strict XHTML validation using the built-in XHTML schema. |
+| `custom` | Empty project, ready for resources, grouping and runnable entries. |
+
+Generation returns `bundle` in the existing `archiveSchemaVersion: 1` Studio
+archive format and `manifest` as native-written `project.cem`. Every generated
+resource has revision 1, the SHA-256 of its exact original UTF-8 bytes and an
+immutable `.resources/<resource-id>` reference. Paths may change before creation
+without rewriting command or graph references. Different project IDs yield
+independent `studio://<project-id>/` roots. IDs and timestamps are supplied by
+the host; the producer performs no clock, random, network or filesystem work.
+Generation is deterministic for an unchanged configuration.
+
+The producer validates project topology, identities, normalized and conflicting
+paths, authored command envelopes, native graph syntax/dependencies, graph
+resource closure and protected output paths. V1 starters are local and
+self-contained: graph sources name exact resources, without remote acquisition
+or glob expansion. Requests are bounded to 4 MiB, 128 resources and 256 entries.
+Failures return `error` with `code`, `message`, optional `fieldPath`, and original
+native graph diagnostics when available; they return no partial bundle.
+Responses include `schemaVersion` and `commonVersion`. This is an authoring
+boundary, not an AST handoff or a resource admission grant.
+
+Native IDE adapters call `cem-ml project-bootstrap [REQUEST]`, using stdin when
+REQUEST is omitted or `-`; stdout is the control JSON response and invalid
+requests exit with status 2. Studio calls
+`validator.bootstrapProject(request, { signal })`, which uses
+`BrowserCommandInvocationBinding.projectBootstrapV1` in the existing owned
+generation. Closed admissions and retired generations refuse work; captured
+binding methods follow coordinated recovery. Both transports validate editable
+saved command grammar with the canonical Clap/generated command schema before
+returning a generated bundle.
+
+The producer and transport do not publish projects. Studio's future declarative
+questionnaire and the VS Code/IntelliJ creation dialogs must review the generated
+hierarchy, check cancellation/current configuration again, and publish through
+one host transaction. Studio can decode the archive with
+`parseCemStudioProjectBundle` and use its existing validated repository import.
+IDE adapters must preserve exact bytes and immutable addresses when materializing
+the returned manifest and resources; saved native builds use
+`--resolver-project project.cem`. Cancellation, generation failure or publication
+failure must leave the existing workspace unchanged. Creation dialogs and IDE
+plugins remain follow-up work; this API does not change **New project** yet.

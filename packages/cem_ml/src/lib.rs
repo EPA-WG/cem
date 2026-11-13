@@ -91,6 +91,7 @@ mod ssr_source;
 pub mod ssr_artifact;
 pub mod studio_project;
 pub mod studio_project_filesystem;
+pub mod project_bootstrap;
 pub mod syntax;
 pub mod tokenizer;
 pub mod transform_artifact;
