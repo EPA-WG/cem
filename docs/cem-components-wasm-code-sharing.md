@@ -137,6 +137,13 @@ remains about 265/261 MiB after use; its readiness medians are 118/100 ms
 (worker/fallback), compared with 109/99 ms before. These small descriptive
 samples establish neither peaks nor fixed budgets or an all-capabilities minimum.
 
+The subsequent [fallback phase diagnosis](cem-components-wasm-fallback-startup.md)
+attributes most of the reported half-second increase to Playwright assertion
+polling. Matched visibility-only medians shift by 19–65 ms while assertion lag
+shifts to roughly 500 ms. Original distributions above remain archived unchanged;
+the phase evidence neither supplies replacement PSS totals nor establishes a
+cause for the smaller remaining startup difference.
+
 Focused code-asset fixtures cover concurrent demand, independent memories,
 failed-load retry, corrupt/truncated/oversized bytes, mismatched/accessor records,
 interface mismatch and concurrent/repeated installation. Transport fixtures

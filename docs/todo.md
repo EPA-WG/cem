@@ -745,9 +745,37 @@ Deferred execution gates, in order within this workstream:
   Earlier initial-mutation and complete-recovery deadline stalls remain
   unattributed; subsequent original assertions pass without deadline changes.
 
-  - [ ] Attribute the increased fallback readiness medians to original loading,
+  - [x] Attribute the increased fallback readiness medians to original loading,
         compilation and declaration phases before changing the loader or claiming
         a cause; retain matched artifacts, original assertions and separate PSS.
+    - [x] Add bounded diagnostic-only loading/hash/compile/declaration phase
+          capture and a DOM visibility timestamp alongside the original browser
+          assertions; verify observer cleanup and unchanged native call results.
+    - [x] Compare repeated matched controls/data/editor observations with original
+          assertion completion, preserving the existing measurement archives and
+          keeping instrumented timings outside ordinary startup distributions.
+    - [x] Reconstruct the pre-sharing JavaScript cohort against unchanged native
+          bytes and compare native/DOM phases and assertion polling with the
+          shared-code cohort, including a visibility-only diagnostic control.
+    - [x] Publish bounded phase-only evidence with raw-record hashes; verify that
+          diagnostic PSS cannot enter the ordinary startup/memory comparison.
+
+  Verified 24 serial collector/diagnostic tests, 72 matched phase observations
+  and an ordinary controls worker/fallback smoke with original fixture bytes and
+  no diagnostic wrappers/observers. Visibility-only fallback medians shift by
+  19–65 ms; assertion lag after visibility shifts from 69–109 to 478–509 ms.
+  Installed Playwright's selector polling reaches a 500 ms backoff. Fully traced
+  hashing takes 16–24 ms and compilation 24–32 ms, with no matching half-second
+  native stall. Most of the apparent increase is assertion polling; the smaller
+  startup difference remains bounded evidence, without an exact causal/budget
+  claim. Original latency/PSS archives, native integrity/ownership, declarative
+  components, styles and workflow assertions are preserved. See the
+  [phase diagnosis and source-pinned evidence](cem-components-wasm-fallback-startup.md).
+
+  - [ ] Add a separately named browser-side readiness timing metric beside the
+        original assertion wall time, preserving all workflow validation and
+        refusing hidden/incomplete controls or failed assertions; rerun ordinary
+        distributions before selecting budgets.
   - [ ] Measure all-capabilities delivery and installed offline byte totals with
         original artifact hashes, cache inventories and explicit capability scope.
   - [ ] Measure cold loading and first use in clean npm worker/fallback consumers,

@@ -1,0 +1,3234 @@
+{
+  "schemaVersion": 2,
+  "recordSuffix": "",
+  "phaseCohort": "before-sharing",
+  "phaseObserveOnly": false,
+  "scope": "selected-native-entry-and-separate-full-runtime-workloads",
+  "runs": 3,
+  "transport": "assembled-demo deduplicated adapters; local no-store HTTP; selected original compiled cart/JSON API fixture",
+  "coreSha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76",
+  "selectedSha256": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600",
+  "chromium": "148.0.7778.96",
+  "node": "v24.16.0",
+  "platform": "linux 6.18.58.1-microsoft-standard-WSL2 x64",
+  "cpu": "Intel(R) Core(TM) Ultra 7 258V",
+  "cpuCount": 8,
+  "hostMemoryBytes": 20975349760,
+  "measuredAt": "2026-11-13T04:25:00.378Z",
+  "harnessHashes": {
+    "measure-components-wasm.mjs": "3d8bd5c73b8922beafc3c8d11b6d8a2090a223aac81fc3409c9631a5ac4fd8d3",
+    "browser-runtime-metrics.mjs": "14670e2d42610ea76ab7bb7101a38c1b71b473875f555923c4b7cb28d015f03f",
+    "component-benchmark-deployment.mjs": "3e138739f88d4720bc22e97649d237159e93208a67d2b57f8ebbd708161292ea",
+    "browser-startup-phases.mjs": "474a21fbbda28e183b7c383d12fcd09216a0f6ac925d34f988e8df268b9849c6"
+  },
+  "fixtureHashes": {
+    "/__component_audit__/selected/cem_ql_factory.js": "a469ffa4b35b8673b0d02a19457d02a4b626acc9a0c6abc5b704adfc4f05a450",
+    "/__component_audit__/selected/cem_ql_bg.wasm": "2fbe29b66fdd64c55b9b05eb0f2f8d29ef56aa6cf99444cbdb6dfab8a3d51600",
+    "/__component_audit__/cart.json": "32c05a0e17cfbe9b6e9a8656a9d2c1624f60d115b98196bfac4390d63c2dd1bd",
+    "/__component_audit__/selected-runner.mjs": "890955dae091d8b6ad73aff2ed2d18400004b2e7cf44488ccc6693ec359c26f1",
+    "/__component_audit__/selected-worker.mjs": "a85e1ce7aeee129ba3dac02d8980de12df08a86be7ba0bb773aa1c7c08dfafe0",
+    "/__component_audit__/selected-bootstrap.mjs": "2b7a96af89926cfe59d5623f0c5f30b7420ed9f34e7ecd053dcfc4d14ca3933c"
+  },
+  "summary": [],
+  "contract": "cem-startup-phase-evidence/1",
+  "rawSha256": "ab4f709316eeec3dbbd1bae3662a90ba3cbdd6bce951740f8aa0304701426d26",
+  "limits": [
+    "Diagnostic timings are excluded from ordinary latency/PSS distributions.",
+    "Visibility witnesses supplement the unchanged original role/locator assertions.",
+    "API spans overlap and are not additive CPU counters; worker-internal API calls are not captured."
+  ],
+  "sourceHashes": {
+    "/__component_audit__/bootstrap.mjs?mode=worker": "67825e0d59205696bd8af85104c801048991d447bf50ee914ab5367b1602bec8",
+    "/packages/cem-elements/dist/index.js": "260f469c4fd8c2b9b7f32c132892402a9c4d39053a11e111a68664c07f99f083",
+    "/packages/cem-elements/dist/lib/repository.js": "02301d389e7cb5699999fff97008aad28056284e713a0791bd1359059a78b702",
+    "/packages/cem-elements/dist/lib/http-resource-transport.js": "76eed68234faf2fbe7ef838ddeb1a282e82e5c10a6a700c7974e934afbe3beb0",
+    "/packages/cem-elements/dist/lib/graphql-preview.js": "88efc662aa44b75c5f6335999cda15233a1f7f4de1532407d506a5190f869446",
+    "/packages/cem-elements/dist/lib/graphql-actions.js": "e43c666925d2f281313f7c4a9e7d9be6957e2d2308ece303d8c549a0cc29fdf4",
+    "/packages/cem-elements/dist/lib/schema-asset-pack.js": "23e9b5ca08a7c5b96f7f16c0a3eeb146fb83e80197a6314acd1b9be731b336c3",
+    "/packages/cem-elements/dist/lib/cem-elements.js": "e42ee517fc5b359a90511864a3efcb82c8c5d662a9b99848db4d39c532478017",
+    "/packages/cem-elements/dist/lib/host-view.js": "145c3903cecd61ca670a09fdc948f2689e0ca0aac5bda0453e978ef835554305",
+    "/packages/cem-elements/dist/lib/legacy-xslt/contract.js": "a46120509cf8f075855e661519235845a27a8645403140ba1bb7a5fe2ee882a3",
+    "/packages/cem-elements/dist/lib/declaration-scope.js": "53759690446c514dfb0cadd006dea25f434f136b99aa658785e87f3e9a46507f",
+    "/packages/cem-elements/dist/lib/committed-checkpoint.js": "9e7b2f86e18be199fcd0261f4454cbed54e8cce9663caab7121eaba928580a48",
+    "/packages/cem-elements/dist/lib/native-values.js": "427a39dcf46e3800592d49b92851a40f7366bb0400f29c7286535c068593875c",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js": "b30ef2a038fd68fe5f54c7ec39c9f8f54d8201375397ba3703e400b8ba0540fd",
+    "/packages/cem-elements/dist/lib/edge-css-publication.js": "a3e177a75f5e94cbc4251331d39fad33c736b93bdf16b60dfdc391e28b2077b7",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/application-browser-frame.js": "324cadc243a77e4fa0fa649f8beba31a94d0f1b7b92e6e4406610cfb25664398",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/application-text-provider.js": "cd1bbcf20af114c4f0fd0cbeb2f58cf28185d427e9b5e0bc93f9210718d55272",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/application-stylesheets.js": "cad0b14ffff835dbfb7804dd75474cd9aaf0798b0445391802aaa039b524600b",
+    "/packages/cem-elements/dist/lib/action-command-capability.js": "b76679861af0487596b9ca1b205738eec454de7fa2a1b5e2740627f9267d8f77",
+    "/packages/cem-elements/dist/lib/declaration-style-ownership.js": "564c07ec1fc5719dd6df64647f16dbea131ae1d2975e0afdf0e295a9420513fa",
+    "/packages/cem-elements/dist/lib/surface-invocation.js": "34e15fd883489f2467fa7c4b7292d08df251570cec08a84ba5ee3c82dfd49ae1",
+    "/packages/cem-elements/dist/lib/aria-reference-profile.js": "15cf987f3ffd049d80f90200ccb7e10d36e8f2860f6a0c574b942269bf3e9be1",
+    "/packages/cem-elements/dist/lib/element-placement-ssr.js": "1f274a7b0d575c42945cc2f73e9217f51694a76ef1f0ea0646a1917531500f09",
+    "/packages/cem-elements/dist/lib/platform-close.js": "72d45ae13799d068badfd439a464441999155efdc7cc4a9591e839f1bcfab01c",
+    "/packages/cem-elements/dist/lib/native-surface.js": "396b9bb6b69842fd7eeafa58067c37adf473e8788a4985f744b42718f75e3e4b",
+    "/packages/cem-elements/dist/lib/element-placement-coordinator.js": "8c19232cc82b694ed669030157845adc69e06316b5deac41f6259f8a63694f75",
+    "/packages/cem-elements/dist/lib/checkpoint-processing.js": "db9b25fc3b054be8aa4d63149ba3ea783aa0caca03676bfb8c5a944f191b59e5",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/native-generation.js": "2c157124ca296079ba5ff5fb772b888f6a522fc1fe9dc890a5379d987cbc3f5d",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/native-runtime.js": "ec3209e877d7692593fdae8f03d06acb81a50cd4614c156b40758aa4f8afd620",
+    "/packages/cem-elements/dist/lib/artifact-preview.js": "3338d4e0c9741bbd43d989a6fc8c62a87ab8bbb3af7fd7c6839c730fa3224117",
+    "/packages/cem-elements/dist/lib/live-preview.js": "c5c60411e55e88e4f7ab208c015df465f8982d664189c7f19c9011f98ba73162",
+    "/packages/cem-elements/dist/lib/checkpoint-publication.js": "cb5b10f1aae4460518ca4a2aadd04e4ad1a5f7ad638eae67c73b8310f22df0c8",
+    "/packages/cem-elements/dist/lib/checkpoint-resume.js": "72d48fb480ccbffb9fef7c0436ab831613a1e64d63cf3f2a60903ccf744ec80b",
+    "/packages/cem-elements/dist/lib/live-preview-policy.js": "a89b2eae67ff6c31904750cbea1bb5bb9bd398ffc2ca1ea115ab4a6e2fba70e6",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/processing-host-runtime.js": "51f2a4c55d0d5655a7d7200a20e8ab3d79b90466894f81e284521dad3543c977",
+    "/packages/cem-elements/dist/lib/recovery-status.js": "8b79f8d26791ebf1b7a31e240fdd357e738e34b72e60ef772fa9e7a3bae850ef",
+    "/packages/cem-elements/dist/lib/graphql-preview-recovery.js": "b60d2b14b88a145f71d133bc4f23e1035c7a18b720e057d0d1e3f322a4e52a91",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/host-attribute-publication.js": "78c44aa974942c112a369c09c93e5dfaa2947584f9ac74e9ce337e62c4354eb5",
+    "/packages/cem-elements/dist/lib/checkpoint-provider-handoff.js": "908e170f2b8a42ac87f2f900891c6c6bf88d0a5482a1f06a018b4a78d87d7c57",
+    "/packages/cem-elements/dist/lib/manual-listbox.js": "0edffa99426a5dff9f8851d39ea7ae04fa25e00f04102764eb61daaeba1b9c58",
+    "/packages/cem-elements/dist/lib/form-control-capability.js": "06c963226243f0778066ace5f0fabcb582fe95533b3bdf7084cf739443c5c91e",
+    "/packages/cem-elements/dist/lib/standalone-datalist.js": "8c08bfe79fe381e6129962d09e9eebc99629a12872117b5066d73f3ac6f5908a",
+    "/packages/cem-elements/dist/lib/compiled-declaration-assets.js": "ef2abc72f3429e4dec84c8258ec085ec74c950f48313a412bb7646648c017801",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/checkpoint-domain.js": "bd9151d726e86c9768ede8723ac54ea1c84d71cfbd6ac731a58ac8486c24f431",
+    "/packages/cem-elements/dist/lib/live-preview-capability.js": "c9dc6e19f2686b400cff022d2b242c16f39a3bedc5771fdcec31e59e7dc14571",
+    "/packages/cem-elements/dist/lib/element-placement-plans.js": "2f4fd7e6b19409a6d4de523adfb58e076ce485d72e945801c39a481fe98126cd",
+    "/packages/cem-elements/dist/lib/checkpoint-interactions.js": "6873af6b8c8cca99f9ca6cfc5c70b060bcfd7734974cd0e504832ce6e776cef9",
+    "/packages/cem-elements/dist/lib/dom-realm.js": "21ee04cf2925f3bec1ff869bfc23b0f565fb14dcc26b6938c9699e13eeb7cb65",
+    "/packages/cem-elements/dist/lib/checkpoint-controls.js": "6074b6b16c3e5989c24f2362d8e088607aa7208a8d0a277b7254797c0cea52f9",
+    "/packages/cem-elements/dist/lib/native-suggestions-publication.js": "b61643c6fd5e182e9d6f48ef2bec39da487aa6e1b447543794a219199bafb7af",
+    "/packages/cem-elements/dist/lib/disposition.js": "6ff512dfa8a393e8f4f6157ba1b73f6bb2a2761fe53406935a57073c325ae6b1",
+    "/packages/cem-elements/dist/lib/legacy-xslt/template-language.js": "44ca04370d86a8dad8044d35c00259d441fceb2a9266052690586a752a134c20",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/module-url-resolution.js": "c276024b3a3ec8a04f41a486d1fcb505fa317560931561bab96ae37d56688009",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/xpath-function-library.js": "fa205da2b3237bd2b8ce16fceee740287c3f40c1a5dba94d35a2d95f1f352093",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/processing-host.js": "dfd92e5bc55a57dac7f947600bd2cdf6779ef568c46322172f8a358272a3701d",
+    "/packages/cem-elements/dist/lib/projection.js": "cca92ca96ad4dcf47a778b611933e715c7e6b98240cf1e8a348134b9c3d448b2",
+    "/packages/cem-elements/dist/lib/ssr-resource-proof.js": "85b6eabbecf2d2ea564cf4c2257fde0bc2c4c1b020c10fdbb3f0b2992d2e3d9a",
+    "/packages/cem-elements/dist/lib/external-declaration-source.js": "4754aba4f56a8990affab632c26ee65aad8c6d8edee298e0792fffba1688e98c",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/stylesheet-reader.js": "afaaf79d9638f453ac122d7305a7445748bd4f4a29149a942bded95444fb1f3c",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/instance-stylesheet-installation.js": "321067f11e85e4322734070ab2c65a15f31dd8a193c6652123da2fc031d4380b",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/stylesheet-registry.js": "76b7b3807c8a91f84ec81682d24b3890d513cc8acd3f6302690590a2cd9e5292",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/css-dom-publication-queue.js": "11588f9394b812c43e692d3968bc2e9d6ce1390684c3ccf0a60ec6b81fdd1e86",
+    "/packages/cem-elements/dist/lib/edge-ssr-host.js": "c349fb52650dc0cfbb33eb20291ed4c737589fbabd5e4d745859e5f52d59d37f",
+    "/packages/cem-elements/dist/lib/checkpoint-form-resume.js": "88465e2ae7db2df89c1f885e127503cd299dd971a871c338497bb342148dd080",
+    "/packages/cem-elements/dist/lib/checkpoint-reference-resume.js": "ee5554e077573612bc9a5df76eb2d052ebbac89af8a68b1c75303c6b1ca392ae",
+    "/packages/cem-elements/dist/lib/navigation-landmark-capability.js": "3389fcd23e10ef1d440049385f9163a6aad2aadd8e0798afd0eaee38f362fd37",
+    "/packages/cem-elements/dist/lib/plaintext-editor-capability.js": "768e58de7ee87798785ccf77545b57bdb3d392a7609b8faf7a31bc01f1ced0d0",
+    "/packages/cem-elements/dist/lib/disclosure-panel-capability.js": "1c9bd8ea25a2f6b5c7c460be7519ebcddef335e980f269461b1348b4a95e65a3",
+    "/packages/cem-elements/dist/lib/progress-status-capability.js": "e7c7704ec82c86094f9aaae91026411d672fc4ad8850151486dbad78d0efd55c",
+    "/packages/cem-elements/dist/lib/sort-action-capability.js": "daaa701ea34321340499829ead6c01d4d520faa8f1f946e69bae92d631a4fcb7",
+    "/packages/cem-elements/dist/lib/pagination-capability.js": "2c34364b513f647e1b47272366c9efcb52571d39fdfb021d7c362a4e25ed233a",
+    "/packages/cem-elements/dist/lib/native-list-capability.js": "495b6bd8d164b5fd284977b13cba3f27720b43f872bfa45267ef53863fa019ad",
+    "/packages/cem-elements/dist/lib/tab-panels-capability.js": "1304ea5ac6f9a610b8059fda81c97bac2aac66e746d4c9db75ecc0c4852029d0",
+    "/packages/cem-elements/dist/lib/workflow-panels-capability.js": "5a72f38a4603f7e9ef9eefcdf733d024dec4536b7836c8fef68f005c27e22c5d",
+    "/packages/cem-elements/dist/lib/tree-view-capability.js": "d786f02fd9d602be101d091efe6201a4bde7976bca4925651cadfb245dea7d9b",
+    "/packages/cem-elements/dist/lib/time-input-capability.js": "159897fc18c5085730e63a376af990c48db0bac3eb4589f16f0834f521b182d4",
+    "/packages/cem-elements/dist/lib/checkable-control.js": "ac556e4f471b1f34766a9bd8f271d9b30902249b098747581993596756a9efd9",
+    "/packages/cem-elements/dist/lib/calendar-input-capability.js": "a9d446d83eecf042ca90def3e002a96f2377fe9eb384161a448c99521805011d",
+    "/packages/cem-elements/dist/lib/range-input-capability.js": "7be79c87053c47dcac306e98073c526068eef9145aa7f36baf3f5aecc41ec185",
+    "/packages/cem-elements/dist/lib/editable-choice-capability.js": "a6051239128ec446f91be0236b9b3028de6803b33ad13609188de43df1f63860",
+    "/packages/cem-elements/dist/lib/suggestions-capability.js": "a506f37c436081c643932863718b9feab1022fbdbfa40d6309e6643046c7eda0",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/location-write-trigger.js": "9142167d96c6e683e5b46df6380e2ce25876d2d59444c178eb1b0dfb41f46b39",
+    "/packages/cem-elements/dist/lib/popup-capability.js": "447a77eaad016ff5d71c426883ca70ef2fc5f5c880d97e3e0bf53065e07c5069",
+    "/packages/cem-elements/dist/lib/action-control-capability.js": "bbfe63c00434825b3e2b56fb8a925ab5d021afcea100c0b4b127d4cee4d6e945",
+    "/packages/cem-elements/dist/lib/composite-menu-capability.js": "be095538e4db1a024c6d9204b115100c521ff2a7461edec95e1eb0adaab760d6",
+    "/packages/cem-elements/dist/lib/choice-select-capability.js": "7cd99386ad1ec12033bae1b6151b253a32bee5b8fd48db7b3efb14bdd12a7f7b",
+    "/packages/cem-elements/dist/lib/element-reference-inputs.js": "a541804c9ac0fcd984078f73ae5a28c428844e13f6f7642c863eb191b8f1e0c0",
+    "/packages/cem-elements/dist/lib/interaction-reference.js": "718692bab49929e2fda62ff94c179289a1a5a4fe04ca5ca6519b8696c2f94b75",
+    "/packages/cem-elements/dist/lib/declaration-style-markup.js": "8aaf68f29aac0a3226e7375434b829763519eb548d4bc2c7ce90471cd75aeb08",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/stylesheet-notifications.js": "cd0c8cd4e4be5c1f836293d754d3ba61dbf148b306b2b2efab05f515dbccecb5",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/stylesheet-dom-order.js": "ddd8b54f072b6d39691cad97eee127bd41cf3a7a5947114aceb8c74e5b9883db",
+    "/packages/cem-elements/dist/lib/element-placement-authority.js": "200de21581407b642d4f1b7a1c9b41f66d183a9bb502bae588e5e8358e50eb56",
+    "/packages/cem-elements/dist/lib/menu-task-relay.js": "bcc4e12cb0a11c7169b382bc5feaf19d2bb1d7ebf0a78dd10d64a1228afb2295",
+    "/packages/cem-elements/dist/lib/popup-controller.js": "23fe5ab302d33ce496b9e369f4a4550cc88643b5e9bd6fa4044ea86d217c4139",
+    "/packages/cem-elements/dist/lib/surface-references.js": "79c8847593a23fc48f761fe384c5d9c3c8bebb2887bfa26152f0eb4803eaaddb",
+    "/packages/cem-elements/dist/lib/surface-body.js": "36b7e46ef31572f5e0141bc6b3428fc5d705d1235b2196e96f33cfef8edb18ff",
+    "/packages/cem-elements/dist/lib/surface-session.js": "0118316b94c37f7327312041f476518108e64bac5d5ce389ae45526103e41a29",
+    "/packages/cem-elements/dist/lib/surface-controls.js": "dd17cc009902899c8d402f3bf97a7d9ddb2904af1adf39609e069284da4cecc5",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/vendor/native-generation.js": "8ca2fbe4e3b6f1ce3e510ad17ed661a9b1eeeb474b940a9789497c25d07f1bca",
+    "/packages/cem-elements/dist/lib/editor-attributes.js": "5af0acfa7310d0f07b365bfe92cc2d600561615ca1c69b89185c06be905a0ece",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js": "a3d8d2e1f4bf05367c350d6b51fe9e9f749c085b235f2bf8e468ce1a6b4bc1c4",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/schema-asset-protocol.js": "3d7076bd036bc326737de4c4d5a23fdcc0a2ef94500494c7e9b3437ac534e62b",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/processing-scheduler.js": "313fc44fd67f3ab3993c78dc18928722fc6996f7d0fa6b184cc25ad9137d55ab",
+    "/packages/cem-elements/dist/lib/suggestions-placements.js": "507e48a900df422d0c9a52a6560533c72476751abafb51c99972cc5542fb8dc4",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/processing-engine.js": "9c55f1b1dfe1546a3acc13480cdeb3ef5482d04f15fa035a3011fe2a752bc5ac",
+    "/packages/cem-elements/dist/lib/editor-datalist.js": "db678897053430fa6c61e9b7ccb5384bb1b6115753f2a08a91a1582ef830fc69",
+    "/packages/cem-elements/dist/lib/local-suggestions-capture.js": "61e28bdd1e46780c7b3af458be6a4bc526138887770d24acff713409dd758269",
+    "/packages/cem-elements/dist/lib/suggestions-controller.js": "768206202ada8ad7f4219ba909f2ff1d82c0d3e34283a1f44ba39baa852d5104",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/stylesheet-installation.js": "e23ff79833e970c6f0fda5cf5f86894f37375e11b3d2818f356b705091d75239",
+    "/packages/cem-elements/dist/lib/native-datalist-attachment.js": "43104d4eef8bca31b0f1f0b68f804e4802ddb9da91df1e502f96cf1f16ae7e13",
+    "/packages/cem-elements/dist/lib/choice-options.js": "c1b8fa2632cca42b36ddc4159cd75b15eee921c5ae79c718157d25d537019918",
+    "/packages/cem-elements/dist/lib/native-capability-session.js": "eae9ce302e8716da7a9ef36e5e1c1a4a70735e7c3555320a2e3ef40fa43d1bf3",
+    "/packages/cem-elements/dist/lib/suggestions-editor.js": "8d421529c5fd86fd029a09a985816c2099ffb0d851b4eefe6b19b107b8a2ad86",
+    "/packages/cem-elements/dist/lib/composite-navigation.js": "c64dc09742d7f844cb52fbfe2ac7d48cb5e7562dac4750b00429d1c5d85e24a0",
+    "/packages/cem-elements/dist/lib/surface-position.js": "7e3001f9309101fa8287f031d500eadaed1b2a746ed6392a9981e9fbaa068416",
+    "/packages/cem-elements/dist/lib/surface-geometry.js": "a283e1dc4f37922094d7be57f02b9aefacfc4640b350d3add6f270e585396af2",
+    "/packages/cem_ql/dist/wasm/runtime.js": "7da8af8e48d159412e85c8c2297f9a13c34a3296f23dc3e05e4e4b2c5daf12de",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/processing-cache.js": "59b74b700008c3ce880f3769e8330735b0fe131c351ff56d3a75f9ef2e835abd",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/vendor/schema-asset-protocol.js": "de75c0f1495a7da742a86d66b6d1e1d2965d3b3bf83f655a16b5e583aceee083",
+    "/packages/cem_ql/dist/wasm/cem_ql.js": "a3c544af9ecc1ab6dd19a52f7331e50cff2aab92cc956afa41d320fc726b594a",
+    "/packages/cem-elements/dist/lib/internal/runtime-support/processing-worker.js": "abbbe2bb3d6e674fb81b82554e2cee9491d60c6009166fb62c4cccf9710fc80e",
+    "/__component_audit__/bootstrap.mjs?mode=fallback": "67825e0d59205696bd8af85104c801048991d447bf50ee914ab5367b1602bec8"
+  },
+  "results": [
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 1,
+      "readyMs": 1169.816957,
+      "firstUseMs": 65.3746349999999,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824981,
+        "uniqueDecodedBodyBytes": 26762662,
+        "wireBodyBytes": 51811718,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 799.2999999970198,
+        "timeOrigin": 1794543876268.7,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 241.29999999701977,
+            "end": 243.79999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 242.29999999701977,
+            "end": 335.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 243.69999998807907,
+            "end": 335.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 243.8999999910593,
+            "end": 335.69999998807907,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 244.19999998807907,
+            "end": 265.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 265.59999999403954,
+            "end": 325.8999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 339.09999999403954,
+            "end": 339.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 341,
+            "end": 341.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 342.09999999403954,
+            "end": 342.19999998807907,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 543.7999999970198,
+            "end": 545.2999999970198,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 544.1999999880791,
+            "end": 549.1999999880791,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 545.2999999970198,
+            "end": 545.5999999940395,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 545.3999999910593,
+            "end": 635.7999999970198,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 550.3999999910593,
+            "end": 670.5999999940395,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 553.5999999940395,
+            "end": 553.6999999880791,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 553.6999999880791,
+            "end": 670.5999999940395,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 553.6999999880791,
+            "end": 632.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 636.1999999880791,
+            "end": 670.5999999940395,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 640.1999999880791,
+            "end": 690.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 642.2999999970198,
+            "end": 642.2999999970198,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 642.2999999970198,
+            "end": 690.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 642.2999999970198,
+            "end": 657.6999999880791,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 659,
+            "end": 690.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 713.3999999910593,
+            "end": 713.3999999910593,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 717,
+            "end": 717,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1170.5,
+        "readyMs": 1169.816957,
+        "resourceCount": 149,
+        "lastResourceEnd": 549.5,
+        "lastScriptEnd": 387.79999999701977,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 244.79999999701977,
+            "responseStart": 264.3999999910593,
+            "responseEnd": 311.69999998807907
+          }
+        ]
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 1,
+      "readyMs": 663.202599,
+      "firstUseMs": 88.03887299999997,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749377,
+        "uniqueDecodedBodyBytes": 26749377,
+        "wireBodyBytes": 26749401,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 649.7000000029802,
+        "timeOrigin": 1794543877657.3,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 189.70000000298023,
+            "end": 192.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 190.79999999701977,
+            "end": 289.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 192.40000000596046,
+            "end": 289.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 192.59999999403954,
+            "end": 289.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 193,
+            "end": 207.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 207.59999999403954,
+            "end": 277.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 293.70000000298023,
+            "end": 293.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 295.70000000298023,
+            "end": 297.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 297.59999999403954,
+            "end": 297.59999999403954,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 380.40000000596046,
+            "end": 382,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 381,
+            "end": 386.09999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 382.09999999403954,
+            "end": 382.5,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 382.09999999403954,
+            "end": 385.59999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 386.90000000596046,
+            "end": 465.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 389.20000000298023,
+            "end": 389.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 389.29999999701977,
+            "end": 465.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 389.29999999701977,
+            "end": 449.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 467.59999999403954,
+            "end": 526.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 470.5,
+            "end": 470.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 470.5,
+            "end": 526.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 470.59999999403954,
+            "end": 500.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 529.5999999940395,
+            "end": 529.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 546.4000000059605,
+            "end": 546.4000000059605,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 547.9000000059605,
+            "end": 548.0999999940395,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 553.7000000029802,
+            "end": 553.7000000029802,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 665,
+        "readyMs": 663.202599,
+        "resourceCount": 125,
+        "lastResourceEnd": 385.20000000298023,
+        "lastScriptEnd": 185,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 193.5,
+            "responseStart": 206.29999999701977,
+            "responseEnd": 258.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 1,
+      "readyMs": 1136.6808370000003,
+      "firstUseMs": 77.39700300000004,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804192,
+        "uniqueDecodedBodyBytes": 26741873,
+        "wireBodyBytes": 51790929,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 764.3999999910593,
+        "timeOrigin": 1794543878960.1,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 214.79999999701977,
+            "end": 218,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 215.8999999910593,
+            "end": 324.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 217.59999999403954,
+            "end": 324.69999998807907,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 218,
+            "end": 324.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 218.5,
+            "end": 239.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 239.59999999403954,
+            "end": 313.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 327.79999999701977,
+            "end": 328,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 329.5,
+            "end": 330,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 330.29999999701977,
+            "end": 330.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 549.5999999940395,
+            "end": 551,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 550.0999999940395,
+            "end": 554.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 555.5999999940395,
+            "end": 657.2999999970198,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 557.1999999880791,
+            "end": 557.1999999880791,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 557.1999999880791,
+            "end": 657.1999999880791,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 557.2999999970198,
+            "end": 626.5999999940395,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 629,
+            "end": 657.2999999970198,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 699.3999999910593,
+            "end": 699.3999999910593,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1137.199999988079,
+        "readyMs": 1136.6808370000003,
+        "resourceCount": 148,
+        "lastResourceEnd": 554.1999999880791,
+        "lastScriptEnd": 392,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 219,
+            "responseStart": 238.09999999403954,
+            "responseEnd": 297.3999999910593
+          }
+        ]
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 1,
+      "readyMs": 633.1779770000003,
+      "firstUseMs": 68.71863899999971,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728588,
+        "uniqueDecodedBodyBytes": 26728588,
+        "wireBodyBytes": 26728612,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 618.9000000059605,
+        "timeOrigin": 1794543880338.3,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 214.6000000089407,
+            "end": 217,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 215.6000000089407,
+            "end": 315,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 216.80000001192093,
+            "end": 315,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 217,
+            "end": 314.30000001192093,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 217.40000000596046,
+            "end": 237.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 238,
+            "end": 304.30000001192093,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 317.80000001192093,
+            "end": 317.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 319.90000000596046,
+            "end": 320.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 320.70000000298023,
+            "end": 320.70000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 419.30000001192093,
+            "end": 421,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 419.80000001192093,
+            "end": 424.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 425.40000000596046,
+            "end": 526.8000000119209,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 426.70000000298023,
+            "end": 426.70000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 426.70000000298023,
+            "end": 526.8000000119209,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 426.80000001192093,
+            "end": 498.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 530.5,
+            "end": 530.8000000119209,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 563,
+            "end": 563.1000000089407,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 634.2000000029802,
+        "readyMs": 633.1779770000003,
+        "resourceCount": 124,
+        "lastResourceEnd": 424.1000000089407,
+        "lastScriptEnd": 210.20000000298023,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 217.80000001192093,
+            "responseStart": 236.80000001192093,
+            "responseEnd": 289.6000000089407
+          }
+        ]
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 1,
+      "readyMs": 1096.8917839999995,
+      "firstUseMs": 136.5972069999998,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802652,
+        "uniqueDecodedBodyBytes": 26740333,
+        "wireBodyBytes": 51789389,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 692.2000000029802,
+        "timeOrigin": 1794543881603.6,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 196,
+            "end": 198.79999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 197,
+            "end": 293.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 198.6000000089407,
+            "end": 293.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 198.90000000596046,
+            "end": 293.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 199.40000000596046,
+            "end": 218.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 218.29999999701977,
+            "end": 283.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 299.29999999701977,
+            "end": 299.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 301.20000000298023,
+            "end": 301.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 301.90000000596046,
+            "end": 301.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 509.40000000596046,
+            "end": 510.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 509.90000000596046,
+            "end": 514.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 515.9000000059605,
+            "end": 597.2999999970198,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 518.6000000089407,
+            "end": 518.6000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 518.6000000089407,
+            "end": 597.2000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 518.7000000029802,
+            "end": 583.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 586.1000000089407,
+            "end": 597.2000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 638,
+            "end": 638,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1097.7000000029802,
+        "readyMs": 1096.8917839999995,
+        "resourceCount": 148,
+        "lastResourceEnd": 514.2000000029802,
+        "lastScriptEnd": 349.1000000089407,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 199.79999999701977,
+            "responseStart": 217.20000000298023,
+            "responseEnd": 266.6000000089407
+          }
+        ]
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 1,
+      "readyMs": 657.824071,
+      "firstUseMs": 153.63476699999956,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26727048,
+        "uniqueDecodedBodyBytes": 26727048,
+        "wireBodyBytes": 26727072,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 550.8000000119209,
+        "timeOrigin": 1794543883025.3,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 183.70000000298023,
+            "end": 186.1000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 184.70000000298023,
+            "end": 287.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 185.90000000596046,
+            "end": 287.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 186.20000000298023,
+            "end": 287.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 186.5,
+            "end": 207.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 207.80000001192093,
+            "end": 275.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 290.40000000596046,
+            "end": 290.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 292.40000000596046,
+            "end": 292.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 293.1000000089407,
+            "end": 293.1000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 380.20000000298023,
+            "end": 381.6000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 380.5,
+            "end": 386.30000001192093,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 387.20000000298023,
+            "end": 455.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 388.5,
+            "end": 388.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 388.5,
+            "end": 455.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 388.5,
+            "end": 445.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 457.40000000596046,
+            "end": 457.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 493.90000000596046,
+            "end": 493.90000000596046,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 658.7000000029802,
+        "readyMs": 657.824071,
+        "resourceCount": 124,
+        "lastResourceEnd": 386.1000000089407,
+        "lastScriptEnd": 179.6000000089407,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 186.90000000596046,
+            "responseStart": 205.70000000298023,
+            "responseEnd": 258.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 2,
+      "readyMs": 728.8275560000002,
+      "firstUseMs": 68.44588300000032,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728588,
+        "uniqueDecodedBodyBytes": 26728588,
+        "wireBodyBytes": 26728612,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 622.2000000029802,
+        "timeOrigin": 1794543884306,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 219.5,
+            "end": 222.20000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 220.6000000089407,
+            "end": 320.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 222.1000000089407,
+            "end": 320.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 222.20000000298023,
+            "end": 320,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 222.70000000298023,
+            "end": 242.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 242.6000000089407,
+            "end": 310.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 323.1000000089407,
+            "end": 323.20000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 324.5,
+            "end": 325.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 325.20000000298023,
+            "end": 325.20000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 413.20000000298023,
+            "end": 414.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 413.70000000298023,
+            "end": 417.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 418.90000000596046,
+            "end": 519.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 420.40000000596046,
+            "end": 420.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 420.40000000596046,
+            "end": 519.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 420.40000000596046,
+            "end": 491,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 523.9000000059605,
+            "end": 524,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 568.7999999970198,
+            "end": 568.7999999970198,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 729.7000000029802,
+        "readyMs": 728.8275560000002,
+        "resourceCount": 124,
+        "lastResourceEnd": 417.20000000298023,
+        "lastScriptEnd": 215.1000000089407,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 223.20000000298023,
+            "responseStart": 241.40000000596046,
+            "responseEnd": 295.70000000298023
+          }
+        ]
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 2,
+      "readyMs": 1012.0379560000001,
+      "firstUseMs": 75.59427599999981,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804192,
+        "uniqueDecodedBodyBytes": 26741873,
+        "wireBodyBytes": 51790929,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 753.2000000029802,
+        "timeOrigin": 1794543885546.4,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 191.90000000596046,
+            "end": 198.30000001192093,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 192.80000001192093,
+            "end": 297.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 198.20000000298023,
+            "end": 297.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 198.40000000596046,
+            "end": 297.80000001192093,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 198.80000001192093,
+            "end": 223.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 223.30000001192093,
+            "end": 287.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 301.1000000089407,
+            "end": 301.20000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 302.5,
+            "end": 303.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 303.20000000298023,
+            "end": 303.30000001192093,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 530,
+            "end": 533.3000000119209,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 532.4000000059605,
+            "end": 542.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 546.8000000119209,
+            "end": 659.2000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 548.6000000089407,
+            "end": 548.6000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 548.6000000089407,
+            "end": 659.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 548.6000000089407,
+            "end": 624.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 627,
+            "end": 659.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 692,
+            "end": 692.1000000089407,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1012.9000000059605,
+        "readyMs": 1012.0379560000001,
+        "resourceCount": 148,
+        "lastResourceEnd": 538.8000000119209,
+        "lastScriptEnd": 366.40000000596046,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 199.20000000298023,
+            "responseStart": 221.90000000596046,
+            "responseEnd": 273.70000000298023
+          }
+        ]
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 2,
+      "readyMs": 663.5438599999998,
+      "firstUseMs": 141.34934900000007,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26727048,
+        "uniqueDecodedBodyBytes": 26727048,
+        "wireBodyBytes": 26727072,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 555.7000000029802,
+        "timeOrigin": 1794543886916.9,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 183.79999999701977,
+            "end": 186.3999999910593,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 184.79999999701977,
+            "end": 295.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 186.20000000298023,
+            "end": 295.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 186.3999999910593,
+            "end": 295.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 186.79999999701977,
+            "end": 211.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 211.79999999701977,
+            "end": 283.59999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 298.70000000298023,
+            "end": 298.79999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 300.20000000298023,
+            "end": 300.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 300.8999999910593,
+            "end": 300.8999999910593,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 385.59999999403954,
+            "end": 387,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 386,
+            "end": 390.09999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 391.29999999701977,
+            "end": 460.09999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 394.29999999701977,
+            "end": 394.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 394.29999999701977,
+            "end": 460.09999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 394.3999999910593,
+            "end": 449.09999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 462.20000000298023,
+            "end": 462.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 503.20000000298023,
+            "end": 503.29999999701977,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 664.2000000029802,
+        "readyMs": 663.5438599999998,
+        "resourceCount": 124,
+        "lastResourceEnd": 390,
+        "lastScriptEnd": 179.5,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 187.20000000298023,
+            "responseStart": 210.3999999910593,
+            "responseEnd": 263.09999999403954
+          }
+        ]
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 2,
+      "readyMs": 1055.831067000001,
+      "firstUseMs": 135.3673689999996,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802652,
+        "uniqueDecodedBodyBytes": 26740333,
+        "wireBodyBytes": 51789389,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 727.8999999910593,
+        "timeOrigin": 1794543888199.7,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 200.19999998807907,
+            "end": 203.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 201.5,
+            "end": 314.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 203.09999999403954,
+            "end": 314.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 203.29999999701977,
+            "end": 314.19999998807907,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 203.69999998807907,
+            "end": 234.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 234.8999999910593,
+            "end": 304.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 317.5,
+            "end": 317.59999999403954,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 318.59999999403954,
+            "end": 319.09999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 319.19999998807907,
+            "end": 319.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 547.5,
+            "end": 549.1999999880791,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 548,
+            "end": 552.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 553.5999999940395,
+            "end": 629.8999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 555.0999999940395,
+            "end": 555.0999999940395,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 555.0999999940395,
+            "end": 629.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 555.2999999970198,
+            "end": 615.2999999970198,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 617.7999999970198,
+            "end": 629.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 672.5,
+            "end": 672.5,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1056.7999999970198,
+        "readyMs": 1055.831067000001,
+        "resourceCount": 148,
+        "lastResourceEnd": 552.1999999880791,
+        "lastScriptEnd": 379.5,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 204.29999999701977,
+            "responseStart": 233.19999998807907,
+            "responseEnd": 287.79999999701977
+          }
+        ]
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 2,
+      "readyMs": 800.9310189999997,
+      "firstUseMs": 88.17273000000023,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749377,
+        "uniqueDecodedBodyBytes": 26749377,
+        "wireBodyBytes": 26749401,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 688.0999999940395,
+        "timeOrigin": 1794543889615,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 179,
+            "end": 181.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 180,
+            "end": 278.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 181.29999999701977,
+            "end": 278.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 181.5,
+            "end": 278.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 182.09999999403954,
+            "end": 200.8999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 201,
+            "end": 267.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 281.79999999701977,
+            "end": 281.8999999910593,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 283.59999999403954,
+            "end": 285,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 285.09999999403954,
+            "end": 285.09999999403954,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 376.09999999403954,
+            "end": 377.70000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 376.5,
+            "end": 382,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 377.79999999701977,
+            "end": 378,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 377.8999999910593,
+            "end": 380.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 382.70000000298023,
+            "end": 475.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 385,
+            "end": 385.09999999403954,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 385.09999999403954,
+            "end": 475.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 385.20000000298023,
+            "end": 453.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 476.5,
+            "end": 561.0999999940395,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 481,
+            "end": 481,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 481,
+            "end": 561.0999999940395,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 481.20000000298023,
+            "end": 528.8999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 562.2999999970198,
+            "end": 562.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 584.7999999970198,
+            "end": 584.7999999970198,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 585.7000000029802,
+            "end": 585.7000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 590.2000000029802,
+            "end": 590.2999999970198,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 807.3999999910593,
+        "readyMs": 800.9310189999997,
+        "resourceCount": 125,
+        "lastResourceEnd": 381.29999999701977,
+        "lastScriptEnd": 174.29999999701977,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 182.3999999910593,
+            "responseStart": 199.79999999701977,
+            "responseEnd": 251.59999999403954
+          }
+        ]
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 2,
+      "readyMs": 1053.7242279999991,
+      "firstUseMs": 59.55566199999885,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824981,
+        "uniqueDecodedBodyBytes": 26762662,
+        "wireBodyBytes": 51811718,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 822.7999999970198,
+        "timeOrigin": 1794543890946.5,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 187.6000000089407,
+            "end": 190.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 188.70000000298023,
+            "end": 303.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 190.1000000089407,
+            "end": 303.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 190.40000000596046,
+            "end": 303.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 190.70000000298023,
+            "end": 219.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 219.6000000089407,
+            "end": 292.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 306,
+            "end": 306.1000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 307.79999999701977,
+            "end": 308.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 308.40000000596046,
+            "end": 308.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 540.2000000029802,
+            "end": 541.7000000029802,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 540.7000000029802,
+            "end": 544.7000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 541.7999999970198,
+            "end": 542,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 541.7999999970198,
+            "end": 646,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 546,
+            "end": 679.4000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 549.2999999970198,
+            "end": 549.2999999970198,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 549.4000000059605,
+            "end": 679.4000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 549.4000000059605,
+            "end": 641.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 646.7000000029802,
+            "end": 679.4000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 647.5,
+            "end": 700,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 649.9000000059605,
+            "end": 649.9000000059605,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 649.9000000059605,
+            "end": 700,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 650,
+            "end": 664.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 666.4000000059605,
+            "end": 700,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 721.9000000059605,
+            "end": 721.9000000059605,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 724.7999999970198,
+            "end": 724.7999999970198,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1056,
+        "readyMs": 1053.7242279999991,
+        "resourceCount": 149,
+        "lastResourceEnd": 545.1000000089407,
+        "lastScriptEnd": 383.40000000596046,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 191.1000000089407,
+            "responseStart": 218.40000000596046,
+            "responseEnd": 272.40000000596046
+          }
+        ]
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "worker",
+      "run": 3,
+      "readyMs": 1104.4345180000018,
+      "firstUseMs": 142.41443399999844,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 15,
+        "failure": 0,
+        "operations": {
+          "compile": 8,
+          "render-diff": 3,
+          "stylesheet": 3,
+          "highlight": 1
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51802652,
+        "uniqueDecodedBodyBytes": 26740333,
+        "wireBodyBytes": 51789389,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 703.5,
+        "timeOrigin": 1794543892322,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 188.20000000298023,
+            "end": 190.79999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 189.20000000298023,
+            "end": 292.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 190.59999999403954,
+            "end": 292.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 190.79999999701977,
+            "end": 292.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 191.20000000298023,
+            "end": 213.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 213.8999999910593,
+            "end": 280.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 296,
+            "end": 296.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 297.70000000298023,
+            "end": 298.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 298.5,
+            "end": 298.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 519.5999999940395,
+            "end": 520.8999999910593,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 519.8999999910593,
+            "end": 524.2999999970198,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 525.3999999910593,
+            "end": 610.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 527.0999999940395,
+            "end": 527.0999999940395,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 527.0999999940395,
+            "end": 610.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 527.2000000029802,
+            "end": 595.2000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 596.7999999970198,
+            "end": 610.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 652.5999999940395,
+            "end": 652.5999999940395,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1105.2999999970198,
+        "readyMs": 1104.4345180000018,
+        "resourceCount": 148,
+        "lastResourceEnd": 524,
+        "lastScriptEnd": 343.59999999403954,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 191.59999999403954,
+            "responseStart": 210.3999999910593,
+            "responseEnd": 266
+          }
+        ]
+      }
+    },
+    {
+      "kind": "editor",
+      "mode": "fallback",
+      "run": 3,
+      "readyMs": 655.5429399999994,
+      "firstUseMs": 148.07566999999835,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26727048,
+        "uniqueDecodedBodyBytes": 26727048,
+        "wireBodyBytes": 26727072,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 548.9000000059605,
+        "timeOrigin": 1794543893740.3,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 177.20000000298023,
+            "end": 179.80000001192093,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 178.20000000298023,
+            "end": 282.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 179.6000000089407,
+            "end": 282.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 179.80000001192093,
+            "end": 282.30000001192093,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 180.20000000298023,
+            "end": 199.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 200.1000000089407,
+            "end": 272.30000001192093,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 285.20000000298023,
+            "end": 285.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 286.80000001192093,
+            "end": 287.30000001192093,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 287.40000000596046,
+            "end": 287.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 375.5,
+            "end": 376.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 375.90000000596046,
+            "end": 380.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 381.70000000298023,
+            "end": 455.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 382.90000000596046,
+            "end": 382.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 382.90000000596046,
+            "end": 455.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 382.90000000596046,
+            "end": 440.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 457.1000000089407,
+            "end": 457.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 496.6000000089407,
+            "end": 496.6000000089407,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 656.5,
+        "readyMs": 655.5429399999994,
+        "resourceCount": 124,
+        "lastResourceEnd": 380.30000001192093,
+        "lastScriptEnd": 172.20000000298023,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 180.70000000298023,
+            "responseStart": 198.40000000596046,
+            "responseEnd": 257.30000001192093
+          }
+        ]
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "worker",
+      "run": 3,
+      "readyMs": 1174.9031799999975,
+      "firstUseMs": 73.91103999999905,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 25,
+        "failure": 0,
+        "operations": {
+          "compile": 14,
+          "render-diff": 5,
+          "stylesheet": 6
+        }
+      },
+      "traffic": {
+        "requests": 151,
+        "decodedBodyBytes": 51824981,
+        "uniqueDecodedBodyBytes": 26762662,
+        "wireBodyBytes": 51811718,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 820.2000000029802,
+        "timeOrigin": 1794543895038.3,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 197.20000000298023,
+            "end": 200.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 198.40000000596046,
+            "end": 310.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 200.20000000298023,
+            "end": 310.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 200.40000000596046,
+            "end": 310.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 200.90000000596046,
+            "end": 224.40000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 224.5,
+            "end": 298.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 313.40000000596046,
+            "end": 313.6000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 314.90000000596046,
+            "end": 315.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 315.6000000089407,
+            "end": 315.6000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 535,
+            "end": 537.3000000119209,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 536.4000000059605,
+            "end": 541,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 537.5,
+            "end": 537.6000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 537.5,
+            "end": 541.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 542.8000000119209,
+            "end": 677.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 545.9000000059605,
+            "end": 545.9000000059605,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 545.9000000059605,
+            "end": 677.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 546,
+            "end": 638.4000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 642.5,
+            "end": 696.8000000119209,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 645.3000000119209,
+            "end": 645.3000000119209,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 645.3000000119209,
+            "end": 696.8000000119209,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 645.4000000059605,
+            "end": 663.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 666.9000000059605,
+            "end": 677.9000000059605,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 669.5,
+            "end": 696.8000000119209,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 727.1000000089407,
+            "end": 727.1000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 730.3000000119209,
+            "end": 730.3000000119209,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1175.300000011921,
+        "readyMs": 1174.9031799999975,
+        "resourceCount": 149,
+        "lastResourceEnd": 541.2000000029802,
+        "lastScriptEnd": 373.1000000089407,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 201.30000001192093,
+            "responseStart": 223.20000000298023,
+            "responseEnd": 277.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "controls",
+      "mode": "fallback",
+      "run": 3,
+      "readyMs": 788.2075880000011,
+      "firstUseMs": 82.58789899999829,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 126,
+        "decodedBodyBytes": 26749377,
+        "uniqueDecodedBodyBytes": 26749377,
+        "wireBodyBytes": 26749401,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 715.0999999940395,
+        "timeOrigin": 1794543896475,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 198.59999999403954,
+            "end": 201.3999999910593,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 199.70000000298023,
+            "end": 317.59999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 201.20000000298023,
+            "end": 317.59999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 201.3999999910593,
+            "end": 317.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 201.79999999701977,
+            "end": 231.59999999403954,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 231.70000000298023,
+            "end": 307.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 320.59999999403954,
+            "end": 320.70000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 325.70000000298023,
+            "end": 327.3999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 327.59999999403954,
+            "end": 327.59999999403954,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 415.29999999701977,
+            "end": 416.79999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 415.70000000298023,
+            "end": 419.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 416.8999999910593,
+            "end": 417.20000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 417,
+            "end": 420.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 421.5,
+            "end": 541.8999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 424.5,
+            "end": 424.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 424.59999999403954,
+            "end": 541.8999999910593,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 424.70000000298023,
+            "end": 515,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 543.5999999940395,
+            "end": 590.7000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 546.0999999940395,
+            "end": 546.2000000029802,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 546.2000000029802,
+            "end": 590.7000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 546.2000000029802,
+            "end": 567.2999999970198,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 592.0999999940395,
+            "end": 592.2000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 607,
+            "end": 607.0999999940395,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 609.7999999970198,
+            "end": 610.2000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 612.0999999940395,
+            "end": 612.0999999940395,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 789.5999999940395,
+        "readyMs": 788.2075880000011,
+        "resourceCount": 125,
+        "lastResourceEnd": 420,
+        "lastScriptEnd": 193.8999999910593,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 202.29999999701977,
+            "responseStart": 230.09999999403954,
+            "responseEnd": 287.29999999701977
+          }
+        ]
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "worker",
+      "run": 3,
+      "readyMs": 1154.0078399999984,
+      "firstUseMs": 80.02408900000228,
+      "workerCounters": {
+        "created": 1,
+        "ready": 1,
+        "success": 19,
+        "failure": 0,
+        "operations": {
+          "compile": 10,
+          "render-diff": 4,
+          "stylesheet": 5
+        }
+      },
+      "traffic": {
+        "requests": 150,
+        "decodedBodyBytes": 51804192,
+        "uniqueDecodedBodyBytes": 26741873,
+        "wireBodyBytes": 51790929,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 2
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 769.5,
+        "timeOrigin": 1794543897839.5,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 195.5,
+            "end": 198.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 196.70000000298023,
+            "end": 312.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 198.40000000596046,
+            "end": 312.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 198.5,
+            "end": 312.20000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 198.90000000596046,
+            "end": 225.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 225.5,
+            "end": 300.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 315.1000000089407,
+            "end": 316.1000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 318.5,
+            "end": 319.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 319.79999999701977,
+            "end": 319.90000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 544.1000000089407,
+            "end": 545.5,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 544.5,
+            "end": 549.7000000029802,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 551,
+            "end": 675,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 553.1000000089407,
+            "end": 553.1000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 553.1000000089407,
+            "end": 675,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 553.2999999970198,
+            "end": 640.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 642.7000000029802,
+            "end": 675,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 705.9000000059605,
+            "end": 706.1000000089407,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 1153.1000000089407,
+        "readyMs": 1154.0078399999984,
+        "resourceCount": 148,
+        "lastResourceEnd": 549.2000000029802,
+        "lastScriptEnd": 359.6000000089407,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 200.1000000089407,
+            "responseStart": 224.1000000089407,
+            "responseEnd": 285
+          }
+        ]
+      }
+    },
+    {
+      "kind": "data",
+      "mode": "fallback",
+      "run": 3,
+      "readyMs": 618.729668,
+      "firstUseMs": 72.13224699999773,
+      "workerCounters": {
+        "created": 0,
+        "ready": 0,
+        "success": 0,
+        "failure": 0,
+        "operations": {}
+      },
+      "traffic": {
+        "requests": 125,
+        "decodedBodyBytes": 26728588,
+        "uniqueDecodedBodyBytes": 26728588,
+        "wireBodyBytes": 26728612,
+        "uniqueWasm": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "bytes": 24476684,
+            "sha256": "3fc8939ca8eef749b01e9a582dc642cf098ee7d7b0ef61275036f9d6d11e2f76"
+          }
+        ],
+        "wasmRequests": 1
+      },
+      "startupEvidence": {
+        "contract": "cem-browser-startup-phases/1",
+        "instrumentCalls": true,
+        "overflow": false,
+        "visibleAt": 605.7000000029802,
+        "timeOrigin": 1794543899226.1,
+        "events": [
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 197.20000000298023,
+            "end": 200.29999999701977,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 198.29999999701977,
+            "end": 304.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 200.1000000089407,
+            "end": 304.29999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 200.29999999701977,
+            "end": 304.1000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 200.79999999701977,
+            "end": 223.70000000298023,
+            "status": "fulfilled"
+          },
+          {
+            "label": "wasm.instantiateStreaming",
+            "start": 223.90000000596046,
+            "end": 293.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 307.6000000089407,
+            "end": 307.70000000298023,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 309,
+            "end": 309.79999999701977,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 310,
+            "end": 310.1000000089407,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.registerDeclaration",
+            "start": 394.5,
+            "end": 398.40000000596046,
+            "status": "returned"
+          },
+          {
+            "label": "fetch-headers",
+            "start": 395.6000000089407,
+            "end": 401.90000000596046,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.registerResolvedDeclaration",
+            "start": 403,
+            "end": 511.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 404.5,
+            "end": 404.5,
+            "status": "returned"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 404.5,
+            "end": 511.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.surfaceDeclarationDiagnostics",
+            "start": 404.5,
+            "end": 478.6000000089407,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.prepareRetainedStylesheets",
+            "start": 514.2999999970198,
+            "end": 514.5,
+            "status": "fulfilled"
+          },
+          {
+            "label": "runtime.renderInstance",
+            "start": 552.7999999970198,
+            "end": 552.9000000059605,
+            "status": "returned"
+          }
+        ],
+        "assertionAt": 619.7999999970198,
+        "readyMs": 618.729668,
+        "resourceCount": 124,
+        "lastResourceEnd": 401.6000000089407,
+        "lastScriptEnd": 192.79999999701977,
+        "wasmResources": [
+          {
+            "path": "/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+            "start": 201.29999999701977,
+            "responseStart": 222.29999999701977,
+            "responseEnd": 277.1000000089407
+          }
+        ]
+      }
+    }
+  ],
+  "playwright": {
+    "version": "1.60.0",
+    "serverBundleSha256": "f74353fcb8e406756a70a6af0dfc4a5069acd577e35ec9d923ccf36ac009c2f5"
+  },
+  "projectorSha256": "96fa7b8d8ff366d1e943a6db131eac472141d383940a90f0ae1db8b59d8c1c83"
+}

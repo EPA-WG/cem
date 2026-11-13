@@ -11,20 +11,27 @@ import { createDemoSiteHandler } from './serve-demo-site.mjs';
 import { summarizeTraffic } from './audit-components-wasm.mjs';
 import { browserProcessMemory, summarizeStartup, renderStartupReport } from './browser-runtime-metrics.mjs';
 import { prepareComponentBenchmark } from './component-benchmark-deployment.mjs';
+import { browserStartupPhases } from './browser-startup-phases.mjs';
 import { traceWasmAcquisition, nativeHeapInspection } from './wasm-acquisition-trace.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const args=process.argv.slice(2).filter(arg=>arg!=='--');
-const usage='Usage: node tools/scripts/measure-components-wasm.mjs [deployment | --prepare] [--runs=3] [--case=selected|controls|data|editor] [--trace-wasm] [--record=code-sharing] [--write-doc]';
+const usage='Usage: node tools/scripts/measure-components-wasm.mjs [deployment | --prepare] [--runs=3] [--case=selected|controls|data|editor] [--trace-wasm | --trace-startup] [--phase-cohort=before-sharing|code-sharing] [--phase-observe-only] [--record=code-sharing] [--write-doc]';
 if(args.length===1 && args[0]==='--help') { console.log(usage); process.exit(0); }
-assert(args.every(arg=>['--write-doc','--prepare','--trace-wasm','--record=code-sharing'].includes(arg)||/^--runs=\d+$/.test(arg)||/^--case=(selected|controls|data|editor)$/.test(arg)||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1,usage);
+assert(args.every(arg=>['--write-doc','--prepare','--trace-wasm','--trace-startup','--phase-observe-only','--record=code-sharing'].includes(arg)||/^--phase-cohort=(before-sharing|code-sharing)$/.test(arg)||/^--runs=\d+$/.test(arg)||/^--case=(selected|controls|data|editor)$/.test(arg)||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1,usage);
 assert(args.filter(arg=>arg.startsWith('--runs=')).length<=1 && args.filter(arg=>arg.startsWith('--case=')).length<=1,usage);
 const tracing=args.includes('--trace-wasm');
+const startupTracing=args.includes('--trace-startup');
+assert(!(tracing&&startupTracing),'choose one diagnostic trace');
+const phaseCohort=args.find(arg=>arg.startsWith('--phase-cohort='))?.slice(15)??'code-sharing';
+const phaseObserveOnly=args.includes('--phase-observe-only');
+assert(startupTracing||(!phaseObserveOnly&&!args.some(arg=>arg.startsWith('--phase-cohort='))),'phase options require --trace-startup');
+const phaseLabel=phaseCohort+(phaseObserveOnly?'-observe-only':'');
 const recordSuffix=args.includes('--record=code-sharing')?'-code-sharing':'';
 const runs=Number(args.find(arg=>arg.startsWith('--runs='))?.slice(7)??(tracing?1:3));
 assert(Number.isInteger(runs)&&runs>=1&&runs<=20,'runs must be between 1 and 20');
 const only=args.find(arg=>arg.startsWith('--case='))?.slice(7);
-assert(!tracing||only!=='selected','WASM acquisition diagnostics cover the full runtime only');
+assert(!(tracing||startupTracing)||only!=='selected','WASM acquisition diagnostics cover the full runtime only');
 assert(!args.includes('--prepare')||!args.some(arg=>!arg.startsWith('-')),'--prepare uses its own isolated benchmark destination');
 const deployment = resolve(args.includes('--prepare') ? join(root,'dist/fixtures/component-browser-startup') : args.find(arg=>!arg.startsWith('-')) ?? join(homedir(),'cem-bin'));
 if(args.includes('--prepare')) await prepareComponentBenchmark(root,deployment);
@@ -51,7 +58,7 @@ const fixtures = {
     data: { tags:['cem-data-view'], html:'<cem-data-view label="Inventory" format="json" value=""></cem-data-view>' },
     editor: { tags:['cem-source-editor'], html:'<cem-source-editor label="Source" content-type="text/plain"></cem-source-editor>' },
 };
-const bootstrap = `import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
+const bootstrap = `${startupTracing ? "import { installCemElementRuntime, CemElementRuntime } from '/packages/cem-elements/dist/index.js';\nwindow.__cemStartupPhases.instrumentRuntime(CemElementRuntime.prototype);" : "import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';"}
 const fallback = new URL(import.meta.url).searchParams.get('mode') === 'fallback';
 window.auditWorkerCounters = { created:0,ready:0,success:0,failure:0,operations:{} };
 window.auditRuntime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize:512 },
@@ -130,7 +137,7 @@ await new Promise(done => server.listen(0,'127.0.0.1',done));
 const origin=`http://127.0.0.1:${server.address().port}`;
 let browser,browserServer,chromiumVersion;
 const results=[];
-const kinds=Object.keys(fixtures).filter(kind=>(!tracing||kind!=='selected')&&(!only||kind===only));
+const kinds=Object.keys(fixtures).filter(kind=>(!(tracing||startupTracing)||kind!=='selected')&&(!only||kind===only));
 const plan=[];
 for(let run=0;run<runs;run++) { const order=kinds.slice(run%kinds.length).concat(kinds.slice(0,run%kinds.length));
  for(const kind of order) for(const mode of run%2?['fallback','worker']:['worker','fallback']) plan.push({run:run+1,kind,mode}); }
@@ -142,6 +149,7 @@ try {
         const browserLaunchMs=performance.now()-launchStarted, browserPid=browserServer.process().pid;
         const context=await browser.newContext({viewport:{width:1280,height:800},serviceWorkers:'block'});
         const page=await context.newPage(); page.setDefaultTimeout(30000);
+        if(startupTracing) await page.addInitScript(browserStartupPhases,{kind,instrumentCalls:!phaseObserveOnly});
         const blankMemory=await browserProcessMemory(browserPid);
         let phase='cold'; const requestPhases=new WeakMap(), pending=new Set(), responses=[], errors=[];
         context.on('request',request=>requestPhases.set(request,phase));
@@ -196,7 +204,11 @@ try {
             await page.getByRole('textbox',{name:'Item',exact:true}).waitFor();
         } else if(kind==='data') await page.locator('cem-data-view > [part~=root]').waitFor();
         else await page.getByRole('textbox',{name:'Source',exact:true}).waitFor();
-        const readyMs=performance.now()-started; await fence(); const coldMemory=await memory();
+        const readyMs=performance.now()-started;
+        const assertionAt=startupTracing?await page.evaluate(()=>performance.now()):undefined;
+        await fence(); const coldMemory=await memory();
+        const startupEvidence=startupTracing?{...await page.evaluate(()=>window.__cemStartupPhases.stop()),assertionAt,readyMs}:undefined;
+        if(startupEvidence) {assert.equal(startupEvidence.overflow,false);assert(startupEvidence.visibleAt!==null,'diagnostic visibility witness required');}
         phase='first-use'; const used=performance.now();
         if(kind==='selected') assert.equal(await page.evaluate(()=>window.auditSelectedUse()),true);
         else if(kind==='controls') {
@@ -232,26 +244,26 @@ try {
         }
         const traffic=summarizeTraffic(responses);
         assert(traffic.uniqueWasm.length>0,'native rendering must load WASM');
-        if(recordSuffix) assert.equal(traffic.wasmRequests,1,'compiled-code sharing must acquire WASM only once');
+        if(recordSuffix || startupTracing&&phaseCohort==='code-sharing') assert.equal(traffic.wasmRequests,1,'compiled-code sharing must acquire WASM only once');
         for(const wasm of traffic.uniqueWasm) assert.equal(wasm.sha256,kind==='selected'?selectedSha256:expected,'unexpected second/mismatched runtime');
         const workerCounters=await page.evaluate(()=>window.auditWorkerCounters);
         if(mode==='worker') {assert(workerCounters.ready>0 && workerCounters.success>0,'default worker must actually process successful jobs');assert.equal(workerCounters.failure,0);}
         else assert.equal(workerCounters.created,0,'fallback fixture must not create a worker');
         if(mode==='worker') assert(coldMemory.activeWorkers>0 && afterMemory.activeWorkers>0,'a live dedicated worker is required');
         else assert.equal(afterMemory.activeWorkers,0,'fallback must have no active worker');
-        const result={kind,mode,run,acquisitionEvidence,browserPid,browserLaunchMs,blankMemory,samples:1,readyMs,firstUseMs,coldMemory,afterMemory,workerCounters,traffic,
+        const result={kind,mode,run,acquisitionEvidence,startupEvidence,browserPid,browserLaunchMs,blankMemory,samples:1,readyMs,firstUseMs,coldMemory,afterMemory,workerCounters,traffic,
             phases:Object.fromEntries(['cold','first-use'].map(name=>[name,summarizeTraffic(responses.filter(r=>r.phase===name))])),responses};
         results.push(result);
         console.log(`${kind}/${mode} run ${run}: ready ${Math.round(readyMs)} ms, first use ${Math.round(firstUseMs)} ms, ${traffic.wasmRequests} WASM requests / ${traffic.uniqueWasm.length} unique file.`);
         await cdp.detach();await context.close();await browser.close();await browserServer.close();browser=undefined;browserServer=undefined;
     }
     await mkdir(output,{recursive:true});
-    const report={schemaVersion:2,recordSuffix,codeIdentity,scope:'selected-native-entry-and-separate-full-runtime-workloads',runs,
+    const report={schemaVersion:2,recordSuffix,codeIdentity,...(startupTracing?{phaseCohort,phaseObserveOnly}:{}),scope:'selected-native-entry-and-separate-full-runtime-workloads',runs,
         transport:'assembled-demo deduplicated adapters; local no-store HTTP; selected original compiled cart/JSON API fixture',
         coreSha256:expected,selectedSha256,chromium:chromiumVersion,node:process.version,
         platform:`${platform()} ${release()} ${arch()}`,cpu:cpus()[0]?.model,cpuCount:cpus().length,hostMemoryBytes:totalmem(),
         measuredAt:new Date().toISOString(),
-        harnessHashes:Object.fromEntries(await Promise.all(['measure-components-wasm.mjs','browser-runtime-metrics.mjs','component-benchmark-deployment.mjs',...(tracing?['wasm-acquisition-trace.mjs']:[])].map(async name=>[
+        harnessHashes:Object.fromEntries(await Promise.all(['measure-components-wasm.mjs','browser-runtime-metrics.mjs','component-benchmark-deployment.mjs',...(tracing?['wasm-acquisition-trace.mjs']:[]),...(startupTracing?['browser-startup-phases.mjs']:[])].map(async name=>[
             name,createHash('sha256').update(await readFile(resolve(root,'tools/scripts',name))).digest('hex')]))),
         fixtureHashes:Object.fromEntries([...selectedFiles].map(([path,bytes])=>[path,createHash('sha256').update(bytes).digest('hex')])),
         methods:{cold:'fresh browser process/profile/context per observation; OS/server caches may be warm; browser launch separate',
@@ -259,8 +271,14 @@ try {
             memory:'browser-family Linux smaps_rollup PSS, stable process identities/membership; main JS and native capacity separate, never added to PSS',
             sampling:'snapshots after network/render idle outside timed intervals; no explicit GC; diagnostic work occurs between readiness and first use',
             workers:'live dedicated workers observed by Playwright, separate from creation/job counters and OS processes'},
-        summary:tracing?[]:summarizeStartup(results),results};
-    await writeFile(join(output,`browser-${tracing?'wasm-acquisition':'startup'}${recordSuffix}.json`),`${JSON.stringify(report,null,2)}\n`);
+        summary:(tracing||startupTracing)?[]:summarizeStartup(results),results};
+    await writeFile(join(output,`browser-${tracing?'wasm-acquisition':startupTracing?'startup-phases-'+phaseLabel:'startup'}${recordSuffix}.json`),`${JSON.stringify(report,null,2)}\n`);
+    if(startupTracing&&args.includes('--write-doc')) {
+        const sourceHashes=Object.fromEntries(results.flatMap(row=>row.responses.filter(response=>/\.(?:m?js)(?:\?|$)/.test(response.path))
+            .map(response=>[response.path,response.sha256])));
+        const evidence={...report,sourceHashes,results:results.map(({responses,...row})=>row),limits:['Diagnostic API wrappers and visibility observation invalidate ordinary latency/PSS comparisons.','Visibility witness supplements the unchanged original role/locator assertions.']};
+        await writeFile(resolve(root,`docs/cem-components-wasm-startup-phases-${phaseLabel}.json`),`${JSON.stringify(evidence,null,2)}\n`);
+    }
     if(tracing&&args.includes('--write-doc')) {
         const evidence={contract:'cem-wasm-acquisition-diagnosis/1',recordSuffix,codeIdentity,coreSha256:expected,chromium:chromiumVersion,node:process.version,measuredAt:report.measuredAt,harnessHashes:report.harnessHashes,
             sourceHashes:Object.fromEntries(results.flatMap(row=>row.responses.filter(response=>response.path.split('?')[0].endsWith('.js')||response.path.split('?')[0].endsWith('.mjs')).map(response=>[response.path,response.sha256]))),
@@ -268,7 +286,7 @@ try {
             results:results.map(row=>({kind:row.kind,mode:row.mode,run:row.run,workers:row.afterMemory.activeWorkers,workerCounters:row.workerCounters,traffic:row.traffic,evidence:row.acquisitionEvidence}))};
         await writeFile(resolve(root,`docs/cem-components-wasm-acquisition${recordSuffix}.json`),`${JSON.stringify(evidence,null,2)}\n`);
     }
-    if(!tracing&&args.includes('--write-doc')) {
+    if(!tracing&&!startupTracing&&args.includes('--write-doc')) {
         await writeFile(resolve(root,`docs/cem-components-wasm-startup${recordSuffix}.md`),renderStartupReport(report));
         const compact = sample => { const {processes,...aggregate}=sample; return aggregate; };
         const evidence={...report,results:results.map(row=>{
