@@ -304,6 +304,9 @@ fn build_command_invocation(
 fn validate_parsed_command(
     parsed: &ParsedCommandInvocationV1,
 ) -> Result<(), CommandInvocationErrorV1> {
+    if parsed.global_options.contains_key("resolver_project") {
+        return Err(usage("cem.command.native_filesystem_required", "--resolver-project requires the native filesystem CLI"));
+    }
     if parsed
         .options
         .contains_key("schema_package_replacement_grants")
@@ -1636,6 +1639,13 @@ mod tests {
             budget_policy_stamp: "common-default-v1".to_owned(),
             stdout_is_terminal: false,
         }
+    }
+
+    #[test]
+    fn virtual_commands_refuse_native_project_filesystem_arguments() {
+        let mut command = parsed("convert");
+        command.global_options.insert("resolver_project".into(), ParsedCommandValueV1::String("project.cem".into()));
+        assert_eq!(validate_parsed_command(&command).unwrap_err().code, "cem.command.native_filesystem_required");
     }
 
     #[test]

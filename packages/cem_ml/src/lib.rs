@@ -90,6 +90,7 @@ pub mod ssr_route;
 mod ssr_source;
 pub mod ssr_artifact;
 pub mod studio_project;
+pub mod studio_project_filesystem;
 pub mod syntax;
 pub mod tokenizer;
 pub mod transform_artifact;

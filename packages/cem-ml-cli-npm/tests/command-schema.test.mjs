@@ -148,3 +148,16 @@ test('schema-driven parser rejects invalid fixtures with stable codes', () => {
         (error) => error instanceof nodeApi.CemMlCommandError && error.code === 'cem.command.unavailable',
     );
 });
+
+test('project filesystem mappings round-trip as a native-only host option', async () => {
+    const text = "cem-ml --resolver-project 'project.cem' convert studio://demo/input.cem";
+    const parsed = nodeApi.parseCemMlCommandText(text, { runtime: 'native' });
+    assert.equal(parsed.globalOptions.resolver_project, 'project.cem');
+    assert.deepEqual(nodeApi.parseCemMlCommandText(nodeApi.serializeCemMlCommandText(parsed)), parsed);
+    for (const runtime of ['wasm-node', 'wasm-browser-worker']) {
+        assert.throws(() => nodeApi.parseCemMlCommandText(text, { runtime }), error => error.code === 'cem.cli_command.native_only_argument');
+    }
+    const { buildCommandInvocationWith } = await import('../dist/invocation-core.js');
+    await assert.rejects(buildCommandInvocationWith(undefined, undefined, parsed, undefined), error => error.code === 'cem.cli_command.native_only_argument');
+    await assert.rejects(nodeApi.buildNodeCommandInvocation(parsed, undefined), error => error.code === 'cem.cli_command.native_only_argument');
+});

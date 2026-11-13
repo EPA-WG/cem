@@ -14,6 +14,7 @@ import type {
 } from '@epa-wg/cem-ml/wasm';
 
 import type { ParsedCemMlCommand } from './command.js';
+import { assertCemMlCommandHostOptions } from './command.js';
 import { NodeCommandHost } from './node-host.js';
 
 const MAX_DISCOVERY_PASSES = 8;
@@ -47,6 +48,7 @@ export async function buildNodeCommandInvocation(
     host: NodeCommandHost,
     options: NodeCommandInvocationOptions = {},
 ): Promise<CommandInvocationV1> {
+    assertCemMlCommandHostOptions(parsed, 'wasm-node');
     const retire = commandNativeAdmission.admit();
     try {
         const environment: CommandInvocationEnvironmentV1 = {

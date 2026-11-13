@@ -1320,10 +1320,15 @@ available for manual copying if the clipboard is unavailable or denied. Repeated
 clicks replace the same section; project, saved revision or configuration changes
 clear it and invalidate pending clipboard results. Run the command from the
 saved/materialized or exported project directory with a matching `cem-ml` binary
-on `PATH`. Unsaved edits are excluded. Renamed resolver addresses and top-level
-Studio-only URI operands are refused with a mapping-required diagnostic rather
-than silently rewriting stable identities. Filesystem mapping support remains a
-follow-up for those builds.
+on `PATH`. Unsaved edits are excluded. Builds with renamed resources or Studio
+URI operands add `--resolver-project project.cem`. Materialize the matching saved
+project directory, including its manifest, through the filesystem provider before
+running these commands. The native CLI validates that manifest and maps immutable
+resource addresses to current export filenames; it retains nested relative bases,
+declared content types and exact source bytes. Derived HTML commands use the
+resource's original URI when mapping is required. Missing resources, changed
+source hashes, ambiguous mappings and source/output aliases fail with diagnostics.
+The mapping option requires the native filesystem CLI; WASM hosts refuse it.
 
 Declared JSON graph exports use the shared native publication byte policy. An
 abstract JSON primary without native writer bytes is UTF-8 JSON with two-space

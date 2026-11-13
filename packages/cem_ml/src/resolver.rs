@@ -1352,7 +1352,7 @@ fn normalize_scheme(scheme: impl AsRef<str>) -> String {
         .to_ascii_lowercase()
 }
 
-fn percent_decode_uri_path(path: &str) -> Option<String> {
+pub(crate) fn percent_decode_uri_path(path: &str) -> Option<String> {
     let bytes = path.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0;

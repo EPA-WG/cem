@@ -45,6 +45,10 @@ pub struct Cli {
         help = "Write the structured observability event stream (parse/validate/transform) to PATH as JSONL; use - for stdout"
     )]
     pub observe_events: Option<PathBuf>,
+
+    #[arg(long = "resolver-project", global = true, value_name = "MANIFEST",
+        help = "Resolve original Studio resource identities from a materialized project.cem or project JSON manifest (native only)")]
+    pub resolver_project: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -232,6 +236,8 @@ pub enum BenchProfile {
 
 #[derive(Args, Debug, Default, Clone)]
 pub struct ContextOptions {
+    #[arg(skip)]
+    pub project_filesystem: Option<crate::project_filesystem::ProjectFilesystem>,
     #[arg(
         long,
         value_name = "URI-OR-FILE",

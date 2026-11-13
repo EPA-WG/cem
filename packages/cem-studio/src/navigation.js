@@ -10,15 +10,14 @@ import { parseCemMlCommand, parseCemMlCommandResource, serializeCemMlCommand, se
 export function describeCemStudioProjectBuildCli(bundle, configuration) {
     const { project, contents } = bundle;
     const entry = project.entries.find(item => item.id === configuration.id);
-    const owned = configuration.resourceId ? project.resources : project.resources.filter(resource =>
-        resource.id === entry?.runConfigResourceId || !entry?.resourceIds || entry.resourceIds.includes(resource.id));
-    if (owned.some(resource => resource.referencePath && resource.referencePath !== resource.path))
-        throw Error('This build uses renamed resource addresses. A portable filesystem mapping is required before copying its CLI.');
+    // Graph/template dependencies resolve in the complete project namespace,
+    // including resources outside the selected entry's presentation grouping.
+    const renamed = project.resources.some(resource => resource.referencePath && resource.referencePath !== resource.path);
     let parsed;
     if (configuration.resourceId) {
         const resource = project.resources.find(item => item.id === configuration.resourceId);
         if (!resource || contents[resource.id] === undefined) throw Error('The saved build source is unavailable.');
-        parsed = parseCemMlCommand(['convert', resource.path, '--content-type', resource.contentType, '--schema', resource.schema,
+        parsed = parseCemMlCommand(['convert', renamed ? projectResourceUri(project, resource) : resource.path, '--content-type', resource.contentType, '--schema', resource.schema,
             '--to-content-type', 'text/html', '--to-schema', 'https://cem.dev/ns/data/html/1', '--output-color-type', 'none'], { runtime: 'native' });
     } else {
         const resource = project.resources.find(item => item.id === entry?.runConfigResourceId);
@@ -26,8 +25,8 @@ export function describeCemStudioProjectBuildCli(bundle, configuration) {
         const bytes = contents[resource.id];
         parsed = parseCemMlCommandResource(typeof bytes === 'string' ? bytes : new Uint8Array(bytes), { runtime: 'native' }).command;
     }
-    if (serializeCemMlCommand(parsed).some(value => /^(?:studio|cem-studio):\/\//u.test(value)))
-        throw Error('This command uses Studio-only resource addresses. A portable filesystem mapping is required before copying its CLI.');
+    if (!parsed.globalOptions.resolver_project && (renamed || serializeCemMlCommand(parsed).some(value => /(?:studio|cem-studio):\/\//iu.test(value))))
+        parsed = parseCemMlCommand([...serializeCemMlCommand(parsed), '--resolver-project', 'project.cem'], { runtime: 'native' });
     return serializeCemMlCommandText(parsed);
 }
 

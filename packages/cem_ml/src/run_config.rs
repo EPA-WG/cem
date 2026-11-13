@@ -1714,6 +1714,56 @@ pub fn parse_input_spec_record(record: &str) -> Result<InputSpec, SpecParseError
     Ok(spec)
 }
 
+/// Map named address fields while retaining every other authored record byte.
+pub fn map_spec_record_addresses(
+    record: &str,
+    keys: &[&str],
+    mut map: impl FnMut(&str) -> Result<String, String>,
+) -> Result<String, String> {
+    let fields = parse_key_value_record(record).map_err(|error| error.message)?;
+    let mut fields = fields.into_iter();
+    let mut output = String::new();
+    let mut start = 0;
+    let mut quoted = false;
+    let mut escaped = false;
+    let mut emit = |output: &mut String, field: &str| -> Result<(), String> {
+        if !field.trim().is_empty() {
+            let (key, value) = fields.next().ok_or("invalid spec record")?;
+            if keys
+                .iter()
+                .any(|candidate| normalize_key(candidate) == normalize_key(&key))
+            {
+                let value = map(&value)?;
+                output.push_str(&format!(
+                    "{key}=\"{}\"",
+                    value.replace('\\', "\\\\").replace('"', "\\\"")
+                ));
+                return Ok(());
+            }
+        }
+        output.push_str(field);
+        Ok(())
+    };
+    for (index, ch) in record.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' => escaped = true,
+            '"' => quoted = !quoted,
+            ',' if !quoted => {
+                emit(&mut output, &record[start..index])?;
+                output.push(',');
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    emit(&mut output, &record[start..])?;
+    Ok(output)
+}
+
 pub fn parse_output_spec_record(record: &str) -> Result<OutputSpec, SpecParseError> {
     let fields = parse_key_value_record(record)?;
     let mut spec = OutputSpec::default();
@@ -2513,6 +2563,17 @@ mod tests {
             spec.root_scope.default_content_type.as_deref(),
             Some("text/custom-element-xslt")
         );
+    }
+
+    #[test]
+    fn spec_record_address_mapping_preserves_non_address_fields() {
+        let record = "uri=\"data/a,b.cem\",contentType=application/cem,namespaces=p:urn:a|q:urn:b";
+        let mapped = map_spec_record_addresses(record, &["uri"], |uri| Ok(format!("studio://test/{uri}"))).unwrap();
+        let mut expected = parse_input_spec_record(record).unwrap();
+        expected.uri = "studio://test/data/a,b.cem".into();
+        assert_eq!(parse_input_spec_record(&mapped).unwrap(), expected);
+        assert!(mapped.ends_with(",contentType=application/cem,namespaces=p:urn:a|q:urn:b"));
+        assert!(map_spec_record_addresses("uri=\"broken", &["uri"], |uri| Ok(uri.into())).is_err());
     }
 
     #[test]

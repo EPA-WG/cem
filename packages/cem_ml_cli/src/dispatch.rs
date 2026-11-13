@@ -1444,6 +1444,9 @@ fn register_cli_resolvers(
         ResolveDirection::Write,
         &WRITE_PURPOSES,
     );
+    if let Some(project) = &c.project_filesystem {
+        crate::project_filesystem::register(registry, project, &READ_PURPOSES, &WRITE_PURPOSES);
+    }
 }
 
 fn register_builtin_http_input_resolvers(registry: &mut ResolverRegistry) {
@@ -1501,7 +1504,11 @@ fn run_config_for_context(
     defaults: RunConfigDefaults,
 ) -> Result<RunConfig, CliRequestError> {
     let engine_context = context(context_options);
-    run_config_with_context(&engine_context, options, defaults)
+    let mut config = run_config_with_context(&engine_context, options, defaults)?;
+    if let Some(project) = &context_options.project_filesystem {
+        project.bind_config(&mut config, options.config.as_ref().and_then(|path| path.to_str())).map_err(CliRequestError::Usage)?;
+    }
+    Ok(config)
 }
 
 fn run_config_for_dispatch(
@@ -1511,7 +1518,11 @@ fn run_config_for_dispatch(
     s: &Streams<'_>,
 ) -> Result<RunConfig, CliRequestError> {
     let engine_context = context_for_dispatch(context_options, s);
-    run_config_with_context(&engine_context, options, defaults)
+    let mut config = run_config_with_context(&engine_context, options, defaults)?;
+    if let Some(project) = &context_options.project_filesystem {
+        project.bind_config(&mut config, options.config.as_ref().and_then(|path| path.to_str())).map_err(CliRequestError::Usage)?;
+    }
+    Ok(config)
 }
 
 fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
@@ -27097,7 +27108,7 @@ fn emit_observability_events(
 
 pub fn dispatch<E: CemMlEngine + ?Sized>(
     engine: &E,
-    parsed: cli::Cli,
+    mut parsed: cli::Cli,
     s: &mut Streams<'_>,
 ) -> Outcome {
     if s.abort_signal.is_aborted() {
@@ -27107,6 +27118,10 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
             },
             s,
         );
+    }
+    if let Err(error) = crate::project_filesystem::prepare(&mut parsed) {
+        let _ = writeln!(s.stderr, "cem-ml: {error}");
+        return Outcome::code(EXIT_USAGE_OR_RESERVED);
     }
     if let Some(observe_path) = parsed.observe_events.as_ref() {
         if let Err(e) = emit_observability_events(&parsed.command, observe_path, s) {

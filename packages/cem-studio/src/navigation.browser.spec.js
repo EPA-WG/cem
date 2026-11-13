@@ -24,7 +24,7 @@ describe('project build CLI copy', () => {
     it('places an accessible Copy CLI action beside Cancel and shows one exact command after the group across themes', async () => {
         const { userEvent } = await import('vitest/browser');
         const { service } = await fixture('https://studio.test/?project=demo&build=build', false,
-            { alternateBuild: true, commandBytes: buildCommandBytes(['transform', '--config', 'config/site.cemt']) });
+            { alternateBuild: true, renamedSource: true, commandBytes: buildCommandBytes(['transform', '--config', 'config/site.cemt']) });
         const colors = document.createElement('style'); colors.textContent = themeCss; document.head.append(colors);
         const root = document.createElement('main'); document.body.append(root);
         const writeText = vi.fn(async () => undefined);
@@ -41,6 +41,7 @@ describe('project build CLI copy', () => {
             await userEvent.keyboard('{Enter}'); await view.whenSettled();
             expect(writeText).toHaveBeenCalledTimes(1);
             expect(code().textContent).toBe(writeText.mock.calls[0][0]);
+            expect(parseCemMlCommandText(code().textContent).globalOptions.resolver_project).toBe('project.cem');
             const section = code().closest('section');
             expect(section.previousElementSibling).toBe(button().closest('cem-grid'));
             expect(service.snapshot().projectPreview.projection).toBeUndefined();
@@ -110,8 +111,8 @@ describe('project build CLI copy', () => {
         expect(write).not.toHaveBeenCalled();
         expect(preview.snapshot().buildCli).toBeUndefined();
     });
-    it('uses native document-to-HTML arguments and refuses unresolved browser-only or renamed addresses', () => {
-        const bundle = { project: { entries: [], resources: [{ id: 'doc', path: 'data/input.cem', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' }] },
+    it('uses native document-to-HTML arguments and maps renamed or Studio addresses through the exported manifest', () => {
+        const bundle = { project: { id: 'demo', rootUri: 'studio://demo/', entries: [], resources: [{ id: 'doc', path: 'data/input.cem', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' }] },
             contents: { doc: new TextEncoder().encode('{p | Hello}') } };
         const text = describeCemStudioProjectBuildCli(bundle, { id: 'html-v1:doc', resourceId: 'doc' });
         expect(parseCemMlCommandText(text).commandPath).toEqual(['convert']);
@@ -119,15 +120,28 @@ describe('project build CLI copy', () => {
         bundle.project.entries = [{ id: 'build', runConfigResourceId: 'command' }];
         bundle.project.resources.push({ id: 'command', path: 'command.json' });
         bundle.contents.command = buildCommandBytes(['transform', '--config', 'studio://demo/config.cemt']);
-        expect(() => describeCemStudioProjectBuildCli(bundle, { id: 'build' })).toThrow('Studio-only');
+        const mapped = parseCemMlCommandText(describeCemStudioProjectBuildCli(bundle, { id: 'build' }));
+        expect(mapped.globalOptions.resolver_project).toBe('project.cem');
+        expect(mapped.options.config).toBe('studio://demo/config.cemt');
         bundle.project.resources[0].referencePath = 'old.cem';
-        expect(() => describeCemStudioProjectBuildCli(bundle, { id: 'html-v1:doc', resourceId: 'doc' })).toThrow('renamed resource');
+        const before = structuredClone(bundle);
+        const derivedText = describeCemStudioProjectBuildCli(bundle, { id: 'html-v1:doc', resourceId: 'doc' });
+        const derived = parseCemMlCommandText(derivedText);
+        expect(derived.globalOptions.resolver_project).toBe('project.cem');
+        expect(derived.positionals.input).toBe('studio://demo/old.cem');
+        expect(bundle).toEqual(before);
+        expect(() => parseCemMlCommandText(derivedText, { runtime: 'wasm-browser-worker' })).toThrow('requires the native filesystem CLI');
+        bundle.project.entries[0].resourceIds = ['command'];
+        bundle.contents.command = buildCommandBytes(['transform', '--config', 'graphs/view.cem']);
+        const dependency = parseCemMlCommandText(describeCemStudioProjectBuildCli(bundle, { id: 'build' }));
+        expect(dependency.globalOptions.resolver_project).toBe('project.cem');
+        expect(dependency.options.config).toBe('graphs/view.cem');
     });
 });
 
 async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, configurationCount, plaintextSource = false, tabularSource = false, validator,
     artifactPaths = ['generated/index.html', 'generated/posts/article.html', 'generated/invalid.json'],
-    sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }], binarySource = false, sourceBytes, missingSource = false, commandBytes, missingCommand = false, missingCommandResource = false, commandContentType = 'application/cem' } = {}) {
+    sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }], binarySource = false, sourceBytes, missingSource = false, commandBytes, missingCommand = false, missingCommandResource = false, commandContentType = 'application/cem', renamedSource = false } = {}) {
     const encoder = new TextEncoder();
     const sourceResource = binarySource
         ? { id: 'article', path: 'projection.cem-bin', contentType: 'application/vnd.cem.ast+cem-bin', schema: 'https://cem.dev/ns/projection/ast/1' }
@@ -136,6 +150,7 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
         : tabularSource ? { id: 'article', path: 'content/article.csv', contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' }
             : { id: 'article', path: 'content/article.md', contentType: 'text/markdown', schema: 'https://cem.dev/ns/data/markdown/1' };
     const configurations = count => Array.from({ length: count }, (_, index) => ({ id: index ? `build-${index}` : 'build', name: `Build ${index + 1}`, kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: artifactPaths[0] }));
+    if (renamedSource) { sourceResource.referencePath = sourceResource.path; sourceResource.path = 'moved/source.cem'; }
     let project = { id: 'demo', name: 'Demo', rootUri: 'studio://demo/', revision: 1, resources: [
         { ...sourceResource, revision: 1, sha256: 'article' },
         { id: 'other', path: 'content/other.md', contentType: 'text/markdown', revision: 1, sha256: 'other' },

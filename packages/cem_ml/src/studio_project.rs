@@ -1092,7 +1092,7 @@ fn validate_timestamp(value: &str, field_path: &str) -> Result<(), StudioProject
     }
 }
 
-fn validate_resource_path(value: &str, field_path: &str) -> Result<(), StudioProjectError> {
+pub(crate) fn validate_resource_path(value: &str, field_path: &str) -> Result<(), StudioProjectError> {
     let valid = !value.is_empty()
         && !value.starts_with('/')
         && !value.contains('\\')

@@ -201,15 +201,24 @@ export function parseCemMlCommand(
     }
 
     const { options, positionals } = partitionValues(argumentsForCommand, commandState.values);
+    const globalOptions = freezeRecord(globalState.values);
+    if (parseOptions.runtime) assertCemMlCommandHostOptions({ globalOptions }, parseOptions.runtime);
     return Object.freeze({
         schemaVersion: commandSchema.schemaVersion,
         commonVersion: commandSchema.commonVersion,
         commandPath,
-        globalOptions: freezeRecord(globalState.values),
+        globalOptions,
         options,
         positionals,
         ...(metaAction === undefined ? {} : { metaAction }),
     });
+}
+
+/** Native host filesystem authority is never inferred by a virtual/WASM host. */
+export function assertCemMlCommandHostOptions(command: Pick<ParsedCemMlCommand, 'globalOptions'>, runtime: CommandRuntime): void {
+    if (runtime !== 'native' && command.globalOptions.resolver_project !== undefined) {
+        throw new CemMlCommandError('cem.cli_command.native_only_argument', '--resolver-project requires the native filesystem CLI', 'resolver_project');
+    }
 }
 
 export function serializeCemMlCommand(command: ParsedCemMlCommand): readonly string[] {

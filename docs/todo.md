@@ -91,13 +91,33 @@ for the current native work and the conditional diagnostic items on recurrence.
       Studio build, component catalog, typecheck, lint, declarative architecture, UI classification
       and packaged-output checks pass; existing lint warnings remain.
 
-- [ ] Extend Copy CLI to builds with renamed resolver addresses or Studio-only
+- [x] Extend Copy CLI to builds with renamed resolver addresses or Studio-only
       URI operands through shared native filesystem export/resolver mapping.
       Preserve stable identities, nested graph/resource resolution and original
-      source bytes. Until that lowering exists, these builds report that a
-      portable mapping is required and do not offer a misleading command.
-  - [ ] Verify renamed inputs, nested graph references and explicit Studio URI
+      source bytes. Mapped commands use the matching materialized `project.cem`
+      through the native CLI's `--resolver-project` option.
+  - [x] Verify renamed inputs, nested graph references and explicit Studio URI
         operands against materialized project outputs before enabling copy.
+  - [x] Add native filesystem-plan and CLI fixtures for immutable resource-to-path
+        mappings, nested relative reads, output publication, literal quoting and
+        unresolved/ambiguous addresses; retain exact source bytes and identities.
+  - [x] Connect the planner through the native-generated CLI grammar and
+        verify Copy CLI revision fencing, clipboard behavior and materialized
+        project execution with renamed and explicit Studio-addressed resources.
+      Verified 2026-11-13: 11 native CLI integration cases, three filesystem-plan
+      cases, the record-preservation case and 13 command-invocation cases pass.
+      The npm CLI suite passes 64/64; Studio navigation passes 51/51, with the
+      five Copy CLI cases repeated after the final dependency-grouping change.
+      Copied Bash commands match native argv for conversion, query and both
+      report/Login graph builds (4/2 artifacts), with all materialized sources
+      renamed to quoted filenames and their bytes unchanged. Native-only mapping
+      arguments are refused by Node/browser WASM hosts before resource reads.
+      An aggregate recovery run passed 58/59; the remaining complete Login
+      worker case passes its isolated rerun with the original limits. Its fresh
+      allocation transport error remains in the conditional diagnostic below.
+      Native/Studio builds, generated command-grammar checks, native/npm/Studio
+      lint, typecheck, UI classification and packaged-output verification pass;
+      existing lint warnings remain. No runtime allocation policy was changed.
 
 - [ ] Add shared project-bootstrap configuration and a guided questionnaire,
       available to Studio, VS Code and IntelliJ. In Studio, **New project** opens
@@ -145,7 +165,7 @@ assertions, deadlines and baseline evidence for any recurrence.
 ### Historical presentation-adjacent diagnostics
 
 - [ ] Conditional allocation follow-up: if `worker-static-change`, `worker-method`
-      or another rendering fresh allocation times out again,
+      or another rendering fresh allocation fails or times out again,
       retain the new per-worker/group phase trace and identify the stalled
       boundary before changing runtime behavior. The historical frozen 110/111
       result and the later `worker-method` 103/104 invocation remain unattributed.
@@ -155,6 +175,13 @@ assertions, deadlines and baseline evidence for any recurrence.
       revocation and static-preview refusal assertions. See the
       [diagnostic capture](archive/todo-completed-worker-allocation-diagnostics-2026-11-04.md)
       and [theme fixture verification](archive/todo-completed-theme-control-fixtures-2026-11-05.md#verification-and-allocation-follow-up).
+      New evidence 2026-11-13: the navigation/recovery aggregate passed 58/59;
+      complete live Login worker recovery failed at `allocate 2` with
+      `CemProcessingWorkerTransportError` from the worker error callback. The
+      sealed witness was 32,668 nodes, within the unchanged 32,768-node limit.
+      All fallback cases and the isolated complete worker rerun pass (67.12 s).
+      The transport failure remains unattributed; this rerun is not a timing
+      repair, and no worker policy, deadline or checkpoint budget was changed.
 
 ## Declarative UI Architecture Correction
 

@@ -652,6 +652,26 @@ Current implementation status:
   `--resolver-read-map URI-PREFIX=DIR`, `--resolver-write-map URI-PREFIX=DIR`, and
   run-config `resolvers` entries can explicitly map remote/custom URI prefixes to local
   filesystem roots for reads or writes.
+- The native host's global `--resolver-project MANIFEST` option reads a validated
+  Studio `project.cem` or standalone project JSON manifest. The shared
+  `cem_ml::studio_project_filesystem::plan_project_filesystem` projection retains
+  resource IDs, original URI addresses, display/export paths, content types,
+  schemas and source hashes. Materialize the source bytes at those export paths
+  beside the manifest. Positional/config/template/query-file reads and structured
+  input/output records bind to original resource addresses without rewriting
+  command resources, templates, graphs or data. Glob enumeration uses the
+  declared reference topology, including after moves; existing match limits apply.
+  Mapped reads verify the saved hashes. Project writes use atomic publication
+  and rollback and reject aliases of sources or the manifest. Unresolved/cross-project
+  Studio reads and conflicting Studio resolver overrides are refused. Relative
+  outputs retain their CLI/configuration bases inside the materialized project
+  directory. Run from that directory
+  with the matching native `cem-ml`; Node/browser WASM invocation hosts reject this
+  filesystem-only option before resource acquisition.
+
+  ```bash
+  cem-ml --resolver-project project.cem transform --config graphs/view.cem
+  ```
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,

@@ -12,6 +12,7 @@ import type {
 } from '@epa-wg/cem-ml/wasm';
 
 import type { ParsedCemMlCommand } from './command.js';
+import { assertCemMlCommandHostOptions } from './command.js';
 export type InvocationRuntime = Pick<typeof import('@epa-wg/cem-ml/wasm'), 'authorTransformConfigV1' | 'buildCommandInvocationV1' | 'projectCommandPresentationV1'>;
 const MAX_DISCOVERY_PASSES = 8;
 
@@ -55,6 +56,7 @@ export async function buildCommandInvocationWith(
     resolver: BrowserCommandInvocationResolver,
     options: BrowserCommandInvocationOptions = {},
 ): Promise<CommandInvocationV1> {
+    assertCemMlCommandHostOptions(parsed, 'wasm-browser-worker');
     const retire = commandNativeAdmission.admit();
     try {
         const environment: CommandInvocationEnvironmentV1 = {
