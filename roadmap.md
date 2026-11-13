@@ -1481,6 +1481,31 @@ content and explicit transformation pipeline as the HTML site.
       target-application compatibility; publish supported features and fidelity
       limits for every format before declaring parity with the HTML publication.
 
+### Site publishing examples and CEM Site CI/CD
+
+Goal: provide runnable site-project publishing examples for **GitHub Pages** and
+**Cloudflare**, and publish CEM Site through the same documented CI/CD path.
+
+- [ ] Extend the ordinary Markdown + CEM-ML site example with reviewed hosting
+      configuration and deployment instructions for GitHub Pages and Cloudflare
+      Pages/Workers static assets. Document project-subpath and root/custom-domain
+      hosting, base URLs, deep links, asset paths, cache rules and preview URLs.
+- [ ] Add reusable CI/CD workflows that install pinned dependencies, run the
+      native CEM-ML site build through Nx, verify the generated artifact and
+      publish that exact artifact to the selected host. Keep content and resource
+      transformation in the shared graph; hosting adapters consume its output.
+- [ ] Apply the workflow to **CEM Site**: validate pull requests, produce reviewable
+      previews where supported, and deploy the accepted release branch/version.
+      Document required repository environments, deployment permissions and
+      account credentials without placing secrets in project files or artifacts.
+- [ ] Run post-deployment smoke checks for startup, page/deep links, local Studio
+      and Playground content, component galleries, assets and offline behavior
+      where supported. Associate the public URL, commit and hosting version with
+      the verified build artifact and preserve a documented rollback path.
+- [ ] Verify a fresh checkout can build and publish the example to each host,
+      including GitHub project-subpath routing and Cloudflare root routing;
+      document failed-build/deploy behavior and release acceptance evidence.
+
 ### Studio Example: Markdown + CEM-ML Site Project
 
 Status: implemented 2026-10-18 as the ordinary
