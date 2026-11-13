@@ -1,8 +1,10 @@
 import { mountCemArtifactPreview } from '@epa-wg/cem-elements';
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { createCemStudioNavigation, createCemStudioProjectPreview, createCemStudioSourcePreview } from './navigation.js';
+import { createCemStudioNavigation, createCemStudioProjectPreview, createCemStudioSourcePreview, describeCemStudioProjectBuildCli } from './navigation.js';
+import { commandSchema, parseCemMlCommandText, serializeCemMlCommand } from '@epa-wg/cem-ml-cli/browser-commands';
 import { mountCemStudioFeatureTourWorkbench } from './workbench.js';
 import { installCemStudioShellComponents, mountCemStudioApplicationShell } from './shell.js';
+import themeCss from '@epa-wg/cem-theme/styles.css?raw';
 
 beforeAll(() => {
     const map = document.createElement('script'); map.type = 'importmap';
@@ -12,6 +14,116 @@ beforeAll(() => {
 
 const services = [];
 afterEach(() => { for (const service of services.splice(0)) service.dispose(); });
+
+function buildCommandBytes(argv) {
+    return new TextEncoder().encode(JSON.stringify({ $schema: 'https://cem.dev/ns/cli/command/1', schemaVersion: 1,
+        commandSchemaVersion: commandSchema.schemaVersion, commonVersion: commandSchema.commonVersion, binaryName: 'cem-ml', argv }));
+}
+
+describe('project build CLI copy', () => {
+    it('places an accessible Copy CLI action beside Cancel and shows one exact command after the group across themes', async () => {
+        const { userEvent } = await import('vitest/browser');
+        const { service } = await fixture('https://studio.test/?project=demo&build=build', false,
+            { alternateBuild: true, commandBytes: buildCommandBytes(['transform', '--config', 'config/site.cemt']) });
+        const colors = document.createElement('style'); colors.textContent = themeCss; document.head.append(colors);
+        const root = document.createElement('main'); document.body.append(root);
+        const writeText = vi.fn(async () => undefined);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service, clipboard: { writeText } });
+        try {
+            await view.whenSettled();
+            const pane = root.querySelector('cem-studio-workbench-preview[section=build]');
+            const button = () => pane.querySelector('[host-command=copy-build-cli] button');
+            const code = () => pane.querySelector('section[aria-label="Project build command"] code');
+            expect(code()).toBeNull();
+            expect(button().textContent.trim()).toBe('Copy CLI');
+            expect(button().closest('cem-action').previousElementSibling.getAttribute('host-command')).toBe('cancel-build');
+            button().focus();
+            await userEvent.keyboard('{Enter}'); await view.whenSettled();
+            expect(writeText).toHaveBeenCalledTimes(1);
+            expect(code().textContent).toBe(writeText.mock.calls[0][0]);
+            const section = code().closest('section');
+            expect(section.previousElementSibling).toBe(button().closest('cem-grid'));
+            expect(service.snapshot().projectPreview.projection).toBeUndefined();
+            for (const mode of ['cem-theme-light', 'cem-theme-dark', 'cem-theme-projector', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native']) {
+                root.className = mode;
+                await userEvent.click(button()); await view.whenSettled();
+                expect(pane.querySelectorAll('section[aria-label="Project build command"]')).toHaveLength(1);
+                expect(code().textContent).toBe(writeText.mock.calls.at(-1)[0]);
+                expect(getComputedStyle(button()).visibility).toBe('visible');
+                expect(button().disabled).toBe(false);
+                expect(getComputedStyle(code()).color).toBe(getComputedStyle(code().closest('section')).color);
+            }
+            writeText.mockRejectedValueOnce(new DOMException('Clipboard denied', 'NotAllowedError'));
+            await userEvent.click(button()); await view.whenSettled();
+            expect(code().textContent).toBe(writeText.mock.calls.at(-1)[0]);
+            expect(pane.textContent).toContain('Clipboard denied');
+            service.selectPreviewConfiguration('alternate'); await view.whenSettled();
+            expect(code()).toBeNull();
+            await userEvent.click(button()); await view.whenSettled();
+            expect(code()).not.toBeNull();
+            await service.openEntity(''); await view.whenSettled();
+            expect(service.snapshot().projectPreview.buildCli).toBeUndefined();
+        } finally { view.dispose(); root.remove(); colors.remove(); }
+    }, 30_000);
+
+    it('copies the selected saved native command without building and retains text on clipboard failure', async () => {
+        const argv = ['transform', '--config', "config/it's $(touch nope).cemt"];
+        const { service } = await fixture('https://studio.test/?project=demo&build=build', false, { commandBytes: buildCommandBytes(argv) });
+        let copied;
+        await service.copyProjectBuildCli(async text => { copied = text; });
+        expect(serializeCemMlCommand(parseCemMlCommandText(copied))).toContain("config/it's $(touch nope).cemt");
+        expect(copied).toContain("'\\''");
+        expect(service.snapshot().projectPreview.buildCli).toMatchObject({ text: copied, status: 'success' });
+        expect(service.snapshot().projectPreview.projection).toBeUndefined();
+        await service.copyProjectBuildCli();
+        expect(service.snapshot().projectPreview.buildCli).toMatchObject({ text: copied, status: 'failed' });
+        expect(service.snapshot().projectPreview.buildCli.message).toContain('Clipboard');
+        await service.copyProjectBuildCli(async text => { expect(text).toBe(copied); });
+        expect(service.snapshot().projectPreview.buildCli.status).toBe('success');
+    });
+    it('clears displayed CLI on configuration change and ignores a late clipboard completion', async () => {
+        const { service } = await fixture('https://studio.test/?project=demo&build=build', false,
+            { alternateBuild: true, commandBytes: buildCommandBytes(['transform', '--config', 'site.cemt']) });
+        let resolve;
+        const copying = service.copyProjectBuildCli(() => new Promise(done => { resolve = done; }));
+        await vi.waitFor(() => expect(resolve).toBeTypeOf('function'));
+        expect(service.snapshot().projectPreview.buildCli.status).toBe('copying');
+        service.selectPreviewConfiguration('alternate');
+        expect(service.snapshot().projectPreview.buildCli).toBeUndefined();
+        resolve(); await copying;
+        expect(service.snapshot().projectPreview.buildCli).toBeUndefined();
+    });
+    it('invalidates a pending command read when the saved project revision changes', async () => {
+        const project = { id: 'demo', revision: 1,
+            entries: [{ id: 'build', kind: 'transformation-graph', runConfigResourceId: 'command' }],
+            resources: [{ id: 'command', path: 'command.json', schema: 'https://cem.dev/ns/cli/command/1' }] };
+        let release;
+        const pending = new Promise(resolve => { release = resolve; });
+        const repository = { query: async ({ operation }) => ({ value: operation === 'list-build-snapshots' ? [] : await pending }) };
+        const preview = createCemStudioProjectPreview({ repository }); services.push(preview);
+        preview.setContext({ key: 'project=demo', project });
+        const write = vi.fn(); const copy = preview.copyBuildCli(write);
+        expect(preview.snapshot().buildCli.status).toBe('preparing');
+        preview.setContext({ key: 'project=demo', project: { ...project, revision: 2 } });
+        release({ project, contents: { command: buildCommandBytes(['transform', '--config', 'old.cemt']) } });
+        await copy;
+        expect(write).not.toHaveBeenCalled();
+        expect(preview.snapshot().buildCli).toBeUndefined();
+    });
+    it('uses native document-to-HTML arguments and refuses unresolved browser-only or renamed addresses', () => {
+        const bundle = { project: { entries: [], resources: [{ id: 'doc', path: 'data/input.cem', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' }] },
+            contents: { doc: new TextEncoder().encode('{p | Hello}') } };
+        const text = describeCemStudioProjectBuildCli(bundle, { id: 'html-v1:doc', resourceId: 'doc' });
+        expect(parseCemMlCommandText(text).commandPath).toEqual(['convert']);
+        expect(serializeCemMlCommand(parseCemMlCommandText(text))).toContain('data/input.cem');
+        bundle.project.entries = [{ id: 'build', runConfigResourceId: 'command' }];
+        bundle.project.resources.push({ id: 'command', path: 'command.json' });
+        bundle.contents.command = buildCommandBytes(['transform', '--config', 'studio://demo/config.cemt']);
+        expect(() => describeCemStudioProjectBuildCli(bundle, { id: 'build' })).toThrow('Studio-only');
+        bundle.project.resources[0].referencePath = 'old.cem';
+        expect(() => describeCemStudioProjectBuildCli(bundle, { id: 'html-v1:doc', resourceId: 'doc' })).toThrow('renamed resource');
+    });
+});
 
 async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator,
     artifactPaths = ['generated/index.html', 'generated/posts/article.html', 'generated/invalid.json'],

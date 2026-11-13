@@ -532,6 +532,12 @@ The independent Project preview selects build configuration and artifact through
 `build` / `artifact` URL parameters, while `file` / `folder` continue to select
 the editor. Build project uses saved revisions; failed, stale and cancelled
 attempts retain the last successful output and expose their status/diagnostics.
+**Copy CLI**, beside **Cancel build**, copies the selected saved build as a Bash
+command and displays it immediately below the buttons. Run it from the saved or
+exported project directory with the matching `cem-ml` CLI. Unsaved edits are
+excluded. Clipboard failures retain the command for manual copying; renamed
+resource addresses and browser-only command addresses require a portable
+filesystem mapping before a command can be offered.
 Single CEM-ML documents get a derived HTML conversion. Sample builds never
 import or mutate saved projects. Native output reading remains shared in
 cem-elements; Studio owns run admission and routing without UI JavaScript.

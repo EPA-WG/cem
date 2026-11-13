@@ -4,6 +4,32 @@ import { createCemStudioProjectWorkbench, createCemStudioWorkbench } from './wor
 import { projectResourceUri } from './resource-reference.js';
 import { CEM_STUDIO_LIMITS, createCemStudioPreview } from './preview.js';
 import { registerCemArtifactTree } from '@epa-wg/cem-elements';
+import { parseCemMlCommand, parseCemMlCommandResource, serializeCemMlCommand, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
+
+/** Saved build metadata only. Run from the materialized/exported project folder. */
+export function describeCemStudioProjectBuildCli(bundle, configuration) {
+    const { project, contents } = bundle;
+    const entry = project.entries.find(item => item.id === configuration.id);
+    const owned = configuration.resourceId ? project.resources : project.resources.filter(resource =>
+        resource.id === entry?.runConfigResourceId || !entry?.resourceIds || entry.resourceIds.includes(resource.id));
+    if (owned.some(resource => resource.referencePath && resource.referencePath !== resource.path))
+        throw Error('This build uses renamed resource addresses. A portable filesystem mapping is required before copying its CLI.');
+    let parsed;
+    if (configuration.resourceId) {
+        const resource = project.resources.find(item => item.id === configuration.resourceId);
+        if (!resource || contents[resource.id] === undefined) throw Error('The saved build source is unavailable.');
+        parsed = parseCemMlCommand(['convert', resource.path, '--content-type', resource.contentType, '--schema', resource.schema,
+            '--to-content-type', 'text/html', '--to-schema', 'https://cem.dev/ns/data/html/1', '--output-color-type', 'none'], { runtime: 'native' });
+    } else {
+        const resource = project.resources.find(item => item.id === entry?.runConfigResourceId);
+        if (!resource || contents[resource.id] === undefined) throw Error('The saved build command is unavailable.');
+        const bytes = contents[resource.id];
+        parsed = parseCemMlCommandResource(typeof bytes === 'string' ? bytes : new Uint8Array(bytes), { runtime: 'native' }).command;
+    }
+    if (serializeCemMlCommand(parsed).some(value => /^(?:studio|cem-studio):\/\//u.test(value)))
+        throw Error('This command uses Studio-only resource addresses. A portable filesystem mapping is required before copying its CLI.');
+    return serializeCemMlCommandText(parsed);
+}
 
 const request = (operation, parameters) => ({ protocolVersion: 1, repository: CEM_STUDIO_REPOSITORY_ID, requestRevision: 1, operation, parameters });
 const routeFields = ['view', 'collection', 'project', 'sample', 'folder', 'file', 'configuration', 'selection', 'output-folder', 'build', 'artifact'];
@@ -367,6 +393,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
             if (key === preview.snapshot().contextKey) writeUrl(selection, 'replace');
         },
         cancelProjectPreview() { preview.cancel(); },
+        copyProjectBuildCli(writeText) { return preview.copyBuildCli(writeText); },
         copyPreview(writeText) { return preview.copy(writeText); },
         downloadPreview(save) { return preview.download(save); },
         async downloadSource(save) {
@@ -453,6 +480,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
 /** Project build orchestration. Owns one bounded successful run, never an editor. */
 export function createCemStudioProjectPreview({ repository, validator, openBuildWorkbench }) {
     const subscribers = new Set();
+    let buildCli, cliVersion = 0;
     let context, configurationId, artifactPath, explicitArtifact = false, success, successStamp, artifactTree, attempt, active, source, navigationSelection = {}, disposed = false, generation = 0;
     let pins = [], pinId, pinSelection, pinned, pinnedTree, pinnedPath, pinBusy = false, pinError, pinMessage, pinVersion = 0, pinListVersion = 0, pinListController, pinReadController;
     let comparisonCache, comparisonArtifactPath;
@@ -597,7 +625,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         return Object.freeze({ previewContext, relatedArtifacts, missingReason: previewContext === 'source' && !artifact ? relatedArtifacts.length > 1 ? 'Multiple generated outputs match this source. Choose a related artifact.' : 'No generated output is available for this source revision.' : previewContext === 'none' ? 'Select a generated output or a source resource to preview.' : undefined, selectedOutput, projectId: context?.project.id, contextKey: context?.key, configurations, configurationId, artifactPath: path, currentArtifactPath: path,
             comparison: comparison(), comparisonArtifactPath, pins, pinId, pinSelection, pinBusy, pinError, pinMessage, canPin: Boolean(success && !pinSelection && !active && !pinBusy), currentRunId: success?.snapshot().projection?.buildRun.id,
             entryArtifact: configurations.find(item => item.id === configurationId)?.entryArtifact,
-            available, busy: Boolean(active), attempt, projection, stale,
+            available, busy: Boolean(active), attempt, projection, stale, buildCli,
             preview: artifact && tree && !/^[a-z][\w+.-]*:/i.test(artifact.path) && ['text/html', 'application/xhtml+xml'].includes(artifact.contentType.split(';')[0]) && selectedPreview?.kind === 'sandboxed-html'
                 ? { kind: 'artifact-tree', label: selectedPreview.label, resourceSet: tree.resourceSet, artifactPath: path } : artifact ? selectedPreview : undefined,
             missingArtifact: Boolean(projection && path !== undefined && !artifact),
@@ -610,8 +638,9 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         job.controller.abort();
         attempt = { id: job.id, status: 'cancelled' }; publish();
     }
-    function clear() { closePin(); pinError = undefined; pinMessage = undefined; cancel(); success?.dispose(); artifactTree?.dispose(); artifactTree = undefined; success = undefined; attempt = undefined; artifactPath = undefined; explicitArtifact = false; }
+    function clear() { ++cliVersion; buildCli = undefined; closePin(); pinError = undefined; pinMessage = undefined; cancel(); success?.dispose(); artifactTree?.dispose(); artifactTree = undefined; success = undefined; attempt = undefined; artifactPath = undefined; explicitArtifact = false; }
     function setContext(next, settings = {}) {
+        if (buildCli && context?.project.revision !== next?.project.revision) { ++cliVersion; buildCli = undefined; }
         const changedContext = context?.key !== next?.key;
         if (changedContext) { pinListController?.abort(); clear(); pins = []; context = next; configurationId = undefined; }
         else context = next;
@@ -704,7 +733,26 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         })();
         await Promise.race([execution, aborted]);
     }
-    return Object.freeze({ snapshot, setContext, setSelection(value) { navigationSelection = { ...value }; const artifact = snapshot().selectedArtifact; if (artifact) viewed().selectArtifact(artifact.id); publish(); }, build, cancel, pin, selectPin, deletePin, refreshPins,
+    async function copyBuildCli(writeText) {
+        if (disposed || active || !context || ['preparing', 'copying'].includes(buildCli?.status)) return;
+        const configuration = choices().find(item => item.id === configurationId);
+        if (!configuration) return;
+        const captured = context, version = ++cliVersion;
+        const current = () => !disposed && cliVersion === version && context?.key === captured.key && configurationId === configuration.id;
+        buildCli = { status: 'preparing' }; publish();
+        try {
+            const bundle = captured.bundle ?? (await repository.query(request('export-project', { projectId: captured.project.id }))).value;
+            if (!current()) return;
+            const text = describeCemStudioProjectBuildCli(bundle, configuration);
+            buildCli = { text, status: 'copying', projectRevision: bundle.project.revision }; publish();
+            if (typeof writeText !== 'function') throw Error('Clipboard writing is unavailable. Select and copy the displayed command.');
+            await writeText(text);
+            if (current()) { buildCli = { ...buildCli, status: 'success', message: 'Build command copied.' }; publish(); }
+        } catch (error) {
+            if (current()) { buildCli = { ...buildCli, status: 'failed', message: error.message }; publish(); }
+        }
+    }
+    return Object.freeze({ snapshot, setContext, setSelection(value) { navigationSelection = { ...value }; const artifact = snapshot().selectedArtifact; if (artifact) viewed().selectArtifact(artifact.id); publish(); }, build, copyBuildCli, cancel, pin, selectPin, deletePin, refreshPins,
         subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
         updateSource(value) { source = value; publish(); },
         selectConfiguration(id) { setContext(context, { build: id, reset: true }); },

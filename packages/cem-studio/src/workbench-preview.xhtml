@@ -11,6 +11,8 @@
 [part~='root']:where([data-project][data-section='all']) { grid-template-rows: minmax(0, auto) minmax(20vb, 1fr); }
 [part~='build-content'] { display: grid; gap: var(--cem-layout-stack-gap); min-inline-size: 0; }
 [part~='build-controls'] { min-block-size: 0; overflow: auto; }
+[part~='build-command'] { min-inline-size: 0; }
+[part~='build-command'] pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 [part~='preview'] { display: flex; flex-direction: column; gap: var(--cem-gap-related); block-size: 100%; min-block-size: 0; overflow: auto; }
 [part~='preview'] > cem-media-preview { flex: 1 1 auto; min-block-size: 0; }
 [part~='preview'] > cem-data-view { display: block; }
@@ -122,10 +124,16 @@
      }
      {cem:if @test=project.entryError | {cem-alert @label={project.entryError.message} @tone=danger}}
      {cem:if @test=project.entryMessage | {cem-alert @label={project.entryMessage} @tone=info}}
-     {cem-grid @columns=2 @gap=sm |
+     {cem-grid @columns=3 @gap=sm |
       {cem-action @host-command=build-project @host-command-event=click @variant=primary @disabled={if !project.available || project.busy { true } else { null }} | Build project}
       {cem-action @host-command=cancel-build @host-command-event=click @variant=contextual @disabled={if !project.busy { true } else { null }} | Cancel build}
+      {cem-action @host-command=copy-build-cli @host-command-event=click @variant=alternate @disabled={if !project.available || project.busy || project.buildCli.status == "preparing" || project.buildCli.status == "copying" { true } else { null }} | Copy CLI}
      }
+     {cem:if @test=project.buildCli.text | {section @part=build-command @aria-label="Project build command" |
+      {pre | {code | {$ | project.buildCli.text}}}
+      {p | Run from the saved or exported project directory with the matching cem-ml CLI. Unsaved edits are not built.}
+     }}
+     {cem:if @test=project.buildCli.message | {cem-alert @label={project.buildCli.message} @tone={if project.buildCli.status == "failed" { "danger" } else { "info" }}}}
      {cem:if @test='!project.available' | {cem-alert @tone=warning @label="Choose an available build configuration, or add a CEM-ML document or native command configuration."}}
     }
     {cem:variable @name=status @select='project.attempt.status ?? "idle"'}

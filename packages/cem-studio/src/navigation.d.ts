@@ -6,6 +6,7 @@ import type { CemStudioBrowserValidator } from './feature-tour.js';
 import type { CemStudioWorkbenchProjection, CemStudioBuildArtifact } from './workbench.js';
 
 export interface CemStudioProjectPreviewState {
+    readonly buildCli?: { readonly text?: string; readonly status: 'preparing' | 'copying' | 'success' | 'failed'; readonly message?: string; readonly projectRevision?: number };
     readonly pins: readonly CemStudioBuildSnapshotSummary[];
     readonly pinId?: string;
     readonly pinSelection?: string;
@@ -111,6 +112,7 @@ export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     saveBuildEntryArtifact(path: string): Promise<void>;
     buildProjectPreview(): Promise<void>;
     cancelProjectPreview(): void;
+    copyProjectBuildCli(writeText?: (text: string) => Promise<void>): Promise<void>;
     copyPreview(writeText?: (text: string) => Promise<void>): Promise<void>;
     downloadPreview(save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>): Promise<void>;
 }
@@ -143,11 +145,18 @@ export function createCemStudioProjectPreview(options: {
     selectComparisonArtifact(path: string): void;
     refreshPins(): Promise<void>;
     build(): Promise<void>;
+    copyBuildCli(writeText?: (text: string) => Promise<void>): Promise<void>;
     cancel(): void;
     copy(writeText?: (text: string) => Promise<void>): Promise<void>;
     download(save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>): Promise<void>;
     dispose(): void;
 };
+
+export function describeCemStudioProjectBuildCli(bundle: { project: {
+    entries: readonly { id: string; runConfigResourceId?: string; resourceIds?: readonly string[] }[];
+    resources: readonly { id: string; path: string; referencePath?: string; contentType?: string; schema?: string }[];
+}; contents: Readonly<Record<string, string | Uint8Array | ArrayBuffer>> },
+    configuration: { id: string; resourceId?: string }): string;
 
 export interface CemStudioSourcePreviewState {
     readonly status: 'idle' | 'pending' | 'ready' | 'error';

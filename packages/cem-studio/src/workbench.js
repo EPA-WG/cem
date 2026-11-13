@@ -1990,6 +1990,7 @@ export async function mountCemStudioWorkbench({
             'save-build-entry': ({ fields }) => perform(() => workbench.saveBuildEntryArtifact(fields.entryArtifact?.[0] ?? '')),
             'build-project': () => { buildPromise = workbench.buildProjectPreview(); return buildPromise; },
             'cancel-build': () => workbench.cancelProjectPreview(),
+            'copy-build-cli': () => perform(() => workbench.copyProjectBuildCli(typeof clipboard?.writeText === 'function' ? text => clipboard.writeText(text) : undefined)),
             'copy-preview': () => perform(() => workbench.copyPreview(typeof clipboard?.writeText === 'function' ? text => clipboard.writeText(text) : undefined)),
             'download-preview': () => perform(() => workbench.downloadPreview(download)),
         };
@@ -2969,7 +2970,7 @@ function workbenchPreviewState(state, includePreview = true) {
             pinnedInputs: project.pinId ? project.projection?.buildRun.inputs : undefined,
             pinnedArtifacts: project.pinId ? project.artifacts.map(({ path, sha256, byteLength }) => ({ path, sha256, byteLength })) : undefined,
             entryArtifact: project.entryArtifact, entryEditable: project.entryEditable, canEditEntry: project.canEditEntry, entryBusy: project.entryBusy, entryError: project.entryError, entryMessage: project.entryMessage,
-            artifactPath: project.selectedArtifact?.path ?? project.artifactPath, available: project.available, busy: project.busy, attempt: project.attempt,
+            artifactPath: project.selectedArtifact?.path ?? project.artifactPath, available: project.available, busy: project.busy, attempt: project.attempt, buildCli: project.buildCli,
             stale: project.stale, hasRun: Boolean(project.projection), missingArtifact: project.missingArtifact,
             selected: Boolean(project.selectedArtifact), copyable: Boolean(project.selectedArtifact && project.preview?.kind !== 'download'), artifacts: project.artifacts.map(({ path }) => ({ path })),
             runId: project.projection?.buildRun.id, projectRevision: project.projection?.buildRun.projectRevision,

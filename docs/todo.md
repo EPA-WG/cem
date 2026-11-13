@@ -43,15 +43,22 @@ for the current native work and the conditional diagnostic items on recurrence.
 
 ## Studio project build command
 
-- [ ] Add a **Copy CLI** button on Studio's project page beside **Cancel build**.
+- [x] Add a **Copy CLI** button on Studio's project page beside **Cancel build**.
       Copy the Bash command equivalent of **Build project** to the clipboard and,
       on the same click, display that command in a `<code>` section immediately
       after the buttons group. Use the current project's actual build configuration
       and shared command rendering, with correct shell quoting and working-folder
       context; keep the UI declarative through shared CEM controls.
-  - [ ] Verify copied/displayed command parity with project build inputs, correct
+  - [x] Verify copied/displayed command parity with project build inputs, correct
         button placement, repeated clicks, project/configuration changes,
         clipboard failure, keyboard access and theme behavior in focused fixtures.
+      Verified 2026-11-13: 50 navigation/browser cases pass, including keyboard
+      activation, six themes, unavailable/denied clipboard access and stale
+      configuration/revision results. Native Bash checks match conversion/query
+      stdout and both report/Login graph builds (4/2 generated artifacts);
+      derived HTML preserves spaces, apostrophes, `$()` and backticks literally.
+      Studio build, typecheck, lint, UI classification and packaged-output checks
+      pass. See [the build command contract](cem-studio.md#project-builds-and-artifact-previews).
 
 - [ ] In Studio project options, use a radio-button group when there are **7 or
       fewer choices**, and retain the dropdown for **8 or more**. Preserve the
@@ -59,6 +66,14 @@ for the current native work and the conditional diagnostic items on recurrence.
       handle an empty choice set explicitly.
   - [ ] Verify the 0/1/7/8-choice boundaries, project/configuration changes,
         selection preservation, keyboard/accessibility and theme behavior.
+
+- [ ] Extend Copy CLI to builds with renamed resolver addresses or Studio-only
+      URI operands through shared native filesystem export/resolver mapping.
+      Preserve stable identities, nested graph/resource resolution and original
+      source bytes. Until that lowering exists, these builds report that a
+      portable mapping is required and do not offer a misleading command.
+  - [ ] Verify renamed inputs, nested graph references and explicit Studio URI
+        operands against materialized project outputs before enabling copy.
 
 - [ ] Add shared project-bootstrap configuration and a guided questionnaire,
       available to Studio, VS Code and IntelliJ. In Studio, **New project** opens

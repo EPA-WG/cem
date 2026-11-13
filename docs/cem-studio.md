@@ -165,7 +165,7 @@ active entity controlling the center, with independent retained tree context.
 | Last activated navigation entity | Center | Right output pane |
 | --- | --- | --- |
 | Examples/Saved root or collection folder | Child projects/folders with icon, name and description | Contextual empty state |
-| Project | Project build configuration, Build/Cancel, status and diagnostics | Selected/configured entry from its generated output set |
+| Project | Project build configuration, Build/Cancel/Copy CLI, status and diagnostics | Selected/configured entry from its generated output set |
 | Source directory | Child resources/folders | Contextual output/empty state; never an unrelated file preview |
 | Source resource | Shared `cem-source-editor`; samples remain read-only until cloned | Derived view for this resource and revision |
 | Configuration | Native configuration/graph authoring and execution | Corresponding configuration output |
@@ -1300,6 +1300,20 @@ A project owns resources and named build configurations. A configuration usually
 references a native transformation graph, but a single CEM-ML document can use a
 derived one-step HTML rendering configuration without requiring an authored graph
 file. Both paths use the same native execution and result contracts.
+
+**Copy CLI** sits beside **Cancel build**. It reads the selected configuration's
+saved command resource through the shared CLI grammar and Bash serializer,
+without starting a build. A derived document-to-HTML build uses the same
+conversion options with the document's exported path. The exact copied command
+appears in a `<pre><code>` section immediately after the buttons and stays
+available for manual copying if the clipboard is unavailable or denied. Repeated
+clicks replace the same section; project, saved revision or configuration changes
+clear it and invalidate pending clipboard results. Run the command from the
+saved/materialized or exported project directory with a matching `cem-ml` binary
+on `PATH`. Unsaved edits are excluded. Renamed resolver addresses and top-level
+Studio-only URI operands are refused with a mapping-required diagnostic rather
+than silently rewriting stable identities. Filesystem mapping support remains a
+follow-up for those builds.
 
 Declared JSON graph exports use the shared native publication byte policy. An
 abstract JSON primary without native writer bytes is UTF-8 JSON with two-space

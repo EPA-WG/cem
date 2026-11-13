@@ -785,7 +785,8 @@
             "path": "../src/navigation.js",
             "contentType": "text/javascript",
             "moduleImports": {
-                "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
+                "@epa-wg/cem-elements": "@epa-wg/cem-elements/index",
+                "@epa-wg/cem-ml-cli/browser-commands": "@epa-wg/cem-ml-cli/browser-commands"
             }
         },
         "@epa-wg/cem-elements/dist/lib/plaintext-editor-capability.js": {
