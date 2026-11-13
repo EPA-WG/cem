@@ -1393,6 +1393,33 @@ Scheduling note: the former Phase 5 UI Kit and Phase 7 Figma demo were reassigne
 now reserved for the separate Hugo framework integration; the other non-Figma phase identifiers remain stable so their
 established plans and references do not need unrelated renumbering.
 
+### XForms + CEM components: XFormsMaterial evaluation
+
+Goal: evaluate combining XForms with production CEM components as a potential
+**XFormsMaterial** library, with shared declarative form behavior, CEM themes
+and accessible controls. Treat the name and implementation approach as proposals
+until the evaluation and pilot establish their fit.
+
+- [ ] Pin the XForms version, processor and compatibility profile; evaluate
+      Saxon-Forms as a candidate alongside a native CEM mapping. Compare data
+      models, instance/bind ownership, constraints, computed values, form actions,
+      repeats and submissions, and publish explicit capability gaps.
+- [ ] Map XForms controls and state to existing CEM components, including labels,
+      help, validation messages, required/readonly/relevant states, selection and
+      repeated controls. Preserve native keyboard behavior, accessibility,
+      inherited tokens, themes and forced colors.
+- [ ] Compare processor integration, declarative adapters and native lowering for
+      interoperability, lifecycle/event semantics, source attribution, licensing,
+      deployment size, cold start and offline behavior. Keep any reusable behavior
+      in shared native/runtime capabilities and UI composition in CEM-ML.
+- [ ] Define a bounded pilot and conformance fixtures before implementation or
+      parity claims. Connect the findings to the schema-constraints UI and CEM
+      stack comparison, documenting which layer owns data, rules and UI state.
+- [ ] Follow up with **John Dziurlaj (John Dziurłaj)** about compatibility,
+      representative forms and adoption after **Saxon-Forms: Towards a complete
+      implementation of XForms 1.1**, presented with O'Neil Delpratt at Declarative
+      Amsterdam 2026. See the [program](https://declarative.amsterdam/program).
+
 ## Phase 6 - CEM Site
 
 Goal: publish the system as a navigable product, not just packages.
