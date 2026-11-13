@@ -24,6 +24,10 @@ the generic `cem:project-payload @select="…"` instruction. The browser behavio
 adapter owns only focus, keyboard/pointer interaction, selection state, popup
 lifecycle, and `ElementInternals`; it does not create option DOM or put live DOM
 identity/functions into the data snapshot.
+Plain choices project their label; rich choices retain their projected descendants.
+The canonical authored payload retains the original nodes in both cases. Only
+state needed by the active presentation is duplicated into rendered slices, so
+radio presentation does not carry unused popup metadata into recovery islands.
 
 ## Author vocabulary
 
@@ -72,8 +76,27 @@ component-specific color defaults.
 | no `multiple`, `size` absent/`1` | select-only `combobox` plus transient `listbox` | opening previews; Enter, Space, click, Tab, or outside blur commits; Escape restores the pre-open value |
 | no `multiple`, `size > 1` | persistent single-select `listbox` | arrows, Home/End, PageUp/PageDown, typeahead, and pointer commit immediately |
 | `multiple` | persistent `aria-multiselectable` listbox | arrows move active descendant; Space/click toggles; Shift extends a range; Ctrl/Cmd+A selects all enabled options |
+| single dropdown shape with positive `radio-threshold`, choice count at/below that limit | `radiogroup` containing production `cem-radio` controls | native radio arrows and Space commit immediately; disabled choices are skipped |
 
-Focus remains on the combobox/listbox and options use
+`radio-threshold="7"` opts into radio presentation for up to seven choices and
+keeps a dropdown for eight or more. Absent, zero or invalid thresholds retain the
+dropdown. Explicit `size > 1` and `multiple` listboxes retain their modes. Load
+the `cem-radio` declaration alongside `cem-select` when enabling this option.
+Mark an empty prompt option with `data-placeholder`: it remains available to the
+dropdown and reset/required contracts, but is excluded from the radio list and
+threshold count. Other empty-value choices, such as “Project root”, remain real
+choices. Disabled choices count toward the threshold. Empty sets display “No
+options available.” without an invented selection.
+
+Radio presentation keeps the select's public value, form name, required state,
+reset and restore APIs. Internal radio names/form ownership are isolated: only
+the form-associated select submits the public name/value. Each user commit emits
+one host `input`/`change` pair. Group labels, rich content, help and disabled states
+are retained; the native radio owns focus. Presentation changes preserve the
+current choice; changing `value` or `value-request` remains an explicit request.
+Radio styling belongs to `cem-radio`, including inherited tokens and forced colors.
+
+In dropdown/listbox presentation, focus remains on the combobox/listbox and options use
 `aria-activedescendant`. Disabled options are skipped. Open dropdowns expose a
 truthful `aria-expanded="true"`, `aria-controls`, and active-descendant target;
 closed dropdowns omit references to the absent popup.
@@ -133,8 +156,11 @@ used as z-index values.
 - Authored option elements are an initialization payload, not a live
   `HTMLOptionsCollection`. The authoritative render consumes that payload;
   post-upgrade DOM insertion/removal is not an option-management API. Use the
-  value APIs for selection changes and recreate the control when its option
-  source changes.
+  value APIs for selection changes. A declarative parent can update choices
+  through the runtime's authored-payload reconciliation, preserving
+  the controlled selected value across the threshold. Otherwise recreate the
+  control when its option source changes. Both declarations must be registered
+  with the parent runtime so it can reconcile their owned payload containers.
 - Mixed vocabularies, nested groups, interactive option descendants, and
   duplicate values do not receive ambiguous best-effort behavior.
 

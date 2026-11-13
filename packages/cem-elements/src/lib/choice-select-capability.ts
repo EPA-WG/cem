@@ -10,11 +10,15 @@ import {
 
 type SelectMode = 'dropdown' | 'single-listbox' | 'multiple-listbox';
 
-interface RenderOption extends NormalizedOption {
+interface RenderOption extends Pick<NormalizedOption, 'value' | 'label'> {
+    disabled?: boolean;
+    children?: NormalizedOption['children'];
+    rich?: boolean;
+    placeholder?: boolean;
     index: number;
-    id: string;
-    selected: boolean;
-    active: boolean;
+    id?: string;
+    selected?: boolean;
+    active?: boolean;
 }
 
 interface RenderGroup {
@@ -34,6 +38,7 @@ interface SelectState {
     expanded: boolean;
     previewSelection: string[];
     mode: SelectMode;
+    radio: boolean; // Derived presentation; the checkpoint's single-selection mode stays unchanged.
     payloadSignature: string;
     authoredValue: string | null;
     valueRequest: string | null;
@@ -51,6 +56,8 @@ interface SelectState {
     onClick?: EventListener;
     onMouseDown?: EventListener;
     onKeyDown?: EventListener;
+    onInput?: EventListener;
+    onChange?: EventListener;
     onFocusOut?: EventListener;
     onDocumentPointerDown?: EventListener;
 }
@@ -94,6 +101,24 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
             if (option && instance.contains(option)) event.preventDefault();
         };
         state.onKeyDown = (event) => handleKeyDown(instance, state, event as KeyboardEvent);
+        const radioEvent = (event: Event) => {
+            const target = event.target;
+            if (!state.radio || !(target instanceof HTMLInputElement)
+                || target.type !== 'radio' || target.name !== `${state.listboxId}-radio` || !instance.contains(target)) return;
+            // Publish one host-owned input/change pair, with the select's value
+            // and form state already committed; hide the internal native pair.
+            event.stopImmediatePropagation();
+            if (event.type !== 'change' || !target.checked || isDisabled(instance, state)) return;
+            const owner = target.closest<HTMLElement>('[data-option-index]');
+            const index = Number(owner?.dataset.optionIndex);
+            const option = enabledOptionAt(state, index);
+            if (!option || state.selection.has(option.value)) return;
+            state.activeIndex = index;
+            state.selection = new Set([option.value]);
+            update(instance, state, true);
+        };
+        state.onInput = radioEvent;
+        state.onChange = radioEvent;
         state.onFocusOut = () => {
             queueMicrotask(() => {
                 if (state.expanded && !instance.contains(instance.ownerDocument.activeElement)) {
@@ -112,6 +137,8 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         instance.addEventListener('click', state.onClick);
         instance.addEventListener('mousedown', state.onMouseDown);
         instance.addEventListener('keydown', state.onKeyDown);
+        instance.addEventListener('input', state.onInput, true);
+        instance.addEventListener('change', state.onChange, true);
         instance.addEventListener('focusout', state.onFocusOut);
         instance.ownerDocument.addEventListener('pointerdown', state.onDocumentPointerDown, true);
     },
@@ -133,7 +160,18 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         }
         if (state.refocus) {
             state.refocus = false;
-            controlFor(instance)?.focus({ preventScroll: true });
+            const focus = () => state.radio
+                ? instance.querySelector<HTMLElement>('cem-radio[checked] input:not(:disabled)')
+                    ?? instance.querySelector<HTMLElement>('cem-radio input:not(:disabled)')
+                : controlFor(instance);
+            const control = focus();
+            if (control) control.focus({ preventScroll: true });
+            else if (state.radio) {
+                const active = instance.ownerDocument.activeElement;
+                instance.ownerDocument.defaultView?.requestAnimationFrame(() => {
+                    if (state.connected && instance.ownerDocument.activeElement === active) focus()?.focus({ preventScroll: true });
+                });
+            }
         }
         if (state.expanded || state.mode !== 'dropdown') {
             const activeId = activeOptionId(state);
@@ -158,6 +196,8 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         if (state.onClick) instance.removeEventListener('click', state.onClick);
         if (state.onMouseDown) instance.removeEventListener('mousedown', state.onMouseDown);
         if (state.onKeyDown) instance.removeEventListener('keydown', state.onKeyDown);
+        if (state.onInput) instance.removeEventListener('input', state.onInput, true);
+        if (state.onChange) instance.removeEventListener('change', state.onChange, true);
         if (state.onFocusOut) instance.removeEventListener('focusout', state.onFocusOut);
         if (state.onDocumentPointerDown) {
             instance.ownerDocument.removeEventListener('pointerdown', state.onDocumentPointerDown, true);
@@ -204,6 +244,7 @@ function stateFor(instance: HTMLElement): SelectState {
         expanded: false,
         previewSelection: [],
         mode: 'dropdown',
+        radio: false,
         payloadSignature: '',
         authoredValue: null,
         valueRequest: null,
@@ -225,14 +266,12 @@ function stateFor(instance: HTMLElement): SelectState {
 function synchronizeModel(instance: HTMLElement, state: SelectState): void {
     const snapshot = state.context?.snapshot();
     if (!snapshot) return;
-    const mode = selectMode(instance);
     const authoredValue = instance.getAttribute('value');
     const valueRequest = instance.getAttribute('value-request');
     const valueRequested = Boolean(valueRequest && valueRequest !== state.valueRequest && authoredValue !== null);
     state.valueRequest = valueRequest;
     const signature = JSON.stringify(snapshot.payload.nodes);
     const payloadChanged = signature !== state.payloadSignature;
-    const modeChanged = mode !== state.mode;
 
     if (payloadChanged) {
         const normalized = normalizeChoiceOptions(snapshot.payload.nodes);
@@ -246,12 +285,24 @@ function synchronizeModel(instance: HTMLElement, state: SelectState): void {
         }
     }
 
+    const mode = selectMode(instance);
+    const threshold = Number(instance.getAttribute('radio-threshold'));
+    const radio = mode === 'dropdown' && Number.isSafeInteger(threshold) && threshold > 0
+        && state.options.filter(option => !option.placeholder).length <= threshold;
+    const modeChanged = mode !== state.mode || radio !== state.radio;
+    if (modeChanged) {
+        state.refocus = state.initialized && instance.contains(instance.ownerDocument.activeElement);
+        state.expanded = false;
+        state.previewSelection = [];
+    }
     state.mode = mode;
+    state.radio = radio;
     const authoredValueChanged = authoredValue !== state.authoredValue;
     state.authoredValue = authoredValue;
     if (!state.initialized || payloadChanged || modeChanged || authoredValueChanged || valueRequested) {
         const requested = (valueRequested && authoredValue !== null ? [authoredValue] : state.pendingValues)
-            ?? (authoredValue !== null ? [authoredValue] : state.initialized ? [...state.selection] : state.defaultValues);
+            ?? (authoredValue !== null && (!state.initialized || authoredValueChanged)
+                ? [authoredValue] : state.initialized ? [...state.selection] : state.defaultValues);
         state.pendingValues = undefined;
         if (valueRequested) { state.expanded = false; state.previewSelection = []; }
         state.selection = normalizedSelection(state, requested, !state.initialized);
@@ -293,32 +344,43 @@ function renderSlices(instance: HTMLElement, state: SelectState): Record<string,
         disabled: group.disabled,
         options: group.options.map((option) => {
             const rendered: RenderOption = {
-                ...option,
+                value: option.value,
+                label: option.label,
+                // Plain choices render their label. Keep their original nodes
+                // in the canonical payload, without duplicating a parsed tree
+                // in every rendered slice and checkpoint data island.
+                ...(option.rich ? { rich: true, children: option.children } : {}),
+                ...(option.placeholder ? { placeholder: true } : {}),
                 index,
-                id: `${state.listboxId}-option-${index}`,
-                selected: state.selection.has(option.value),
-                active: index === state.activeIndex,
+                ...(state.radio ? {
+                    ...(option.disabled ? { disabled: true } : {}),
+                    ...(state.selection.has(option.value) ? { selected: true } : {}),
+                } : { disabled: option.disabled, selected: state.selection.has(option.value),
+                    id: `${state.listboxId}-option-${index}`, active: index === state.activeIndex }),
             };
             index += 1;
             return rendered;
-        }),
+        }).filter(option => !state.radio || !option.placeholder),
     }));
     const selected = state.options.find((option) => state.selection.has(option.value));
     return {
         groups,
         value: selected?.value ?? '',
-        selectedValues: state.options.filter((option) => state.selection.has(option.value)).map((option) => option.value),
-        displayLabel: selected?.label || instance.getAttribute('placeholder') || 'Choose',
-        selectedChildren: selected?.children ?? [],
-        selectedRich: selected?.rich ?? false,
-        activeOptionId: activeOptionId(state),
-        expanded: state.expanded,
-        mode: state.mode,
-        popupId: state.popupId,
+        radio: state.radio,
         listboxId: state.listboxId,
         labelId: state.labelId,
-        visibleRows: reflectedSize(instance),
         behaviorDisabled: state.formDisabled,
+        ...(!state.radio ? {
+            selectedValues: state.options.filter((option) => state.selection.has(option.value)).map((option) => option.value),
+            displayLabel: selected?.label || instance.getAttribute('placeholder') || 'Choose',
+            selectedChildren: selected?.rich ? selected.children : [],
+            selectedRich: selected?.rich ?? false,
+            activeOptionId: activeOptionId(state),
+            expanded: state.expanded,
+            mode: state.mode,
+            popupId: state.popupId,
+            visibleRows: reflectedSize(instance),
+        } : {}),
     };
 }
 
@@ -328,6 +390,7 @@ function activeOptionId(state: SelectState): string {
 
 function handleClick(instance: HTMLElement, state: SelectState, event: Event): void {
     if (isDisabled(instance, state)) return;
+    if (state.radio) return;
     const target = event.target instanceof Element ? event.target : null;
     const option = target?.closest<HTMLElement>('[data-option-index]');
     if (option && instance.contains(option)) {
@@ -353,6 +416,7 @@ function handleClick(instance: HTMLElement, state: SelectState, event: Event): v
 }
 
 function handleKeyDown(instance: HTMLElement, state: SelectState, event: KeyboardEvent): void {
+    if (state.radio) return; // Native radio grouping owns arrows and Space.
     if (isDisabled(instance, state) || !controlFor(instance)?.contains(event.target as Node)) return;
     if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
         event.preventDefault();
@@ -532,7 +596,7 @@ function enabledOptionAt(state: SelectState, index: number): NormalizedOption | 
 }
 
 function update(instance: HTMLElement, state: SelectState, emit: boolean): void {
-    state.refocus = instance.contains(instance.ownerDocument.activeElement);
+    state.refocus = !state.radio && instance.contains(instance.ownerDocument.activeElement);
     state.context?.setSlices(renderSlices(instance, state));
     synchronizeForm(instance, state);
     if (emit) {
@@ -683,7 +747,7 @@ function installHostApi(instance: HTMLElement, state: SelectState): void {
         },
         reportValidity: {
             configurable: true,
-            value: () => state.context?.internals?.reportValidity() ?? true,
+            value: () => { synchronizeForm(instance, state); return state.context?.internals?.reportValidity() ?? true; },
         },
     });
 }

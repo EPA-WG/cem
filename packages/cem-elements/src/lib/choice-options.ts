@@ -5,6 +5,7 @@ export interface NormalizedChoiceOption {
     label: string;
     disabled: boolean;
     defaultSelected: boolean;
+    placeholder?: boolean;
     children: SerializedPayloadNode[];
     rich: boolean;
     group: number;
@@ -79,6 +80,7 @@ export function normalizeChoiceOptions(nodes: readonly SerializedPayloadNode[]):
             label,
             disabled: inheritedDisabled || Object.hasOwn(node.attributes, 'disabled'),
             defaultSelected: Object.hasOwn(node.attributes, 'selected'),
+            ...(Object.hasOwn(node.attributes, 'data-placeholder') ? { placeholder: true } : {}),
             children: node.children,
             rich: hasRichContent(node.children),
             group: groups.indexOf(group),

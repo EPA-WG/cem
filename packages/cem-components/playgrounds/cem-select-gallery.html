@@ -125,6 +125,7 @@
 <li data-gallery-attribute="disabled"><code>disabled</code></li>
 <li data-gallery-attribute="multiple"><code>multiple</code></li>
 <li data-gallery-attribute="size"><code>size</code></li>
+<li data-gallery-attribute="radio-threshold"><code>radio-threshold</code>: positive choice limit for native radio presentation; absent/0 keeps dropdowns. Explicit listboxes retain their mode.</li>
 <li data-gallery-attribute="indicator"><code>indicator</code></li>
 <li data-gallery-attribute="busy"><code>busy</code></li>
 <li data-gallery-attribute="invalid"><code>invalid</code></li>
@@ -138,6 +139,10 @@
 </template></cem-demo-element>
 <cem-demo-element legend="Grouped rich choices"><template slot="source">
 <cem-select label="Reviewer"><cem-option-group label="Engineering"><cem-option value="ada" selected><strong>Ada</strong> Lovelace</cem-option><cem-option value="grace">Grace Hopper</cem-option></cem-option-group><cem-option-group label="Unavailable" disabled><cem-option value="former">Former reviewer</cem-option></cem-option-group></cem-select>
+</template></cem-demo-element>
+<cem-demo-element legend="Adaptive radio choices" description="Opt in with radio-threshold=7. Up to seven real choices render through cem-radio; larger sets keep the dropdown. Mark prompts with data-placeholder so they do not count. Legitimate empty-value choices still count and remain selectable. Load cem-radio alongside cem-select."><template slot="source">
+<form><cem-select label="Project type" name="project-type" radio-threshold="7" value=""><cem-option value="" data-placeholder>Choose a project type</cem-option><cem-option-group label="Projects"><cem-option value="site"><strong>Markdown</strong> site</cem-option><cem-option value="pipeline">Transformation pipeline</cem-option><cem-option value="conversion">Simple conversion</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-option-group></cem-select><cem-action type="reset">Reset selection</cem-action></form>
+<cem-select label="Empty choices" radio-threshold="7"><cem-option value="" data-placeholder>Choose a value</cem-option></cem-select>
 </template></cem-demo-element>
 <cem-demo-element legend="Single and multiple listboxes"><template slot="source">
 <cem-select label="Priority" size="4" indicator="outline" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><cem-select label="Channels" multiple size="4" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select>

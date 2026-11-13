@@ -1,18 +1,6 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-navigation">
  <template id="cem-studio-workbench-navigation" type="text/cem-ml">
-{module |
- {attribute @name=section | tree}
- {slice @name=state}{slice @name=pending | false}
- {template @name=tree-node |
-  {param @name=item}
-  {param @name=folderIcons}
-  {body |
-   {cem-tree-item @value={item.key} @label={item.name} @icon={if item.kind == "folder" || item.kind == "output-folder" || (folderIcons &amp;&amp; item.kind == "project") { "📁" } else { if item.kind == "project" { "◇" } else { if item.kind == "configuration" { "▷" } else { "▤" } } }} @kind={if item.kind == "file" { "resource" } else { if item.kind == "output-file" { "output" } else { item.kind } }} |
-    {cem:for-each @as=child @select=item.children | {call @template=tree-node @with:item={child} @with:folderIcons={folderIcons}}}
-   }
-  }
- }
- {body |
+{module |{attribute @name=section | tree}{slice @name=state}{slice @name=pending | false}{template @name=tree-node |{param @name=item}{param @name=folderIcons}{body |{cem-tree-item @value={item.key} @label={item.name} @icon={if item.kind == "folder" || item.kind == "output-folder" || (folderIcons &amp;&amp; item.kind == "project") { "📁" } else { if item.kind == "project" { "◇" } else { if item.kind == "configuration" { "▷" } else { "▤" }}}} @kind={if item.kind == "file" { "resource" } else { if item.kind == "output-file" { "output" } else { item.kind }}} |{cem:for-each @as=child @select=item.children |{call @template=tree-node @with:item={child} @with:folderIcons={folderIcons}}}}}}{body |
  {style @type=text/css |```
 :scope { display: block; block-size: 100%; min-block-size: 0; min-inline-size: 0; }
 :scope[section='actions'] { display: inline-flex; block-size: auto; }
@@ -22,85 +10,7 @@
 [part~='actions'] > cem-icon-button:where(:hover:not([disabled])) { --cem-action-outline-display: block; }
 [part~='count'] { font-size: var(--cem-typography-ui-font-size); }
 ```}
- {cem:if @test=datadom.slices.state |
-  {cem:variable @name=state @select=datadom.slices.state}
-  {cem:variable @name=nav @select=state.navigation}
-  {cem:variable @name=busy @select='datadom.slices.pending || nav.busy'}
-  {cem:if @test='section == "actions" &amp;&amp; nav' |
-   {span @part=actions @role=group @aria-label="Selection actions" |
-    {span @part=count @aria-live=polite | {$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}
-    {cem-icon-button @image=add @aria-label="Create" @title="Create" @size=small @variant=contextual @host-command=create-selected @disabled={if busy || !nav.canCreate { true } else { null }}}
-    {cem-icon-button @image=content_copy @aria-label="Clone selected" @title="Clone selected" @size=small @variant=contextual @host-command=clone-selected @disabled={if busy || !nav.canClone { true } else { null }}}
-    {cem-icon-button @image=delete @aria-label="Remove selected" @title="Remove selected" @size=small @variant=contextual @host-command=delete-selected @disabled={if busy || !nav.canDelete { true } else { null }}}
-   }
-  }
-  {cem:if @test='section != "actions"' |
-  {nav @part=navigation @aria-label="Studio navigation" |
-   {cem:if @test=nav |
-    {cem-accordion @fit=fill @label="Navigation" |
-     {cem-expansion @layout=panel @indicator=start @label=Projects @value=projects @notify-toggle=true @expanded={if nav.sections.projects { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |
-      {span @slot=summary @part=summary | {cem-icon @image="◇"} Projects}
-      {cem-tree @data-cem-density=super-compact @label=Projects @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.projects.selected} @expanded-values={nav.trees.projects.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-projects |
-       {call @template=tree-node @with:item={nav.samples}}
-       {call @template=tree-node @with:item={nav.saved}}
-      }
-     }
-     {cem-expansion @layout=panel @indicator=start @label=Structure @value=structure @notify-toggle=true @expanded={if nav.sections.structure { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |
-      {span @slot=summary @part=summary | {cem-icon @image="📁"} Structure}
-      {cem:choose |
-       {cem:when @test=nav.files |
-        {cem-tree @data-cem-density=super-compact @label="Project files" @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.structure.selected} @expanded-values={nav.trees.structure.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-structure |
-         {call @template=tree-node @with:item={nav.files} @with:folderIcons={true}}
-        }
-       }
-       {cem:otherwise | {p | Select a project to view its files.}}
-      }
-     }
-     {cem-expansion @layout=panel @indicator=start @label="Output files" @value=output @notify-toggle=true @expanded={if nav.sections.output { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |
-      {span @slot=summary @part=summary | {cem-icon @image="▤"} Output files}
-      {cem:choose |
-       {cem:when @test=nav.output |
-        {cem-tree @data-cem-density=super-compact @label="Output files" @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.output.selected} @expanded-values={nav.trees.output.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-output |
-         {cem:variable @name=outputItems @select='if seq:count(nav.output.children.key) == 1 &amp;&amp; nav.output.children.kind == "output-folder" { nav.output.children.children } else { nav.output.children }'}
-         {cem:for-each @as=item @select=outputItems | {call @template=tree-node @with:item={item}}}
-        }
-       }
-       {cem:otherwise | {p | Build a project to populate its output files.}}
-      }
-     }
-    }
-   }
-   {cem:if @test='state.navigationError &amp;&amp; (nav.selection.project || !str:starts_with(state.navigationError.code, "cem.studio.selection."))' | {cem-alert @tone=danger @label={state.navigationError.message}}}
-        {cem:if @test=state.transition |
-            {cem-dialog @label="Resolve drafts before navigation" @mode=modal @default-open=true
-                @closedby=closerequest @host-command=navigation-cancel @host-command-event=cem-close |
-                {cem-text | {$ | if state.transition.stage == "source" { "Save or discard the source draft before leaving." } else { if state.transition.stage == "command" { "Apply or discard the command draft before leaving." } else { if state.transition.stage == "confirmation" { "Applying this command replaces the selected configuration. Confirm replacement or keep the draft." } else { "Opening the requested workbench…" } } } }}
-                {cem:if @test=state.transition.error | {cem-alert @tone=danger @label={state.transition.error.message}}}
-                {cem-stack |
-                    {cem:if @test='state.transition.stage == "source"' |
-                        {cem-action @host-command=navigation-save @variant=primary @disabled={if busy { true } else { null }} | Save source}
-                    }
-                    {cem:if @test='state.transition.stage == "command"' |
-                        {cem-action @host-command=navigation-apply @variant=primary @disabled={if busy { true } else { null }} | Apply command}
-                    }
-                    {cem:if @test='state.transition.stage == "confirmation"' |
-                        {cem-action @host-command=navigation-confirm @variant=destructive @disabled={if busy { true } else { null }} | Replace configuration}
-                    }
-                    {cem:if @test='(state.transition.stage == "source") || (state.transition.stage == "command") || (state.transition.stage == "confirmation")' |
-                        {cem-action @host-command=navigation-discard @variant=destructive @disabled={if busy { true } else { null }} | Discard draft}
-                    }
-                    {cem:if @test='state.transition.error &amp;&amp; (state.transition.stage == "opening")' |
-                        {cem-action @host-command=navigation-retry @variant=primary | Retry navigation}
-                    }
-                    {cem-action @host-command=navigation-cancel @variant=contextual | Cancel navigation}
-                }
-            }
-        }
-
-  }
- }
- }
- }
-}
+ {cem:if @test=datadom.slices.state |{cem:variable @name=state @select=datadom.slices.state}{cem:variable @name=nav @select=state.navigation}{cem:variable @name=busy @select='datadom.slices.pending || nav.busy'}{cem:if @test='section == "actions" &amp;&amp; nav' |{span @part=actions @role=group @aria-label="Selection actions" |{span @part=count @aria-live=polite |{$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}{cem-icon-button @image=add @aria-label="Create" @title="Create" @size=small @variant=contextual @host-command=create-selected @disabled={if busy || !nav.canCreate { true } else { null }}}{cem-icon-button @image=content_copy @aria-label="Clone selected" @title="Clone selected" @size=small @variant=contextual @host-command=clone-selected @disabled={if busy || !nav.canClone { true } else { null }}}{cem-icon-button @image=delete @aria-label="Remove selected" @title="Remove selected" @size=small @variant=contextual @host-command=delete-selected @disabled={if busy || !nav.canDelete { true } else { null }}}}}{cem:if @test='section != "actions"' |{nav @part=navigation @aria-label="Studio navigation" |{cem:if @test=nav |{cem-accordion @fit=fill @label="Navigation" |{cem-expansion @layout=panel @indicator=start @label=Projects @value=projects @notify-toggle=true @expanded={if nav.sections.projects { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |{span @slot=summary @part=summary |{cem-icon @image="◇"} Projects}{cem-tree @data-cem-density=super-compact @label=Projects @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.projects.selected} @expanded-values={nav.trees.projects.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-projects |{call @template=tree-node @with:item={nav.samples}}{call @template=tree-node @with:item={nav.saved}}}}{cem-expansion @layout=panel @indicator=start @label=Structure @value=structure @notify-toggle=true @expanded={if nav.sections.structure { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |{span @slot=summary @part=summary |{cem-icon @image="📁"} Structure}{cem:choose |{cem:when @test=nav.files |{cem-tree @data-cem-density=super-compact @label="Project files" @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.structure.selected} @expanded-values={nav.trees.structure.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-structure |{call @template=tree-node @with:item={nav.files} @with:folderIcons={true}}}}{cem:otherwise |{p | Select a project to view its files.}}}}{cem-expansion @layout=panel @indicator=start @label="Output files" @value=output @notify-toggle=true @expanded={if nav.sections.output { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |{span @slot=summary @part=summary |{cem-icon @image="▤"} Output files}{cem:choose |{cem:when @test=nav.output |{cem-tree @data-cem-density=super-compact @label="Output files" @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.output.selected} @expanded-values={nav.trees.output.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-output |{cem:variable @name=outputItems @select='if seq:count(nav.output.children.key) == 1 &amp;&amp; nav.output.children.kind == "output-folder" { nav.output.children.children } else { nav.output.children }'}{cem:for-each @as=item @select=outputItems |{call @template=tree-node @with:item={item}}}}}{cem:otherwise |{p | Build a project to populate its output files.}}}}}}{cem:if @test='state.navigationError &amp;&amp; (nav.selection.project || !str:starts_with(state.navigationError.code, "cem.studio.selection."))' |{cem-alert @tone=danger @label={state.navigationError.message}}}{cem:if @test=state.transition |{cem-dialog @label="Resolve drafts before navigation" @mode=modal @default-open=true
+                @closedby=closerequest @host-command=navigation-cancel @host-command-event=cem-close |{cem-text |{$ | if state.transition.stage == "source" { "Save or discard the source draft before leaving." } else { if state.transition.stage == "command" { "Apply or discard the command draft before leaving." } else { if state.transition.stage == "confirmation" { "Applying this command replaces the selected configuration. Confirm replacement or keep the draft." } else { "Opening the requested workbench…" }}}}}{cem:if @test=state.transition.error |{cem-alert @tone=danger @label={state.transition.error.message}}}{cem-stack |{cem:if @test='state.transition.stage == "source"' |{cem-action @host-command=navigation-save @variant=primary @disabled={if busy { true } else { null }} | Save source}}{cem:if @test='state.transition.stage == "command"' |{cem-action @host-command=navigation-apply @variant=primary @disabled={if busy { true } else { null }} | Apply command}}{cem:if @test='state.transition.stage == "confirmation"' |{cem-action @host-command=navigation-confirm @variant=destructive @disabled={if busy { true } else { null }} | Replace configuration}}{cem:if @test='(state.transition.stage == "source") || (state.transition.stage == "command") || (state.transition.stage == "confirmation")' |{cem-action @host-command=navigation-discard @variant=destructive @disabled={if busy { true } else { null }} | Discard draft}}{cem:if @test='state.transition.error &amp;&amp; (state.transition.stage == "opening")' |{cem-action @host-command=navigation-retry @variant=primary | Retry navigation}}{cem-action @host-command=navigation-cancel @variant=contextual | Cancel navigation}}}}}}}}}
  </template>
 </cem-element>

@@ -126,6 +126,7 @@
 {slice @name=value | ada}
 {slice @name=autocomplete | off}
 {slice @name=indicator | underline}
+{slice @name=radioThreshold | 0}
 {slice @name=size | unset}
 {slice @name=multiple | false}
 {slice @name=disabled | false}
@@ -142,6 +143,13 @@
         {cem-field @label="Value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
         {cem-field @label="Autocomplete" @value="{$datadom.slices.autocomplete}" @slice=autocomplete @slice-event=input @slice-value="$target.value"}
         {div @class=property-groups |
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-radio-threshold @slice=radioThreshold @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-radio-threshold | Radio threshold}
+            {div @class=property-options |
+                {cem-radio @name=select-property-radio-threshold @value=0 @checked=true | Off (dropdown)}
+                {cem-radio @name=select-property-radio-threshold @value=7 | Radios for up to seven choices}
+            }
+        }
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-indicator @slice=indicator @slice-event=change @slice-value="$target.value" |
             {legend @id=select-property-indicator | Indicator}
             {div @class=property-options |
@@ -198,7 +206,7 @@
     {section @aria-label="Select preview" |
         {h2 | Preview}
         {form @id=select-preview-form @class=preview |
-            {cem-select @id=select-preview @label="{$datadom.slices.label}" @placeholder="{$datadom.slices.placeholder}" @name="{$datadom.slices.name}" @value="{$datadom.slices.value}" @autocomplete="{$datadom.slices.autocomplete}" @indicator="{$datadom.slices.indicator}" @size={if datadom.slices.size == "unset" { null } else { datadom.slices.size }} @multiple={if datadom.slices.multiple == "true" { true } else { null }} @disabled={if datadom.slices.disabled == "true" { true } else { null }} @required={if datadom.slices.required == "true" { true } else { null }} @busy={if datadom.slices.busy == "true" { true } else { null }} @invalid={if datadom.slices.invalid == "true" { true } else { null }} @describedby=select-preview-help @error={if datadom.slices.invalid == "true" { "select-preview-error" } else { null }} @slice=committed @slice-event=change @slice-value="$target.value" |
+            {cem-select @id=select-preview @radio-threshold={datadom.slices.radioThreshold} @label="{$datadom.slices.label}" @placeholder="{$datadom.slices.placeholder}" @name="{$datadom.slices.name}" @value="{$datadom.slices.value}" @autocomplete="{$datadom.slices.autocomplete}" @indicator="{$datadom.slices.indicator}" @size={if datadom.slices.size == "unset" { null } else { datadom.slices.size }} @multiple={if datadom.slices.multiple == "true" { true } else { null }} @disabled={if datadom.slices.disabled == "true" { true } else { null }} @required={if datadom.slices.required == "true" { true } else { null }} @busy={if datadom.slices.busy == "true" { true } else { null }} @invalid={if datadom.slices.invalid == "true" { true } else { null }} @describedby=select-preview-help @error={if datadom.slices.invalid == "true" { "select-preview-error" } else { null }} @slice=committed @slice-event=change @slice-value="$target.value" |
                 {span @slot=help @id=select-preview-help | Choose an available person.}
                 {cem-option @value="" | No selection}
                 {cem-option-group @label=Engineering |
@@ -210,7 +218,7 @@
             {cem:if @test='datadom.slices.invalid == "true"' | {p @id=select-preview-error | Example validation message: choose another person.}}
         }
         {p @id=select-committed @role=status | Last committed value: {$datadom.slices.committed}}
-        {p | Use Tab to focus the preview. In dropdown mode, Arrow keys preview options, Enter commits and Escape cancels. Multiple mode uses Space or click to toggle choices. Disabled choices are skipped.}
+        {p | Use Tab to focus the preview. In dropdown mode, Arrow keys preview options, Enter commits and Escape cancels. Radio presentation uses native arrows and Space. Multiple mode uses Space or click to toggle choices. Disabled choices are skipped.}
         {p | Value sets one matching option (ada or grace); an unmatched value clears selection and shows the placeholder. An empty field removes the value attribute and retains the current selection. Choose No selection in the preview to commit an empty value. In multiple mode, use the listbox to choose several. Visible rows above 1 creates a persistent listbox. Multiple creates a listbox at any row setting.}
         {p | Busy shows pending feedback. Invalid displays the example validation message; Required uses native form validation. Focus, hover and popup expansion follow real interaction.}
     }

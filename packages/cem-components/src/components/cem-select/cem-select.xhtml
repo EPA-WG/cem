@@ -3,55 +3,12 @@
              capability="choice-select"
              uid-seed="cem-components/cem-select">
   <template id="cem-select" type="text/cem-ml">
-    {module |
-      {attribute @name=label | Select}
-      {attribute @name=indicator | underline}
-      {slice @name=groups}
-      {slice @name=value | }
-      {slice @name=selectedValues}
-      {slice @name=expanded | false}
-      {slice @name=mode | dropdown}
-
-      {template @name=select-option |
-        {param @name=option}
-        {body |
-          {div @id="{$option.id}" @class=cem-select__option @part=option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |
-            {cem:choose |
-              {cem:when @test="option.rich" | {cem:project-payload @select="option.children" | }}
-              {cem:otherwise | {$option.label}}
-            }
-          }
-        }
-      }
-
-      {template @name=select-options |
-        {param @name=groups}
-        {body |
-          {cem:for-each @select="groups" @as=group |
-            {cem:choose |
-              {cem:when @test="group.label" |
-                {div @class=cem-select__group @part=group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |
-                  {div @class=cem-select__group-label @part=group-label @aria-hidden=true | {$group.label}}
-                  {cem:for-each @select="group.options" @as=option |
-                    {call @template=select-option @with:option="{$option}"}
-                  }
-                }
-              }
-              {cem:otherwise |
-                {cem:for-each @select="group.options" @as=option |
-                  {call @template=select-option @with:option="{$option}"}
-                }
-              }
-            }
-          }
-        }
-      }
-
-      {body |
+    {module |{attribute @name=label | Select}{attribute @name=indicator | underline}{attribute @name=radio-threshold | 0}{slice @name=groups}{slice @name=value | }{slice @name=selectedValues}{slice @name=expanded | false}{slice @name=mode | dropdown}{template @name=select-option |{param @name=option}{body |{div @id="{$option.id}" @class=cem-select__option @part=option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |{cem:choose |{cem:when @test="option.rich" |{cem:project-payload @select="option.children" | }}{cem:otherwise |{$option.label}}}}}}{template @name=select-options |{param @name=groups}{body |{cem:for-each @select="groups" @as=group |{cem:choose |{cem:when @test="group.label" |{div @class=cem-select__group @part=group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |{div @class=cem-select__group-label @part=group-label @aria-hidden=true |{$group.label}}{cem:for-each @select="group.options" @as=option |{call @template=select-option @with:option="{$option}"}}}}{cem:otherwise |{cem:for-each @select="group.options" @as=option |{call @template=select-option @with:option="{$option}"}}}}}}}{body |
         {style @type="text/css" |```
           :scope[hidden]:where(:not([hidden="until-found" i])) {
               display: none;
           }
+          [part~='radios'], [part~='radio-group'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; }
           :host {
             display: inline-block;
             inline-size: 100%;
@@ -81,7 +38,7 @@
             letter-spacing: var(--cem-typography-tag-letter-spacing);
           }
 
-          [part~='control'] {
+          [part~='control']:where(:not([part~='radios'])) {
             min-inline-size: 0;
             --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
             --_cem-input-indicator-focus-width: var(--cem-stroke-none);
@@ -106,7 +63,7 @@
             text-align: start;
           }
 
-          [part~='control']:where(:focus-visible, [aria-expanded='true'], [aria-invalid='true']:not(:disabled):not([aria-disabled='true']), [data-state='loading']:not(:disabled):not([aria-disabled='true'])) {
+          [part~='control']:where(:not([part~='radios'])):where(:focus-visible, [aria-expanded='true'], [aria-invalid='true']:not(:disabled):not([aria-disabled='true']), [data-state='loading']:not(:disabled):not([aria-disabled='true'])) {
             box-shadow:
               0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
                 calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
@@ -119,46 +76,46 @@
                 var(--cem-input-indicator-selection-color);
           }
 
-          :scope:where([indicator='outline']) [part~='control'] {
+          :scope:where([indicator='outline']) [part~='control']:where(:not([part~='radios'])) {
             --_cem-input-indicator-appearance: var(
               --cem-input-indicator-appearance,
               var(--cem-indicator-appearance-outline)
             );
           }
 
-          [part~='control']:where(:not(:disabled):not([aria-disabled='true']):hover) {
+          [part~='control']:where(:not([part~='radios'])):where(:not(:disabled):not([aria-disabled='true']):hover) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
           }
 
-          [part~='control']:where([data-state='loading']:not(:disabled):not([aria-disabled='true'])) {
+          [part~='control']:where(:not([part~='radios'])):where([data-state='loading']:not(:disabled):not([aria-disabled='true'])) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
             --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
           }
 
-          [part~='control']:where([aria-invalid='true']:not(:disabled):not([aria-disabled='true'])) {
+          [part~='control']:where(:not([part~='radios'])):where([aria-invalid='true']:not(:disabled):not([aria-disabled='true'])) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
             --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
           }
 
-          [part~='control']:where([aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover) {
+          [part~='control']:where(:not([part~='radios'])):where([aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
           }
 
-          [part~='control']:where(:disabled, [aria-disabled='true']) {
+          [part~='control']:where(:not([part~='radios'])):where(:disabled, [aria-disabled='true']) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
             --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
             cursor: default;
           }
 
-          [part~='control']:focus-visible {
+          [part~='control']:where(:not([part~='radios'])):focus-visible {
             --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
           }
 
-          [part~='control'][aria-expanded='true'] {
+          [part~='control']:where(:not([part~='radios']))[aria-expanded='true'] {
             --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
           }
 
-          button[part~='control'] {
+          button[part~='control']:where(:not([part~='radios'])) {
             align-items: center;
             cursor: pointer;
             display: flex;
@@ -237,20 +194,20 @@
           }
 
           @media (forced-colors: active) {
-            [part~='control'] {
+            [part~='control']:where(:not([part~='radios'])) {
               box-shadow: none;
             }
 
-            [part~='control']:where(:not(:disabled):not([aria-disabled='true']):hover) {
+            [part~='control']:where(:not([part~='radios'])):where(:not(:disabled):not([aria-disabled='true']):hover) {
               border-color: Highlight;
             }
 
-            [part~='control']:where([data-state='loading']:not(:disabled):not([aria-disabled='true']):not([aria-invalid='true'])) {
+            [part~='control']:where(:not([part~='radios'])):where([data-state='loading']:not(:disabled):not([aria-disabled='true']):not([aria-invalid='true'])) {
               outline: var(--cem-stroke-pending) solid CanvasText;
               outline-offset: var(--cem-stroke-indicator-offset);
             }
 
-            [part~='control']:focus-visible {
+            [part~='control']:where(:not([part~='radios'])):focus-visible {
               outline: var(--cem-stroke-focus) solid CanvasText;
               outline-offset: var(--cem-stroke-indicator-offset);
             }
@@ -278,38 +235,6 @@
           }
         ```}
 
-        {div @class=cem-select @part=root |
-          {span @id="{$datadom.slices.labelId}" @class=cem-select__label @part=label |
-            {slot @name=label | {$label}}
-          }
-          {cem:choose |
-            {cem:when @test='datadom.slices.mode == "dropdown"' |
-              {button @type=button @class=cem-select__control @part=control @role=combobox @value="{$datadom.slices.value}" @aria-labelledby="{$datadom.slices.labelId}" @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.popupId } else { null }} @aria-activedescendant={if datadom.slices.expanded { datadom.slices.activeOptionId } else { null }} @disabled={if (seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled { true } else { null }} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={if seq:count(datadom.attributes.invalid) > 0 { true } else { null }} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |
-                {span @class=cem-select__value @part=value |
-                  {cem:choose |
-                    {cem:when @test="datadom.slices.selectedRich" |
-                      {cem:project-payload @select="datadom.slices.selectedChildren" | }
-                    }
-                    {cem:otherwise | {$datadom.slices.displayLabel}}
-                  }
-                }
-                {span @class=cem-select__marker @part=marker @aria-hidden=true | ▾}
-              }
-              {cem:if @test="datadom.slices.expanded" |
-                {div @id="{$datadom.slices.popupId}" @class=cem-select__popup @part="popup listbox" @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |
-                  {call @template=select-options @with:groups="{$datadom.slices.groups}"}
-                }
-              }
-            }
-            {cem:otherwise |
-              {div @id="{$datadom.slices.listboxId}" @class="cem-select__control cem-select__listbox" @part="control listbox" @role=listbox @tabindex={if (seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled { -1 } else { 0 }} @aria-labelledby="{$datadom.slices.labelId}" @aria-multiselectable={if datadom.slices.mode == "multiple-listbox" { true } else { null }} @aria-activedescendant="{$datadom.slices.activeOptionId}" @aria-disabled={(seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled} @data-visible-rows="{$datadom.slices.visibleRows}" @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={if seq:count(datadom.attributes.invalid) > 0 { true } else { null }} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |
-                {call @template=select-options @with:groups="{$datadom.slices.groups}"}
-              }
-            }
-          }
-          {span @class=cem-select__help @part=help | {slot @name=help}}
-        }
-      }
-    }
+        {div @class=cem-select @part=root |{span @id="{$datadom.slices.labelId}" @class=cem-select__label @part=label |{slot @name=label |{$label}}}{cem:choose |{cem:when @test=datadom.slices.radio |{div @class=cem-select__control @part="control radios" @role=radiogroup @aria-labelledby={datadom.slices.labelId} @aria-disabled={(seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled} @aria-required={if seq:count(datadom.attributes.required) > 0 { true } else { null }} @aria-invalid={if seq:count(datadom.attributes.invalid) > 0 { true } else { null }} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |{cem:if @test='seq:count(datadom.slices.groups.options.value) == 0' |{span @role=status | No options available.}}{cem:for-each @select=datadom.slices.groups @as=group |{cem:if @test='seq:count(group.options.value) > 0' |{div @part=radio-group @role={if group.label { "group" } else { null }} @aria-label={if group.label { group.label } else { null }} |{cem:if @test=group.label |{span @part=group-label @aria-hidden=true |{$ | group.label}}}{cem:for-each @select=group.options @as=option |{cem-radio @name={str:concat((datadom.slices.listboxId, "-radio"), "")} @form={str:concat((datadom.slices.listboxId, "-internal-form"), "")} @value={option.value} @data-option-index={option.index} @checked={if option.selected { true } else { null }} @disabled={if option.disabled || (seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled { true } else { null }} @indicator={indicator} @busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @invalid={if seq:count(datadom.attributes.invalid) > 0 { true } else { null }} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |{cem:choose |{cem:when @test=option.rich |{cem:project-payload @select=option.children | }}{cem:otherwise |{$ | option.label}}}}}}}}}}{cem:when @test='datadom.slices.mode == "dropdown"' |{button @type=button @class=cem-select__control @part=control @role=combobox @value="{$datadom.slices.value}" @aria-labelledby="{$datadom.slices.labelId}" @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.popupId } else { null }} @aria-activedescendant={if datadom.slices.expanded { datadom.slices.activeOptionId } else { null }} @disabled={if (seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled { true } else { null }} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={if seq:count(datadom.attributes.invalid) > 0 { true } else { null }} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |{span @class=cem-select__value @part=value |{cem:choose |{cem:when @test="datadom.slices.selectedRich" |{cem:project-payload @select="datadom.slices.selectedChildren" | }}{cem:otherwise |{$datadom.slices.displayLabel}}}}{span @class=cem-select__marker @part=marker @aria-hidden=true | ▾}}{cem:if @test="datadom.slices.expanded" |{div @id="{$datadom.slices.popupId}" @class=cem-select__popup @part="popup listbox" @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |{call @template=select-options @with:groups="{$datadom.slices.groups}"}}}}{cem:otherwise |{div @id="{$datadom.slices.listboxId}" @class="cem-select__control cem-select__listbox" @part="control listbox" @role=listbox @tabindex={if (seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled { -1 } else { 0 }} @aria-labelledby="{$datadom.slices.labelId}" @aria-multiselectable={if datadom.slices.mode == "multiple-listbox" { true } else { null }} @aria-activedescendant="{$datadom.slices.activeOptionId}" @aria-disabled={(seq:count(datadom.attributes.disabled) > 0) || datadom.slices.behaviorDisabled} @data-visible-rows="{$datadom.slices.visibleRows}" @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={if seq:count(datadom.attributes.invalid) > 0 { true } else { null }} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |{call @template=select-options @with:groups="{$datadom.slices.groups}"}}}}{span @class=cem-select__help @part=help |{slot @name=help}}}}}
   </template>
 </cem-element>

@@ -1454,7 +1454,8 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(root.querySelector('cem-fieldset[label="Graph configuration"] fieldset').disabled).toBe(false);
         await choose('graph-attribute', 'style-policy');
         expect(root.querySelectorAll('form[host-command="edit-graph"]')).toHaveLength(1);
-        expect(root.querySelector('cem-fieldset[label="Graph configuration"] cem-select[name=value] [role=combobox]')).not.toBeNull();
+        expect(root.querySelector('cem-fieldset[label="Graph configuration"] cem-select[name=value] [role=radiogroup]')).not.toBeNull();
+        expect([...root.querySelectorAll('cem-fieldset[label="Graph configuration"] cem-select[name=value] input[type=radio]')].map(input => input.value)).toEqual(['auto', 'inline', 'link', 'omit']);
     });
 
     it('uses native metadata to edit enum, boolean and literal fields without dropping other options', () => {
@@ -1804,7 +1805,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         submit.click();
         try {
             await expect.poll(() => group.disabled).toBe(true);
-            expect(choice.querySelector('button').matches(':disabled')).toBe(true);
+            expect(choice.querySelector('input[type=radio]').matches(':disabled')).toBe(true);
             await expect.poll(() => validator.previewResourceCommand.mock.calls.length).toBe(previews + 1);
             submit.click();
             expect(validator.previewResourceCommand.mock.calls.length).toBe(previews + 1);

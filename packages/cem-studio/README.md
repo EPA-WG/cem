@@ -542,6 +542,11 @@ Single CEM-ML documents get a derived HTML conversion. Sample builds never
 import or mutate saved projects. Native output reading remains shared in
 cem-elements; Studio owns run admission and routing without UI JavaScript.
 Navigation and exact output transfers use the same host-service boundary.
+Project choices use the shared select's `radio-threshold="7"` presentation:
+up to seven choices appear as CEM radios; eight or more retain the dropdown.
+Prompts do not count, legitimate empty choices remain selectable, and empty sets
+show an explicit message. Declarative option-list updates preserve the selected
+value as configurations and projects change.
 `cem-media-preview` supplies literal text, isolated documents and download
 messages. Unrelated updates retain native previews and focus; pending transfers
 cannot duplicate copy/download operations. The service retains exact output bytes,

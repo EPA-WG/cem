@@ -1301,6 +1301,16 @@ references a native transformation graph, but a single CEM-ML document can use a
 derived one-step HTML rendering configuration without requiring an authored graph
 file. Both paths use the same native execution and result contracts.
 
+Studio's project, operation and graph choice controls use shared `cem-select`
+with `radio-threshold="7"`: one to seven choices render as native CEM radios;
+eight or more retain the dropdown. “Choose…” prompts are explicitly marked and
+excluded from the count; real empty-valued choices, such as Project root or
+Current build, remain available. Empty sets show an explicit no-options message.
+Authored option payloads reconcile project/configuration changes while retaining
+valid selections. Form names, native radio keyboard behavior, group labels and
+disabled/required/reset state stay owned by
+the shared controls.
+
 **Copy CLI** sits beside **Cancel build**. It reads the selected configuration's
 saved command resource through the shared CLI grammar and Bash serializer,
 without starting a build. A derived document-to-HTML build uses the same

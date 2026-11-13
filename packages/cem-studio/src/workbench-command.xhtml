@@ -1,166 +1,33 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-command">
  <!-- Keep adjacent CEM-ML instructions contiguous: body indentation adds checkpoint witness nodes. -->
   <template id="cem-studio-workbench-command" type="text/cem-ml">
-{module |
-    {slice @name=command}{slice @name=sourceReadOnly | false}
-    {slice @name=pending | false}
-    {slice @name=busy | false}
-    {slice @name=fieldId | }
-    {template @name=operation-group-label |
-        {param @name=group}
-        {body |
-            {cem:choose |
-                {cem:when @test='group.id == "operation-options"' | Operation options}
-                {cem:when @test='group.id == "output-options"' | Output options}
-                {cem:when @test='group.id == "formatter-options"' | Formatter options}
-                {cem:when @test='group.id == "colorizer-options"' | Colorizer options}
-                {cem:when @test='group.id == "output-style"' | Output style}
-                {cem:when @test='group.id == "source-context"' | Source interpretation}
-                {cem:when @test='group.id == "query_source"' | Query source}
-                {cem:when @test='group.id == "template_source"' | Template source}
-                {cem:otherwise | {$ | str:concat(group.fields.label, ", ")}}
-            }
-        }
-    }
-    {template @name=operation-field-control |{param @name=field}{param @name=name}{param @name=help}{body |{cem:choose |{cem:when @test=field.multiline |{cem-textarea @name={name} @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |{cem:if @test=help | {span @slot=help | {$ | help}}}}}{cem:when @test='field.type == "text"' |{cem-text-field @name={name} @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |{cem:if @test=help | {span @slot=help | {$ | help}}}}}{cem:otherwise |{cem-select @name={name} @value={field.value} |{span @slot=label | {$ | field.label}}{cem:if @test=help | {span @slot=help | {$ | help}}}{cem:choose |{cem:when @test='field.type == "boolean"' |{option @value=true @selected={if field.value == "true" { true } else { null }} | True}{option @value=false @selected={if field.value == "false" { true } else { null }} | False}}{cem:otherwise |{option @value="" @disabled=true @selected={if field.value == "" { true } else { null }} | Choose a value}{cem:for-each @as=choice @select=field.choices | {option @value={choice.value} @selected={if choice.value == field.value { true } else { null }} | {$ | choice.value}}}}}}}}}}
-    {template @name=command-target-detail |
-        {param @name=application}
-        {param @name=busy}
-        {body |
-            {div @part=command-target-detail @data-cem-studio-command-target-detail="" |
-                {cem:choose |
-                    {cem:when @test='application.target.mode == "current"' |
-                        {cem-alert @label={if application.targets.current { str:concat((application.targets.current.name, "; ", application.targets.current.kind, if application.targets.current.compatible { "; compatible" } else { "; replacement confirmation required" }), "") } else { "No current configuration is available" }} @tone={if application.targets.current.compatible { "success" } else { "warning" }}}
-                    }
-                    {cem:when @test='application.target.mode == "existing"' |
-                        {cem-select @data-cem-studio-command-target-existing="" @disabled={if busy { true } else { null }}
+{module |{slice @name=command}{slice @name=sourceReadOnly | false}{slice @name=pending | false}{slice @name=busy | false}{slice @name=fieldId | }{template @name=operation-group-label |{param @name=group}{body |{cem:choose |{cem:when @test='group.id == "operation-options"' | Operation options}{cem:when @test='group.id == "output-options"' | Output options}{cem:when @test='group.id == "formatter-options"' | Formatter options}{cem:when @test='group.id == "colorizer-options"' | Colorizer options}{cem:when @test='group.id == "output-style"' | Output style}{cem:when @test='group.id == "source-context"' | Source interpretation}{cem:when @test='group.id == "query_source"' | Query source}{cem:when @test='group.id == "template_source"' | Template source}{cem:otherwise |{$ | str:concat(group.fields.label, ", ")}}}}}{template @name=operation-field-control |{param @name=field}{param @name=name}{param @name=help}{body |{cem:choose |{cem:when @test=field.multiline |{cem-textarea @name={name} @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |{cem:if @test=help |{span @slot=help |{$ | help}}}}}{cem:when @test='field.type == "text"' |{cem-text-field @name={name} @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |{cem:if @test=help |{span @slot=help |{$ | help}}}}}{cem:otherwise |{cem-select @radio-threshold=7 @name={name} @value={field.value} |{span @slot=label |{$ | field.label}}{cem:if @test=help |{span @slot=help |{$ | help}}}{cem:choose |{cem:when @test='field.type == "boolean"' |{option @value=true @selected={if field.value == "true" { true } else { null }} | True}{option @value=false @selected={if field.value == "false" { true } else { null }} | False}}{cem:otherwise |{option @value="" @disabled=true @selected={if field.value == "" { true } else { null }} @data-placeholder=true | Choose a value}{cem:for-each @as=choice @select=field.choices |{option @value={choice.value} @selected={if choice.value == field.value { true } else { null }} |{$ | choice.value}}}}}}}}}}{template @name=command-target-detail |{param @name=application}{param @name=busy}{body |{div @part=command-target-detail @data-cem-studio-command-target-detail="" |{cem:choose |{cem:when @test='application.target.mode == "current"' |{cem-alert @label={if application.targets.current { str:concat((application.targets.current.name, "; ", application.targets.current.kind, if application.targets.current.compatible { "; compatible" } else { "; replacement confirmation required" }), "") } else { "No current configuration is available" }} @tone={if application.targets.current.compatible { "success" } else { "warning" }}}}{cem:when @test='application.target.mode == "existing"' |{cem-select @radio-threshold=7 @data-cem-studio-command-target-existing="" @disabled={if busy { true } else { null }}
                             @host-command=target-existing @host-command-event=change
-                            @name=command-target-existing @value={application.target.entryId ?? ""} |
-                            {span @slot=label | Existing configuration}
-                            {cem:choose |
-                                {cem:when @test="seq:count(application.targets.existing.id) == 0" |
-                                    {option @disabled=true @value="" | No existing configurations}
-                                }
-                                {cem:otherwise |
-                                    {cem:for-each @as=entry @select=application.targets.existing |
-                                        {cem:variable @name=entryLabel
-                                            @select='str:concat((entry.name, " — ", entry.kind, if entry.compatible { "" } else { " (replacement)" }), "")'}
-                                        {option @value={entry.id} |
-                                            {$ | entryLabel}
-                    }   }   }   }   }   }
-                    {cem:otherwise |
-                        {cem-text-field @data-cem-studio-command-target-name="" @disabled={if busy { true } else { null }}
+                            @name=command-target-existing @value={application.target.entryId ?? ""} |{span @slot=label | Existing configuration}{cem:choose |{cem:when @test="seq:count(application.targets.existing.id) == 0" |{option @disabled=true @value="" @data-placeholder=true | No existing configurations}}{cem:otherwise |{cem:for-each @as=entry @select=application.targets.existing |{cem:variable @name=entryLabel
+                                            @select='str:concat((entry.name, " — ", entry.kind, if entry.compatible { "" } else { " (replacement)" }), "")'}{option @value={entry.id} |{$ | entryLabel}}}}}}}{cem:otherwise |{cem-text-field @data-cem-studio-command-target-name="" @disabled={if busy { true } else { null }}
                             @host-command=target-name @host-command-event=input
-                            @label="New configuration name" @name=command-target-name @required=true @value={application.newPageName} |
-                            {span @slot=help | A collision-safe stable id is assigned by the repository.}
-                        }
-                        {cem-select @data-cem-studio-command-target-parent="" @disabled={if busy { true } else { null }}
+                            @label="New configuration name" @name=command-target-name @required=true @value={application.newPageName} |{span @slot=help | A collision-safe stable id is assigned by the repository.}}{cem-select @radio-threshold=7 @data-cem-studio-command-target-parent="" @disabled={if busy { true } else { null }}
                             @host-command=target-parent @host-command-event=change
-                            @name=command-target-parent @value={application.newPageParentId ?? ""} |
-                            {span @slot=label | Parent}
-                            {option @value="" | Project root}
-                            {cem:for-each @as=entry @select=application.targets.parents |
-                                {option @value={entry.id} |
-                                    {$ | entry.name}
-    }   }   }   }   }   }   }   }
-    {template @name=command-application |
-        {param @name=application}
-        {param @name=busy}
-        {param @name=applyDisabled}
-        {body |
-            {section @aria-label="Apply Studio command" @data-cem-studio-command-application="" |
- {div @part=command-application |
-                {cem:choose |
-                    {cem:when @test=application |
-                        {cem-select @data-cem-studio-command-target-mode="" @disabled={if busy { true } else { null }}
+                            @name=command-target-parent @value={application.newPageParentId ?? ""} |{span @slot=label | Parent}{option @value="" | Project root}{cem:for-each @as=entry @select=application.targets.parents |{option @value={entry.id} |{$ | entry.name}}}}}}}}}{template @name=command-application |{param @name=application}{param @name=busy}{param @name=applyDisabled}{body |{section @aria-label="Apply Studio command" @data-cem-studio-command-application="" |{div @part=command-application |{cem:choose |{cem:when @test=application |{cem-select @radio-threshold=7 @data-cem-studio-command-target-mode="" @disabled={if busy { true } else { null }}
                             @host-command=target-mode @host-command-event=change
-                            @name=command-target-mode @value={application.target.mode} |
-                            {span @slot=label | Apply to}
-                            {option @disabled={if application.targets.current { null } else { true }} @value=current | Current configuration}
-                            {option @disabled={if seq:count(application.targets.existing.id) &gt; 0 { null } else { true }} @value=existing | Existing configuration}
-                            {option @value=new | New configuration (recommended when incompatible)}
-                        }
-                        {call @template=command-target-detail @with:application="{$application}"
-                            @with:busy="{$busy}"}
-                        {cem-alert @data-cem-studio-command-apply-alert="" @label={if application.error { str:concat((application.error.code, ": ", application.error.message), "") } else { if application.status == "applying" { "Applying exact authored command bytes in one repository transaction." } else { if application.status == "running" { "Running the exact committed command revision." } else { if application.status == "confirmation-required" { "Replacement is incompatible. Creating a new configuration is recommended; replacement requires confirmation." } else { if application.status == "conflict" { "The project changed before Apply; reload before trying again." } else { if application.status == "stale" { "The command or project advanced after the last Apply." } else { if application.status == "run-stale" { "Execution completed, but a newer command, draft, or project revision exists." } else { if application.status == "run-invalid" { "The exact committed command ran with diagnostics." } else { if application.status == "ran" { str:concat(("Ran committed project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "."), "") } else { if application.status == "applied" { str:concat(("Applied project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "; not executed."), "") } else { if application.status == "failed" { "The command could not be applied or executed." } else { if application.target.mode == "new" { "Apply will create a new inspection configuration without executing it." } else { "Apply will update the selected configuration without executing it." } } } } } } } } } } } }} @tone={if (application.status == "failed") || (application.status == "conflict") || (application.status == "run-invalid") { "danger" } else { if (application.status == "confirmation-required") || (application.status == "stale") || (application.status == "run-stale") { "warning" } else { if (application.status == "applied") || (application.status == "ran") { "success" } else { "info" } } }}}
-                        {cem-grid |
-                            {cem-action @data-cem-studio-command-apply="" @disabled={if applyDisabled { true } else { null }}
+                            @name=command-target-mode @value={application.target.mode} |{span @slot=label | Apply to}{option @disabled={if application.targets.current { null } else { true }} @value=current | Current configuration}{option @disabled={if seq:count(application.targets.existing.id) &gt; 0 { null } else { true }} @value=existing | Existing configuration}{option @value=new | New configuration (recommended when incompatible)}}{call @template=command-target-detail @with:application="{$application}"
+                            @with:busy="{$busy}"}{cem-alert @data-cem-studio-command-apply-alert="" @label={if application.error { str:concat((application.error.code, ": ", application.error.message), "") } else { if application.status == "applying" { "Applying exact authored command bytes in one repository transaction." } else { if application.status == "running" { "Running the exact committed command revision." } else { if application.status == "confirmation-required" { "Replacement is incompatible. Creating a new configuration is recommended; replacement requires confirmation." } else { if application.status == "conflict" { "The project changed before Apply; reload before trying again." } else { if application.status == "stale" { "The command or project advanced after the last Apply." } else { if application.status == "run-stale" { "Execution completed, but a newer command, draft, or project revision exists." } else { if application.status == "run-invalid" { "The exact committed command ran with diagnostics." } else { if application.status == "ran" { str:concat(("Ran committed project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "."), "") } else { if application.status == "applied" { str:concat(("Applied project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "; not executed."), "") } else { if application.status == "failed" { "The command could not be applied or executed." } else { if application.target.mode == "new" { "Apply will create a new inspection configuration without executing it." } else { "Apply will update the selected configuration without executing it." }}}}}}}}}}}}} @tone={if (application.status == "failed") || (application.status == "conflict") || (application.status == "run-invalid") { "danger" } else { if (application.status == "confirmation-required") || (application.status == "stale") || (application.status == "run-stale") { "warning" } else { if (application.status == "applied") || (application.status == "ran") { "success" } else { "info" }}}}}{cem-grid |{cem-action @data-cem-studio-command-apply="" @disabled={if applyDisabled { true } else { null }}
                                 @host-command=apply @host-command-event=click @loading={if application.status == "applying" { true } else { null }}
-                                @variant=alternate | Apply}
-                            {cem-action @data-cem-studio-command-apply-run="" @disabled={if applyDisabled { true } else { null }}
+                                @variant=alternate | Apply}{cem-action @data-cem-studio-command-apply-run="" @disabled={if applyDisabled { true } else { null }}
                                 @host-command=apply-run @host-command-event=click @loading={if application.status == "running" { true } else { null }}
-                                @variant=primary | Apply &amp; Run}
-                        }
-                        {cem:if @test='(application.status == "confirmation-required") &amp;&amp; !application.navigationPending' |
-                            {cem-dialog @data-cem-studio-command-replace-dialog=""
+                                @variant=primary | Apply &amp; Run}}{cem:if @test='(application.status == "confirmation-required") &amp;&amp; !application.navigationPending' |{cem-dialog @data-cem-studio-command-replace-dialog=""
                                 @default-open=true @host-command=dismiss-replacement
                                 @host-command-event=cem-close
-                                @label="Confirm incompatible configuration replacement" @mode=modal |
-                                {cem-text | The selected configuration has an incompatible kind. Creating a new inspection configuration is recommended.}
-                                {cem-grid |
-                                    {cem-action @data-cem-studio-command-use-new="" @disabled={if busy { true } else { null }}
+                                @label="Confirm incompatible configuration replacement" @mode=modal |{cem-text | The selected configuration has an incompatible kind. Creating a new inspection configuration is recommended.}{cem-grid |{cem-action @data-cem-studio-command-use-new="" @disabled={if busy { true } else { null }}
                                         @host-command=use-new @host-command-event=click
-                                        @variant=primary | Use new configuration}
-                                    {cem-action @data-cem-studio-command-replace-confirm=""
+                                        @variant=primary | Use new configuration}{cem-action @data-cem-studio-command-replace-confirm=""
                                         @disabled={if applyDisabled { true } else { null }} @host-command=confirm-replacement
-                                        @host-command-event=click @variant=destructive | Replace selected configuration}
-                                    {cem-action @data-cem-studio-command-replace-cancel="" @disabled={if busy { true } else { null }}
+                                        @host-command-event=click @variant=destructive | Replace selected configuration}{cem-action @data-cem-studio-command-replace-cancel="" @disabled={if busy { true } else { null }}
                                         @host-command=cancel-replacement @host-command-event=click
-                                        @variant=contextual | Cancel}
-                    }   }   }   }
-                    {cem:otherwise |
-                        {cem-alert @label="Prepare a command to choose its target configuration" @tone=info}
-    }   }   }
-}   }   }
-    {template @name=command-changes |
-        {param @name=command}
-        {param @name=commandLabel}
-        {body |
-            {div @data-cem-studio-command-changes="" |
-                {cem:choose |
-                    {cem:when @test="!command" |
-                        {cem-alert @label="No command has been prepared" @tone=info}
-                    }
-                    {cem:when @test='command.status == "invalid"' |
-                        {cem-alert @label={commandLabel} @tone=danger}
-                    }
-                    {cem:when @test="seq:count(command.changes.path) == 0" |
-                        {cem-alert @label="The command matches the active normalized run plan"
-                            @tone=success}
-                    }
-                    {cem:otherwise |
-                        {cem-table @label="CLI Command semantic changes" |
-                            {div @role=row |
-                                {strong @role=columnheader | Area}
-                                {strong @role=columnheader | Path}
-                                {strong @role=columnheader | Change}
-                                {strong @role=columnheader | Current}
-                                {strong @role=columnheader | Draft}
-                            }
-                            {cem:for-each @as=change @select=command.changes |
-                                {cem:variable @name=beforeText @select='change.beforeText ?? "—"'}
-                                {cem:variable @name=afterText @select='change.afterText ?? "—"'}
-                                {div @role=row |
-                                    {span @role=cell |
-                                        {$ | change.category}
-                                    }
-                                    {span @role=cell |
-                                        {$ | change.path}
-                                    }
-                                    {span @role=cell |
-                                        {$ | change.kind}
-                                    }
-                                    {cem:variable @name=beforeDisplay
-                                        @select='if str:length(beforeText) &gt; 240 { str:concat((str:slice(beforeText, 0, 239), "…"), "") } else { beforeText }'}
-                                    {span @role=cell |
-                                        {$ | beforeDisplay}
-                                    }
-                                    {cem:variable @name=afterDisplay
-                                        @select='if str:length(afterText) &gt; 240 { str:concat((str:slice(afterText, 0, 239), "…"), "") } else { afterText }'}
-                                    {span @role=cell |
-                                        {$ | afterDisplay}
-    }   }   }   }   }   }   }   }   }
-    {body |
+                                        @variant=contextual | Cancel}}}}}{cem:otherwise |{cem-alert @label="Prepare a command to choose its target configuration" @tone=info}}}}}}}{template @name=command-changes |{param @name=command}{param @name=commandLabel}{body |{div @data-cem-studio-command-changes="" |{cem:choose |{cem:when @test="!command" |{cem-alert @label="No command has been prepared" @tone=info}}{cem:when @test='command.status == "invalid"' |{cem-alert @label={commandLabel} @tone=danger}}{cem:when @test="seq:count(command.changes.path) == 0" |{cem-alert @label="The command matches the active normalized run plan"
+                            @tone=success}}{cem:otherwise |{cem-table @label="CLI Command semantic changes" |{div @role=row |{strong @role=columnheader | Area}{strong @role=columnheader | Path}{strong @role=columnheader | Change}{strong @role=columnheader | Current}{strong @role=columnheader | Draft}}{cem:for-each @as=change @select=command.changes |{cem:variable @name=beforeText @select='change.beforeText ?? "—"'}{cem:variable @name=afterText @select='change.afterText ?? "—"'}{div @role=row |{span @role=cell |{$ | change.category}}{span @role=cell |{$ | change.path}}{span @role=cell |{$ | change.kind}}{cem:variable @name=beforeDisplay
+                                        @select='if str:length(beforeText) &gt; 240 { str:concat((str:slice(beforeText, 0, 239), "…"), "") } else { beforeText }'}{span @role=cell |{$ | beforeDisplay}}{cem:variable @name=afterDisplay
+                                        @select='if str:length(afterText) &gt; 240 { str:concat((str:slice(afterText, 0, 239), "…"), "") } else { afterText }'}{span @role=cell |{$ | afterDisplay}}}}}}}}}}{body |
 {style @type=text/css |```
 [part~='command-target-detail'], [part~='command-application'], [part~='command-content'] { display: grid; gap: var(--cem-layout-stack-gap); min-inline-size: 0; }
 [part~='operation-introduction'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; }
@@ -168,85 +35,13 @@
 
         {cem:variable @name=command @select=datadom.slices.command}{cem:variable @name=application @select=command.application}{cem:variable @name=busy
             @select='datadom.slices.pending || datadom.slices.busy || (command.status == "checking") || (application.status == "applying") || (application.status == "running")'}{cem:variable @name=commandLabel
-            @select='if !command { "No command is prepared. Parse or inspect a text resource to begin." } else { if command.copy.message { command.copy.message } else { if command.status == "checking" { "Checking command with the shared CEM-ML grammar." } else { if command.status == "invalid" { str:concat((command.diagnostic.code ?? "cem.command.invalid", ": ", command.diagnostic.message ?? "Command is invalid."), "") } else { if command.status == "changed" { str:concat((seq:count(command.changes.path), " semantic changes; project records remain unchanged."), "") } else { str:concat(("Generated Studio command for project ", command.revision.projectRevision, ", resource ", command.revision.resourceRevision, "; CEM-ML ", command.current.commonVersion, "."), "") } } } } }'}{cem:variable @name=applyDisabled
-            @select='busy || !command || !application || ((application.target.mode == "new") &amp;&amp; (str:length(str:trim(application.newPageName ?? "")) == 0)) || (command.status == "invalid") || (command.status == "checking")'}{cem:if @test=datadom.slices.sourceReadOnly |{cem-alert @label="Binary source bytes remain read-only. Edit the saved command resource in the project tree to change its configuration."}{cem:if @test=command |{cem-source-editor @label="Saved command" @content-type=text/plain @readonly @value={command.draftText}}{cem-action @host-command=copy @disabled={if busy { true } else { null }} | Copy command}}}{cem:if @test='!datadom.slices.sourceReadOnly' |{section @aria-label="CLI Command" |
-            {cem-tabs @label="CLI Command" @value=command |
-                {cem-tab @label="Studio command" @value=command |
- {div @part=command-content |
-                    {cem-alert @data-cem-studio-command-alert="" @label={commandLabel} @tone={if (command.copy.status == "failed") || (command.status == "invalid") { "danger" } else { if command.status == "changed" { "warning" } else { if (command.copy.status == "success") || (command.status == "current") { "success" } else { "info" } } }}}
-                    {cem-textarea @data-cem-studio-command-editor="" @host-command=edit
+            @select='if !command { "No command is prepared. Parse or inspect a text resource to begin." } else { if command.copy.message { command.copy.message } else { if command.status == "checking" { "Checking command with the shared CEM-ML grammar." } else { if command.status == "invalid" { str:concat((command.diagnostic.code ?? "cem.command.invalid", ": ", command.diagnostic.message ?? "Command is invalid."), "") } else { if command.status == "changed" { str:concat((seq:count(command.changes.path), " semantic changes; project records remain unchanged."), "") } else { str:concat(("Generated Studio command for project ", command.revision.projectRevision, ", resource ", command.revision.resourceRevision, "; CEM-ML ", command.current.commonVersion, "."), "") }}}}}'}{cem:variable @name=applyDisabled
+            @select='busy || !command || !application || ((application.target.mode == "new") &amp;&amp; (str:length(str:trim(application.newPageName ?? "")) == 0)) || (command.status == "invalid") || (command.status == "checking")'}{cem:if @test=datadom.slices.sourceReadOnly |{cem-alert @label="Binary source bytes remain read-only. Edit the saved command resource in the project tree to change its configuration."}{cem:if @test=command |{cem-source-editor @label="Saved command" @content-type=text/plain @readonly @value={command.draftText}}{cem-action @host-command=copy @disabled={if busy { true } else { null }} | Copy command}}}{cem:if @test='!datadom.slices.sourceReadOnly' |{section @aria-label="CLI Command" |{cem-tabs @label="CLI Command" @value=command |{cem-tab @label="Studio command" @value=command |{div @part=command-content |{cem-alert @data-cem-studio-command-alert="" @label={commandLabel} @tone={if (command.copy.status == "failed") || (command.status == "invalid") { "danger" } else { if command.status == "changed" { "warning" } else { if (command.copy.status == "success") || (command.status == "current") { "success" } else { "info" }}}}}{cem-textarea @data-cem-studio-command-editor="" @host-command=edit
                         @host-command-event=input @label="Studio command (literal argv)"
-                        @name=studio-command @disabled={if command { null } else { true }} @value={command.draftText ?? ""} |
-                        {span @slot=help | Parsed by the shared CEM-ML grammar without shell expansion. Editing does not mutate the project.}
-                    }
-                    {cem-grid |
-                        {cem-action @data-cem-studio-command-copy="" @disabled={if busy || !command || (command.status == "checking") || (command.copy.status == "copying") { true } else { null }} @host-command=copy
-                            @host-command-event=click @loading={if command.copy.status == "copying" { true } else { null }} @variant=alternate | Copy command}
-                        {cem-action @data-cem-studio-command-reset="" @disabled={if busy || !command || (command.status == "current") || (command.status == "checking") { true } else { null }} @host-command=reset
-                            @host-command-event=click @variant=contextual | Reset generated command}
-                    }
-                    {call @template=command-application @with:application="{$application}"
-                        @with:applyDisabled="{$applyDisabled}" @with:busy="{$busy}"}
-                }
-}
-                {cem-tab @label="Semantic changes" @value=changes |
-                    {call @template=command-changes @with:command="{$command}"
-                        @with:commandLabel="{$commandLabel}"}
-}   }
-                {section @aria-label="Operation form" |
- {div @part=operation-introduction |
-                    {h3 | Operation form}
-                    {cem-alert @label="Choose one option or a small related group. Keep preserves an option; Set uses its value; Reset restores native defaults. Grouped Set validates every change together. Apply and Run remain explicit. Unlisted and repeated options remain in the literal command editor."}
-                    {cem:if @test=command.formError | {cem-alert @tone=danger @label={command.formError.message}}}
-                    {cem:if @test='seq:count(command.fields.id) == 0' | {cem-alert @label="Prepare a valid supported command in the command editor to use this form."}}
- }
-                    {cem-select @name=operation-option @value={datadom.slices.fieldId} @slice=fieldId @slice-event=change @slice-value="$target.value" |
-                        {span @slot=label | Operation option}
-                        {option @value="" | Choose an option}
-                        {cem:for-each @as=field @select=command.fields | {option @value={field.id} | {$ | field.label}}}
-                        {optgroup @label="Edit together" |
-                            {cem:for-each @as=group @select=command.groups |
-                                {option @value={str:concat(("group:", group.id), "")} | {call @template=operation-group-label @with:group="{$group}"}}
-                            }
-                        }
-                    }
-                    {cem:for-each @as=field @select=command.fields |
-                     {cem:if @test='field.id == datadom.slices.fieldId' |
-                        {form @host-command=edit-field @host-command-event=submit |
- {cem-fieldset @label={str:concat(("Edit ", field.label), "")} @description={field.help} @disabled={if busy { true } else { null }} |
-                            {input @type=hidden @name=option @value={field.id}}
-                            {input @type=hidden @name=version @value={command.formVersion}}
-                            {call @template=operation-field-control @with:field="{$field}" @with:name=value @with:help=""}
-                            {cem-action @type=submit @name=mode @value=set @disabled={if busy { true } else { null }} | {$ | str:concat(("Set ", field.label), "")}}
-                            {cem-action @type=submit @name=mode @value=reset @variant=contextual @disabled={if busy || field.required { true } else { null }} | {$ | str:concat(("Reset ", field.label), "")}}
-                        }
-}
-                     }
-                    }
-                    {cem:for-each @as=group @select=command.groups |
-                        {cem:if @test='str:concat(("group:", group.id), "") == datadom.slices.fieldId' |
-                            {form @host-command=edit-group @host-command-event=submit |
-                                {cem-fieldset @description="Choose Keep, Set or Reset for each option, then Set grouped options. Reset staged changes only resets this form." @disabled={if busy { true } else { null }} |
-                                    {span @slot=label | Edit {call @template=operation-group-label @with:group="{$group}"}{$ | " together"}}
-                                    {input @type=hidden @name=group @value={group.id}}
-                                    {input @type=hidden @name=version @value={command.formVersion}}
-                                    {cem:for-each @as=field @select=group.fields |
-                                        {cem-stack @gap=sm |
-                                            {cem-select @name={str:concat(("mode.", field.id), "")} @label={str:concat(("Change ", field.label), "")} @value=keep |
-                                                {option @value=keep @selected=true | Keep}
-                                                {option @value=set | Set}
-                                                {option @value=reset @disabled={if field.required { true } else { null }} | Reset}
-                                            }
-                                            {call @template=operation-field-control @with:field="{$field}" @with:name={str:concat(("value.", field.id), "")} @with:help="{$field.help}"}
-                                        }
-                                    }
-                                    {cem-action @type=submit | Set grouped options}
-                                    {cem-action @type=reset @variant=contextual | Reset staged changes}
-                                }
-                            }
-                        }
-                    }
-                }
-}}}}
+                        @name=studio-command @disabled={if command { null } else { true }} @value={command.draftText ?? ""} |{span @slot=help | Parsed by the shared CEM-ML grammar without shell expansion. Editing does not mutate the project.}}{cem-grid |{cem-action @data-cem-studio-command-copy="" @disabled={if busy || !command || (command.status == "checking") || (command.copy.status == "copying") { true } else { null }} @host-command=copy
+                            @host-command-event=click @loading={if command.copy.status == "copying" { true } else { null }} @variant=alternate | Copy command}{cem-action @data-cem-studio-command-reset="" @disabled={if busy || !command || (command.status == "current") || (command.status == "checking") { true } else { null }} @host-command=reset
+                            @host-command-event=click @variant=contextual | Reset generated command}}{call @template=command-application @with:application="{$application}"
+                        @with:applyDisabled="{$applyDisabled}" @with:busy="{$busy}"}}}{cem-tab @label="Semantic changes" @value=changes |{call @template=command-changes @with:command="{$command}"
+                        @with:commandLabel="{$commandLabel}"}}}{section @aria-label="Operation form" |{div @part=operation-introduction |{h3 | Operation form}{cem-alert @label="Choose one option or a small related group. Keep preserves an option; Set uses its value; Reset restores native defaults. Grouped Set validates every change together. Apply and Run remain explicit. Unlisted and repeated options remain in the literal command editor."}{cem:if @test=command.formError |{cem-alert @tone=danger @label={command.formError.message}}}{cem:if @test='seq:count(command.fields.id) == 0' |{cem-alert @label="Prepare a valid supported command in the command editor to use this form."}}}{cem-select @radio-threshold=7 @name=operation-option @value={datadom.slices.fieldId} @slice=fieldId @slice-event=change @slice-value="$target.value" |{span @slot=label | Operation option}{option @value="" @data-placeholder=true | Choose an option}{cem:for-each @as=field @select=command.fields |{option @value={field.id} |{$ | field.label}}}{optgroup @label="Edit together" |{cem:for-each @as=group @select=command.groups |{option @value={str:concat(("group:", group.id), "")} |{call @template=operation-group-label @with:group="{$group}"}}}}}{cem:for-each @as=field @select=command.fields |{cem:if @test='field.id == datadom.slices.fieldId' |{form @host-command=edit-field @host-command-event=submit |{cem-fieldset @label={str:concat(("Edit ", field.label), "")} @description={field.help} @disabled={if busy { true } else { null }} |{input @type=hidden @name=option @value={field.id}}{input @type=hidden @name=version @value={command.formVersion}}{call @template=operation-field-control @with:field="{$field}" @with:name=value @with:help=""}{cem-action @type=submit @name=mode @value=set @disabled={if busy { true } else { null }} |{$ | str:concat(("Set ", field.label), "")}}{cem-action @type=submit @name=mode @value=reset @variant=contextual @disabled={if busy || field.required { true } else { null }} |{$ | str:concat(("Reset ", field.label), "")}}}}}}{cem:for-each @as=group @select=command.groups |{cem:if @test='str:concat(("group:", group.id), "") == datadom.slices.fieldId' |{form @host-command=edit-group @host-command-event=submit |{cem-fieldset @description="Choose Keep, Set or Reset for each option, then Set grouped options. Reset staged changes only resets this form." @disabled={if busy { true } else { null }} |{span @slot=label | Edit {call @template=operation-group-label @with:group="{$group}"}{$ | " together"}}{input @type=hidden @name=group @value={group.id}}{input @type=hidden @name=version @value={command.formVersion}}{cem:for-each @as=field @select=group.fields |{cem-stack @gap=sm |{cem-select @radio-threshold=7 @name={str:concat(("mode.", field.id), "")} @label={str:concat(("Change ", field.label), "")} @value=keep |{option @value=keep @selected=true | Keep}{option @value=set | Set}{option @value=reset @disabled={if field.required { true } else { null }} | Reset}}{call @template=operation-field-control @with:field="{$field}" @with:name={str:concat(("value.", field.id), "")} @with:help="{$field.help}"}}}{cem-action @type=submit | Set grouped options}{cem-action @type=reset @variant=contextual | Reset staged changes}}}}}}}}}}
   </template>
 </cem-element>

@@ -125,7 +125,7 @@ describe('project build CLI copy', () => {
     });
 });
 
-async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator,
+async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, configurationCount, plaintextSource = false, tabularSource = false, validator,
     artifactPaths = ['generated/index.html', 'generated/posts/article.html', 'generated/invalid.json'],
     sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }], binarySource = false, sourceBytes, missingSource = false, commandBytes, missingCommand = false, missingCommandResource = false, commandContentType = 'application/cem' } = {}) {
     const encoder = new TextEncoder();
@@ -135,12 +135,14 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
         ? { id: 'article', path: 'geometry.txt', contentType: 'text/plain' }
         : tabularSource ? { id: 'article', path: 'content/article.csv', contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' }
             : { id: 'article', path: 'content/article.md', contentType: 'text/markdown', schema: 'https://cem.dev/ns/data/markdown/1' };
-    const project = { id: 'demo', name: 'Demo', rootUri: 'studio://demo/', revision: 1, resources: [
+    const configurations = count => Array.from({ length: count }, (_, index) => ({ id: index ? `build-${index}` : 'build', name: `Build ${index + 1}`, kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: artifactPaths[0] }));
+    let project = { id: 'demo', name: 'Demo', rootUri: 'studio://demo/', revision: 1, resources: [
         { ...sourceResource, revision: 1, sha256: 'article' },
         { id: 'other', path: 'content/other.md', contentType: 'text/markdown', revision: 1, sha256: 'other' },
         ...(!missingCommandResource ? [{ id: 'command', path: 'config/build.cem', contentType: commandContentType, schema: 'https://cem.dev/ns/cli/command/1', revision: 1, sha256: 'command' }] : []),
     ], entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: artifactPaths[0] },
         ...(alternateBuild ? [{ id: 'alternate', name: 'Alternate build', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' }] : [])] };
+    if (configurationCount !== undefined) project.entries = configurations(configurationCount);
     const sourceText = tabularSource ? 'id,name\n1,Ada\n' : '# Article';
     const bundle = { project, contents: { ...(missingSource ? {} : { article: sourceBytes ?? (binarySource ? new Uint8Array([67, 69, 77, 0, 255]) : encoder.encode(sourceText)) }), other: encoder.encode('# Other'), ...(missingCommand ? {} : { command: commandBytes ?? encoder.encode('{}') }) } };
     const repository = { async query({ operation }) {
@@ -172,8 +174,60 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
             const index = artifacts.findIndex(item => item.id === id); projection = { ...projection, output: outputs[index], preview: { ...projection.preview, source: outputs[index].text } };
         } };
     } }); services.push(service);
-    return { service, browser, workbench, loadExample, setState(next) { state = { ...state, ...next }; publish(); }, fail: () => { fail = true; }, delay: promise => { wait = promise; } };
+    return { service, browser, workbench, loadExample, setState(next) { state = { ...state, ...next }; publish(); }, fail: () => { fail = true; }, delay: promise => { wait = promise; },
+        async setConfigurations(count) { project = { ...project, revision: project.revision + 1, entries: configurations(count) }; bundle.project = project; await service.openEntity('project=demo'); } };
 }
+
+describe('Studio adaptive project choices', () => {
+    it('switches at seven choices, retains the selection across revisions, and uses native radios across themes', async () => {
+        const { userEvent } = await import('vitest/browser');
+        const { service, browser, setConfigurations, delay } = await fixture('https://studio.test/?project=demo', false, { configurationCount: 0 });
+        const colors = document.createElement('style'); colors.textContent = themeCss; document.head.append(colors);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
+        const choice = () => root.querySelector('cem-select[label="Build configuration"]');
+        try {
+            await view.whenSettled();
+            expect(choice().textContent).toContain('No options available.');
+            expect(choice().querySelectorAll('input[type=radio]')).toHaveLength(0);
+            expect(root.querySelector('[host-command=build-project] button').disabled).toBe(true);
+            for (const count of [1, 7, 8, 7]) {
+                await setConfigurations(count); await view.whenSettled();
+                expect(choice().querySelectorAll('input[type=radio]')).toHaveLength(count < 8 ? count : 0);
+                expect(Boolean(choice().querySelector('[role=combobox]'))).toBe(count === 8);
+                if (count === 7 && service.snapshot().projectPreview.configurationId === 'build') {
+                    await userEvent.click(choice().querySelector('input[value=build-5]')); await view.whenSettled();
+                }
+                const expected = count === 1 ? 'build' : 'build-5';
+                expect(choice().value).toBe(expected);
+                expect(browser.location.searchParams.get('build')).toBe(expected);
+            }
+            for (const mode of ['light', 'dark', 'projector', 'contrast-light', 'contrast-dark', 'native']) {
+                root.className = `cem-theme-${mode}`;
+                const input = choice().querySelector('input[value=build-5]');
+                expect(input.checked).toBe(true);
+                expect(getComputedStyle(input).visibility).toBe('visible');
+                expect(choice().querySelector('[role=radiogroup]').getAttribute('aria-labelledby')).toBeTruthy();
+            }
+            root.style.setProperty('--cem-typography-ui-font-size', '19px');
+            expect(getComputedStyle(choice().querySelector('cem-radio [part=label]')).fontSize).toBe('19px');
+            await userEvent.click(choice().querySelector('input[value=build-5]'));
+            await userEvent.keyboard('{ArrowUp}'); await view.whenSettled();
+            expect(service.snapshot().projectPreview.configurationId).toBe('build-4');
+            let release; delay(new Promise(resolve => { release = resolve; }));
+            const build = service.buildProjectPreview();
+            try {
+                await view.whenSettled();
+                for (const input of choice().querySelectorAll('input')) expect(input.matches(':disabled')).toBe(true);
+            } finally { release(); await build; }
+            await view.whenSettled();
+            expect(choice().querySelector('input[value=build-4]').disabled).toBe(false);
+            await service.openEntity('collection=nested&sample=demo'); await view.whenSettled();
+            expect(service.snapshot().projectPreview.configurationId).toBe('build');
+            expect(choice().querySelector('input[value=build]').checked).toBe(true);
+        } finally { view.dispose(); root.remove(); colors.remove(); }
+    }, 30_000);
+});
 
 function invocation({ projectId = 'demo', resourceId = 'article', configuration = resourceId, live = false } = {}) {
     const text = live ? '{"native":"parsed"}' : 'Native invocation result';

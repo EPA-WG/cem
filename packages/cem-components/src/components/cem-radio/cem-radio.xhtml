@@ -1,9 +1,6 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-radio">
   <template id="cem-radio" type="text/cem-ml">
-    {attribute @name=label | Radio}
-    {attribute @name=value | on}
-    {attribute @name=indicator | outline}
-    {attribute @name=required-marker | *}
+    {attribute @name=label | Radio}{attribute @name=value | on}{attribute @name=indicator | outline}{attribute @name=required-marker | *}
     {style @type="text/css" |```
       :scope { display: inline-block; }
       :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
@@ -129,13 +126,6 @@
           pointer-events: none;
       }
     ```}
-    {label @part=root |
-      {input @part=control @type=radio @name={datadom.attributes.name} @checked={if seq:count(datadom.attributes.checked) > 0 { true } else { null }} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @required={if seq:count(datadom.attributes.required) > 0 { true } else { null }} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-label={datadom.attributes.aria-label} @aria-labelledby={datadom.attributes.aria-labelledby} @aria-describedby={datadom.attributes.aria-describedby} @aria-errormessage={datadom.attributes.aria-errormessage} |
-        {attribute @name=value @value={$value}}
-        {cem:if @test="seq:count(datadom.attributes.form) > 0" | {attribute @name=form @value={datadom.attributes.form}}}
-      }
-      {span @part=label @class=cem-radio__label | {slot | {$label}}}
-      {cem:if @test="seq:count(datadom.attributes.required) > 0" | {span @part=required-marker @aria-hidden=true | {slot @name=required-marker | {$required-marker}}}}
-    }
+    {label @part=root |{input @part=control @type=radio @name={datadom.attributes.name} @checked={if seq:count(datadom.attributes.checked) > 0 { true } else { null }} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @required={if seq:count(datadom.attributes.required) > 0 { true } else { null }} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-label={datadom.attributes.aria-label} @aria-labelledby={datadom.attributes.aria-labelledby} @aria-describedby={datadom.attributes.aria-describedby} @aria-errormessage={datadom.attributes.aria-errormessage} |{attribute @name=value @value={$value}}{cem:if @test="seq:count(datadom.attributes.form) > 0" |{attribute @name=form @value={datadom.attributes.form}}}}{span @part=label @class=cem-radio__label |{slot |{$label}}}{cem:if @test="seq:count(datadom.attributes.required) > 0" |{span @part=required-marker @aria-hidden=true |{slot @name=required-marker |{$required-marker}}}}}
   </template>
 </cem-element>

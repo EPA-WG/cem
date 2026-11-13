@@ -99,6 +99,11 @@ export const InheritedOrdinaryGeometry = meta.story({
         host.style.cssText = '--cem-gap-related:17px;--cem-control-padding-x:19px;--cem-control-padding-y:7px;--cem-coupling-zone-min:61px;--cem-icon-button-icon-size:23px';
         const row = requiredElement(host, '[role=treeitem]');
         expect(getComputedStyle(requiredElement(host, '[part=root]')).rowGap).toBe('17px');
+        // Canonical normal/dense tree rows use half the inherited control
+        // padding; the public factor can restore full padding (as sparse does).
+        expect(getComputedStyle(row).paddingInlineStart).toBe('9.5px');
+        expect(getComputedStyle(row).paddingBlockStart).toBe('3.5px');
+        host.style.setProperty('--cem-data-tree-padding-factor', '1');
         expect(getComputedStyle(row).paddingInlineStart).toBe('19px');
         expect(getComputedStyle(row).paddingBlockStart).toBe('7px');
         expect(getComputedStyle(row).minBlockSize).toBe('61px');

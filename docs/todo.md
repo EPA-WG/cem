@@ -60,12 +60,36 @@ for the current native work and the conditional diagnostic items on recurrence.
       Studio build, typecheck, lint, UI classification and packaged-output checks
       pass. See [the build command contract](cem-studio.md#project-builds-and-artifact-previews).
 
-- [ ] In Studio project options, use a radio-button group when there are **7 or
+- [x] In Studio project options, use a radio-button group when there are **7 or
       fewer choices**, and retain the dropdown for **8 or more**. Preserve the
       selected value, labels, disabled states and shared declarative CEM controls;
       handle an empty choice set explicitly.
-  - [ ] Verify the 0/1/7/8-choice boundaries, project/configuration changes,
+  - [x] Verify the 0/1/7/8-choice boundaries, project/configuration changes,
         selection preservation, keyboard/accessibility and theme behavior.
+  - [x] Add opt-in shared `cem-select` radio-threshold support using `cem-radio`,
+        with explicit placeholder markers, form/reset/disabled/required contracts,
+        grouped and rich choices, dynamic 7↔8 transitions and unchanged listboxes.
+        Cover the shared component in colocated stories/gallery/property controls
+        before enabling the threshold throughout Studio's project forms.
+  - [x] Preserve staged-form reset and complete Login recovery in worker/fallback
+        fixtures under the existing 32,768-node witness and 4 MiB group limits;
+        remove incidental formatting nodes rather than raising budgets/deadlines.
+        Verify shared tree keyboard/selection behavior after removing repeated
+        formatting-only nodes from its recursive row and Studio payload templates.
+  - [x] Verify gallery navigation keyboard activation after the produced child
+        publishes its update; retain the original toggle and focus assertions.
+      Verified 2026-11-13: 37 select/radio/tree stories and all 251 Studio
+      workflow/navigation/recovery cases pass. Complete Login recovery preserves
+      credential refusal and three worker/fallback handoffs within the unchanged
+      32,768-node witness and 4 MiB group limits. Lean rendered option projections
+      retain the original canonical payload and omit unused radio/popup metadata;
+      compact recursive/declarative markup removes incidental formatting nodes.
+      Six-theme/inherited-token stories and a native forced-colors keyboard/form
+      check pass. Navigation/content galleries, property pages and bundle pass
+      from source and isolated installed packages; the disclosure fixture now
+      waits for child publication without weakening toggle/focus assertions.
+      Studio build, component catalog, typecheck, lint, declarative architecture, UI classification
+      and packaged-output checks pass; existing lint warnings remain.
 
 - [ ] Extend Copy CLI to builds with renamed resolver addresses or Studio-only
       URI operands through shared native filesystem export/resolver mapping.

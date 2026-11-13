@@ -1,8 +1,11 @@
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, userEvent, within, waitFor } from 'storybook/test';
 
 import preview, {
     loadCemDeclaration,
     whenCemRendered,
+    createCemStoryRuntime,
+    mountCemView,
+    cemComponentDeclarationSource,
 } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-select.xhtml?raw';
 
@@ -25,9 +28,133 @@ const meta = preview.meta({
     component: 'cem-select',
     title: 'CEM Components/cem-select',
     loaders: [async () => {
+        await loadCemDeclaration('cem-radio', await cemComponentDeclarationSource('cem-radio'));
         await loadCemDeclaration('cem-select', declarationSource);
         return {};
     }],
+});
+
+function required<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
+    const element = root.querySelector<T>(selector);
+    if (!element) throw new Error(`Missing ${selector}`);
+    return element;
+}
+
+export const AdaptiveRadioBoundaries = meta.story({
+    render: () => [0, 1, 7, 8].map(count => `<form><cem-select radio-threshold="7" name="choice" label="${count} choices" value="${count ? '0' : ''}"><option value="" data-placeholder>Choose a value</option>${Array.from({ length: count }, (_, i) => `<option value="${i}">Choice ${i}</option>`).join('')}</cem-select></form>`).join(''),
+    play: async ({ canvasElement }) => {
+        for (const [index, host] of [...canvasElement.querySelectorAll<CemSelectElement>('cem-select')].entries()) {
+            await whenCemRendered(host);
+            for (const radio of host.querySelectorAll<HTMLElement>('cem-radio')) await whenCemRendered(radio);
+            const count = [0, 1, 7, 8][index];
+            expect(host.querySelectorAll('input[type=radio]')).toHaveLength(count < 8 ? count : 0);
+            expect(host.querySelector('[role=combobox]') !== null).toBe(count === 8);
+            if (count < 8) expect(host.querySelector('[role=radiogroup]')).toHaveAccessibleName(`${count} choices`);
+            if (!count) expect(host.textContent).toContain('No options available.');
+            const form = host.closest('form'); if (!form) throw new Error('Missing owner form');
+            expect([...new FormData(form).keys()]).toEqual(['choice']);
+            expect(new FormData(form).get('choice')).toBe(count ? '0' : '');
+        }
+    },
+});
+
+export const AdaptiveRadioFormAndKeyboard = meta.story({
+    name: 'Adaptive radio form and keyboard (browser runner)',
+    render: () => '<form><fieldset><cem-select radio-threshold="7" name="plan" label="Plan" required value=""><option value="" data-placeholder>Choose a plan</option><optgroup label="Available"><option value="basic"><strong>Basic</strong> plan</option><option value="blocked" disabled>Blocked</option><option value="pro">Pro</option></optgroup></cem-select></fieldset></form>',
+    play: async ({ canvasElement }) => {
+        const host = required<CemSelectElement>(canvasElement, 'cem-select');
+        await whenCemRendered(host); for (const radio of host.querySelectorAll<HTMLElement>('cem-radio')) await whenCemRendered(radio);
+        const form = required<HTMLFormElement>(canvasElement, 'form'), fieldset = required<HTMLFieldSetElement>(form, 'fieldset');
+        expect(host.checkValidity()).toBe(false);
+        const events: string[] = []; host.addEventListener('input', () => events.push('input')); host.addEventListener('change', () => events.push('change'));
+        const radios = [...host.querySelectorAll<HTMLInputElement>('input[type=radio]')];
+        expect(radios[0]).toHaveAccessibleName('Basic plan'); expect(radios[1]).toBeDisabled();
+        await userEvent.click(radios[0]); await whenCemRendered(host);
+        expect(host.value).toBe('basic'); expect(events).toEqual(['input', 'change']);
+        expect([...new FormData(form).entries()]).toEqual([['plan', 'basic']]);
+        expect(host.checkValidity()).toBe(true);
+        if (import.meta.env.MODE === 'test') {
+            const { userEvent: native } = await import('vitest/browser');
+            await native.click(radios[0]); await native.keyboard('{ArrowDown}'); await whenCemRendered(host);
+            expect(host.value).toBe('pro'); expect(document.activeElement).toBe(radios[2]);
+            expect(events).toEqual(['input', 'change', 'input', 'change']);
+        }
+        fieldset.disabled = true; await whenCemRendered(host);
+        expect(new FormData(form).has('plan')).toBe(false);
+        for (const radio of host.querySelectorAll<HTMLElement>('cem-radio')) { await whenCemRendered(radio); expect(radio.querySelector('input')).toBeDisabled(); }
+        fieldset.disabled = false; form.reset(); await whenCemRendered(host);
+        expect(host.value).toBe(''); expect(host.checkValidity()).toBe(false);
+        host.setAttribute('invalid', 'false'); host.setAttribute('busy', 'false'); await whenCemRendered(host);
+        for (const radio of host.querySelectorAll<HTMLElement>('cem-radio')) {
+            await whenCemRendered(radio);
+            expect(radio.querySelector('input')).toHaveAttribute('aria-invalid', 'true');
+            expect(radio.querySelector('input')).toHaveAttribute('aria-busy', 'true');
+        }
+        expect(host.querySelector('[role=radiogroup]')).toHaveAttribute('aria-invalid', 'true');
+    },
+});
+
+export const AdaptiveRadioTransitions = meta.story({
+    render: () => `<cem-select label="Adaptive selection" radio-threshold="7" value="b"><option value="a">Alpha</option><option value="b">Beta</option><option value="c">Gamma</option></cem-select><cem-select radio-threshold="7" label="Explicit listbox" size="3"><option value="a">Alpha</option></cem-select>`,
+    play: async ({ canvasElement }) => {
+        const [host, list] = [...canvasElement.querySelectorAll<CemSelectElement>('cem-select')];
+        await whenCemRendered(host); await whenCemRendered(list);
+        expect(list.querySelector('[role=listbox]')).not.toBeNull();
+        host.value = 'c'; await whenCemRendered(host);
+        for (const threshold of ['2', '7', '0', 'invalid', '7']) {
+            host.setAttribute('radio-threshold', threshold); await whenCemRendered(host);
+            for (const radio of host.querySelectorAll<HTMLElement>('cem-radio')) await whenCemRendered(radio);
+            expect(host.value).toBe('c');
+            expect(host.querySelector('[role=radiogroup]') !== null).toBe(threshold === '7');
+            if (threshold === '7') expect(host.querySelector('input[value=c]')).toBeChecked();
+        }
+    },
+});
+
+export const AdaptiveRadioPayloadTransitions = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const { runtime, declare, scope } = createCemStoryRuntime(canvasElement, false);
+        const tag = `adaptive-choice-${crypto.randomUUID()}`;
+        await declare(await cemComponentDeclarationSource('cem-radio'), 'cem-radio');
+        await declare(declarationSource, 'cem-select');
+        await declare(`<cem-element><template type="text/cem-ml">{module | {slice @name=choices}{slice @name=value}{body | {cem-select @label="Dynamic choices" @radio-threshold=7 @value={datadom.slices.value} @host-command=choose @host-command-event=change | {option @value="" @data-placeholder=true | Choose a value}{cem:for-each @as=item @select=datadom.slices.choices | {option @value={item.value} | {$ | item.label}}}}}}</template></cem-element>`, tag);
+        const element = document.createElement(tag); canvasElement.append(element);
+        const choices = (count: number) => Array.from({ length: count }, (_, i) => ({ value: String(i), label: `Choice ${i}` }));
+        let selected = '5';
+        const view = mountCemView(runtime, { root: canvasElement, element, tag,
+            state: { choices: choices(7), value: selected }, commands: { choose: ({ value }) => { selected = value ?? ''; view.update({ value: selected }); } } });
+        const settle = async () => { await view.whenSettled(); const host = required<CemSelectElement>(element, 'cem-select'); await whenCemRendered(host); for (const radio of host.querySelectorAll<HTMLElement>('cem-radio')) await whenCemRendered(radio); return host; };
+        try {
+            let host = await settle();
+            await userEvent.click(required(host, 'input[value="2"]')); host = await settle();
+            expect(selected).toBe('2');
+            for (const count of [8, 7]) {
+                view.update({ choices: choices(count) }); host = await settle();
+                expect(host.value).toBe('2');
+                await waitFor(() => expect(Boolean(host.querySelector('[role=combobox]'))).toBe(count === 8));
+                if (count === 7) expect(host.querySelector('input[value="2"]')).toBeChecked();
+            }
+            view.update({ choices: choices(1) }); host = await settle();
+            expect(host.value).toBe(''); // Removed values never select a different build implicitly.
+            view.update({ choices: [] }); host = await settle();
+            expect(host.textContent).toContain('No options available.');
+        } finally { view.dispose(); element.remove(); scope.dispose(); }
+    },
+});
+
+export const AdaptiveRadioThemes = meta.story({
+    render: () => ['light', 'dark', 'projector', 'contrast-light', 'contrast-dark', 'native'].map(mode => `<section class="cem-theme-${mode}" style="--cem-typography-ui-font-size:19px"><cem-select label="Themed choices" radio-threshold="7" value="one"><option value="one">One</option><option value="two">Two</option></cem-select></section>`).join(''),
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<CemSelectElement>('cem-select')) {
+            await whenCemRendered(host);
+            for (const radio of host.querySelectorAll<HTMLElement>('cem-radio')) await whenCemRendered(radio);
+            expect(host.querySelector('input[value=one]')).toBeChecked();
+            expect(getComputedStyle(required(host, '[part~=radios]')).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+            expect(getComputedStyle(required(host, 'cem-radio [part=label]')).fontSize).toBe('19px');
+            expect(host.querySelector('[role=radiogroup]')).toHaveAccessibleName('Themed choices');
+        }
+    },
 });
 
 export const FieldLabelHierarchy = meta.story({

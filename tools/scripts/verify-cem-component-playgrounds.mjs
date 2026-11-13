@@ -2342,6 +2342,10 @@ async function verifyNavigationContent(baseUrl) {
             const owner = host.locator('button').first(), attribute = tag === 'cem-nav' ? 'aria-expanded' : 'aria-pressed';
             const initial = await owner.getAttribute(attribute);
             await owner.focus(); await owner.press('Space'); await settle();
+            // cem-nav's disclosure is a produced cem-icon-button. Its click
+            // publication can schedule the parent after the first settle call.
+            await page.waitForFunction(({ node, attribute, expected }) => node.getAttribute(attribute) === expected,
+                { node: await owner.elementHandle(), attribute, expected: initial === 'true' ? 'false' : 'true' }, { timeout: 5000 });
             assert.equal(await owner.getAttribute(attribute), initial === 'true' ? 'false' : 'true');
             assert.equal(await owner.evaluate(node => document.activeElement === node), true);
         } else if (tag === 'cem-tabs' || tag === 'cem-stepper') {

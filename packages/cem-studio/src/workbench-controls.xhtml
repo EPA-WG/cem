@@ -1,10 +1,6 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-controls">
  <template id="cem-studio-workbench-controls" type="text/cem-ml">
-{module |
-    {slice @name=state}
-    {slice @name=selectionRequest}
-    {slice @name=pending | false}
-{body |
+{module |{slice @name=state}{slice @name=selectionRequest}{slice @name=pending | false}{body |
  {style @type=text/css |```
 [part~='editor-details'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; }
 :scope { display: block; min-inline-size: 0; min-block-size: 0; }
@@ -14,46 +10,13 @@
  [part~='editor'] { block-size: 100%; grid-template-rows: auto auto minmax(calc(var(--cem-control-height-xx-large) + var(--cem-typography-ui-font-size) * var(--cem-typography-ui-line-height) + var(--cem-gap-related)), 1fr) auto; }
 }
 ```}
- {cem:if @test=datadom.slices.state |
-        {cem:variable @name=state @select=datadom.slices.state}
-        {cem:variable @name=working
-            @select='(state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
-        {cem:variable @name=busy @select='datadom.slices.pending || working'}
-{cem:if @test='state.status == "empty"' | {cem-alert @label="This project has no resources selected. Choose a configuration or resource."}}
-{cem:if @test='state.binarySource || state.status == "read-only"' |
-            {cem-alert @label="This resource is read-only. Download its original bytes to use it elsewhere."}
-            {cem-action @host-command=download-source @disabled={if state.resourceAvailable { null } else { true }} | Download resource}{cem:if @test=state.binarySource |{cem-alert @label={if state.admissionError { state.admissionError.message } else { str:concat((state.byteLength, " immutable source bytes; run uses the saved configuration and native input validation."), "") }} @tone={if state.admissionError { "danger" } else { "info" }}}{cem-grid @columns=2 @gap=sm |{cem-action @host-command=run @disabled={if busy || !state.runnable { true } else { null }} @loading={if state.status == "projecting" { true } else { null }} | Run configuration}{cem-action @host-command=reload @disabled={if busy { true } else { null }} | Reload persisted revision}}}}{cem:if @test=state.editable |
-  {section @part=editor @aria-label="Resource editor" @data-cem-studio-workbench-content="" |
-{div @aria-atomic=true @aria-live=polite @role=status |
-                    {cem-badge @data-cem-studio-workbench-status="" @label={if state.status == "loading" { "Loading resource" } else { if state.status == "loaded" { "Persisted revision loaded" } else { if state.status == "dirty" { "Unsaved changes" } else { if state.status == "saving" { "Saving revision" } else { if state.status == "saved" { "Revision saved" } else { if state.status == "validating" { "Validating saved revision" } else { if state.status == "projecting" { "Projecting saved revision" } else { if state.status == "projected" { "Saved revision projected" } else { if state.status == "projection-invalid" { "Projection has diagnostics" } else { if state.status == "projection-stale" { "Projection result stale" } else { if state.status == "valid" { "Saved revision valid" } else { if state.status == "invalid" { "Saved revision has diagnostics" } else { if state.status == "stale" { "Validation result stale" } else { if state.status == "conflict" { "Revision conflict" } else { if state.status == "failed" { "Workbench failed" } else { state.status } } } } } } } } } } } } } } }} @tone={if (state.status == "valid") || (state.status == "saved") || (state.status == "loaded") || (state.status == "projected") { "success" } else { if (state.status == "invalid") || (state.status == "failed") || (state.status == "conflict") || (state.status == "projection-invalid") { "danger" } else { if (state.status == "dirty") || (state.status == "stale") || (state.status == "projection-stale") { "warning" } else { "info" } } }}}
-                    {cem-badge @data-cem-studio-workbench-revision="" @label={str:concat(("Project ", state.projectRevision, "; resource ", state.resourceRevision), "")} @tone=info}
-                }
-   {cem-grid @columns=2 @gap=sm |
-{cem-action @data-cem-studio-operation-run="" @disabled={if busy || !state.runnable { true } else { null }} @host-command=run
-                @host-command-event=click @loading={if state.status == "projecting" { true } else { null }} @variant=primary | Run configuration}
-{cem-action @data-cem-studio-save="" @disabled={if busy || !state.dirty { true } else { null }} @host-command=save
-                        @host-command-event=click @loading={if busy { true } else { null }} @variant=primary | Save and validate}
-   }
-{cem-source-editor @content-type={state.contentType} @source-id={state.sourceId} @fit=fill @data-cem-studio-editor="" @host-command=edit
+ {cem:if @test=datadom.slices.state |{cem:variable @name=state @select=datadom.slices.state}{cem:variable @name=working
+            @select='(state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}{cem:variable @name=busy @select='datadom.slices.pending || working'}{cem:if @test='state.status == "empty"' |{cem-alert @label="This project has no resources selected. Choose a configuration or resource."}}{cem:if @test='state.binarySource || state.status == "read-only"' |{cem-alert @label="This resource is read-only. Download its original bytes to use it elsewhere."}{cem-action @host-command=download-source @disabled={if state.resourceAvailable { null } else { true }} | Download resource}{cem:if @test=state.binarySource |{cem-alert @label={if state.admissionError { state.admissionError.message } else { str:concat((state.byteLength, " immutable source bytes; run uses the saved configuration and native input validation."), "") }} @tone={if state.admissionError { "danger" } else { "info" }}}{cem-grid @columns=2 @gap=sm |{cem-action @host-command=run @disabled={if busy || !state.runnable { true } else { null }} @loading={if state.status == "projecting" { true } else { null }} | Run configuration}{cem-action @host-command=reload @disabled={if busy { true } else { null }} | Reload persisted revision}}}}{cem:if @test=state.editable |{section @part=editor @aria-label="Resource editor" @data-cem-studio-workbench-content="" |{div @aria-atomic=true @aria-live=polite @role=status |{cem-badge @data-cem-studio-workbench-status="" @label={if state.status == "loading" { "Loading resource" } else { if state.status == "loaded" { "Persisted revision loaded" } else { if state.status == "dirty" { "Unsaved changes" } else { if state.status == "saving" { "Saving revision" } else { if state.status == "saved" { "Revision saved" } else { if state.status == "validating" { "Validating saved revision" } else { if state.status == "projecting" { "Projecting saved revision" } else { if state.status == "projected" { "Saved revision projected" } else { if state.status == "projection-invalid" { "Projection has diagnostics" } else { if state.status == "projection-stale" { "Projection result stale" } else { if state.status == "valid" { "Saved revision valid" } else { if state.status == "invalid" { "Saved revision has diagnostics" } else { if state.status == "stale" { "Validation result stale" } else { if state.status == "conflict" { "Revision conflict" } else { if state.status == "failed" { "Workbench failed" } else { state.status }}}}}}}}}}}}}}}} @tone={if (state.status == "valid") || (state.status == "saved") || (state.status == "loaded") || (state.status == "projected") { "success" } else { if (state.status == "invalid") || (state.status == "failed") || (state.status == "conflict") || (state.status == "projection-invalid") { "danger" } else { if (state.status == "dirty") || (state.status == "stale") || (state.status == "projection-stale") { "warning" } else { "info" }}}}}{cem-badge @data-cem-studio-workbench-revision="" @label={str:concat(("Project ", state.projectRevision, "; resource ", state.resourceRevision), "")} @tone=info}}{cem-grid @columns=2 @gap=sm |{cem-action @data-cem-studio-operation-run="" @disabled={if busy || !state.runnable { true } else { null }} @host-command=run
+                @host-command-event=click @loading={if state.status == "projecting" { true } else { null }} @variant=primary | Run configuration}{cem-action @data-cem-studio-save="" @disabled={if busy || !state.dirty { true } else { null }} @host-command=save
+                        @host-command-event=click @loading={if busy { true } else { null }} @variant=primary | Save and validate}}{cem-source-editor @content-type={state.contentType} @source-id={state.sourceId} @fit=fill @data-cem-studio-editor="" @host-command=edit
                     @host-command-event=input @label="CEM source"
-                    @selection-end={state.selection.end ?? null} @selection-focus={if state.selection { true } else { null }} @selection-request={datadom.slices.selectionRequest} @selection-start={state.selection.start ?? null} @value={state.draft}}
-   {cem-expansion @label="Editor details" |
-    {div @part=editor-details |
-{cem:if @test=state.description | {cem-alert @label={state.description} @tone=info}}
-{cem:if @test='!state.runnable' | {cem-alert @label="Validate saved source, or parse/inspect it to prepare a command configuration."}}
-{cem-alert @data-cem-studio-workbench-alert="" @label={if state.error { str:concat((state.error.code, ": ", state.error.message), "") } else { if state.validation.stale { "This result belongs to an older draft or durable revision." } else { if state.validation { str:concat((seq:count(state.validation.diagnostics.code), " diagnostics; ", state.validation.hardViolationCount, " hard violations."), "") } else { str:concat((state.path, "; ", state.contentType), "") } } }} @tone={if state.error || (state.status == "invalid") || (state.status == "conflict") { "danger" } else { "info" }}}
-     {cem-grid @columns=2 @gap=sm |
-{cem-action @disabled={if busy { true } else { null }} @host-command=validate
-                        @host-command-event=click @variant=alternate | Validate persisted revision}
-{cem-action @data-cem-studio-reload="" @disabled={if busy { true } else { null }} @host-command=reload
-                        @host-command-event=click @variant=contextual | Reload persisted revision}
-     }
-    }
-   }
-  }
- }
- }
-}
-}
+                    @selection-end={state.selection.end ?? null} @selection-focus={if state.selection { true } else { null }} @selection-request={datadom.slices.selectionRequest} @selection-start={state.selection.start ?? null} @value={state.draft}}{cem-expansion @label="Editor details" |{div @part=editor-details |{cem:if @test=state.description |{cem-alert @label={state.description} @tone=info}}{cem:if @test='!state.runnable' |{cem-alert @label="Validate saved source, or parse/inspect it to prepare a command configuration."}}{cem-alert @data-cem-studio-workbench-alert="" @label={if state.error { str:concat((state.error.code, ": ", state.error.message), "") } else { if state.validation.stale { "This result belongs to an older draft or durable revision." } else { if state.validation { str:concat((seq:count(state.validation.diagnostics.code), " diagnostics; ", state.validation.hardViolationCount, " hard violations."), "") } else { str:concat((state.path, "; ", state.contentType), "") }}}} @tone={if state.error || (state.status == "invalid") || (state.status == "conflict") { "danger" } else { "info" }}}{cem-grid @columns=2 @gap=sm |{cem-action @disabled={if busy { true } else { null }} @host-command=validate
+                        @host-command-event=click @variant=alternate | Validate persisted revision}{cem-action @data-cem-studio-reload="" @disabled={if busy { true } else { null }} @host-command=reload
+                        @host-command-event=click @variant=contextual | Reload persisted revision}}}}}}}}}
  </template>
 </cem-element>
