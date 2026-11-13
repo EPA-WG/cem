@@ -1,4 +1,5 @@
 import { discardNativeGenerationResources } from './native-generation.js';
+import { CEM_NATIVE_CODE_PROTOCOL, CEM_QL_CODE_IDENTITY, assertCemQlCodeIdentity, loadCemQlWasmModule } from './native-code.js';
 import { parseSchemaAssetPackageRequest, type SchemaAssetPackageOperation } from './schema-asset-protocol.js';
 import type { CemSchemaAssetTransportRuntime, CemSchemaAssetTransportSource } from '../../schema-asset-pack.js';
 import { selectedFallbackSchemaAssetBinding, freshFallbackNativeBindings } from './native-runtime.js';
@@ -109,11 +110,28 @@ class CemProcessingWorkerTransport {
     private readonly controls = new Map<number, { action: CemRenderingRetirementAction; resolve(value: unknown): void; reject(error: unknown): void }>();
     private terminated = false;
     private readySettled = false;
+    private codeRequested = false;
+    private codeDelivered = false;
     private readonly freshOptions: CemProcessingHostRuntimeOptions;
     private failed = false;
     private readonly failureListeners = new Set<() => void>();
     private resolveReady!: (ready: CemProcessingReadyEnvelope) => void;
     private rejectReady!: (error: unknown) => void;
+
+    // A shared pending code read must not keep a retired transport or its
+    // embedding closures alive. Each active participant still owns its worker.
+    private static deliverCode(target: WeakRef<CemProcessingWorkerTransport>): void {
+        void loadCemQlWasmModule().then(module => {
+            const transport = target.deref();
+            if (!transport || transport.terminated || transport.failed) return;
+            transport.codeDelivered = true;
+            transport.worker.postMessage({ type: 'cem-render-code-delivery', protocol: CEM_NATIVE_CODE_PROTOCOL,
+                identity: CEM_QL_CODE_IDENTITY, module });
+        }).catch(error => {
+            const transport = target.deref();
+            if (transport && !transport.terminated && !transport.failed) transport.fail('startup', error);
+        });
+    }
 
     constructor(options: CemProcessingHostRuntimeOptions, private readonly name: string) {
         const factory = options.workerFactory ?? defaultCemProcessingWorkerFactory;
@@ -269,6 +287,14 @@ class CemProcessingWorkerTransport {
     private readonly onMessage = (event: MessageEvent<unknown>): void => {
         try {
             const packageResponse = event.data as Record<string, unknown> | undefined;
+            if (packageResponse?.type === 'cem-render-code-request') {
+                if (this.codeRequested || this.readySettled || this.failed || this.terminated || Object.keys(packageResponse).length !== 3
+                    || packageResponse.protocol !== CEM_NATIVE_CODE_PROTOCOL) throw Error('cem.runtime.code.request');
+                assertCemQlCodeIdentity(packageResponse.identity);
+                this.codeRequested = true;
+                CemProcessingWorkerTransport.deliverCode(new WeakRef(this));
+                return;
+            }
             if (packageResponse?.type === 'cem-render-package-result') {
                 const response = packageResponse, pending = this.packageActions.get(response.actionId as number);
                 if (!pending || Object.keys(response).length !== 3) throw Error('cem.schema_asset.response');
@@ -294,7 +320,7 @@ class CemProcessingWorkerTransport {
                 return;
             }
             if (envelope.direction === 'ready') {
-                if (this.readySettled || envelope.mode !== 'worker') {
+                if (this.readySettled || envelope.mode !== 'worker' || (this.codeRequested && !this.codeDelivered)) {
                     throw new TypeError('the CEM processing worker sent an invalid ready transition');
                 }
                 this.readySettled = true;

@@ -1188,7 +1188,7 @@ describe('retained stylesheet processing', () => {
         await expect(engine.stylesheet({ ...delivery, artifact: second.artifact })).rejects.toThrow('owner changed');
         await engine.stylesheet({ ...delivery, artifact: first.artifact });
         expect(process).toHaveBeenLastCalledWith(process.mock.calls[0][0], expect.objectContaining(delivery),
-            process.mock.calls[0][2], 'registration:first', 1);
+            process.mock.calls[0][2], 'registration:first', 1, undefined);
         await expect(engine.stylesheet({ ...begin, artifact: { ...first.artifact, registrationIdentity: 'forged' } }))
             .rejects.toThrow('not retained');
         // Touch second, then evict first while its compilation remains shared.
@@ -1220,7 +1220,7 @@ it('keeps instance stylesheet identities separate in native compilation and load
         context: { identity: 'page', resolverIdentity: 'test', resourcePolicyStamp: 'test', frames: [] } };
     await engine.stylesheet(begin);
     expect(retainStylesheetSources).toHaveBeenCalledWith(source, 'instance-one');
-    expect(processRetainedTemplateStylesheet).toHaveBeenLastCalledWith(expect.any(Number), begin, expect.any(String), 'instance-one', 0);
+    expect(processRetainedTemplateStylesheet).toHaveBeenLastCalledWith(expect.any(Number), begin, expect.any(String), 'instance-one', 0, undefined);
     await expect(engine.stylesheet({ ...begin, artifact: declaration.artifact })).rejects.toThrow('ownership');
     await expect(engine.stylesheet({ ...begin, scope: { kind: 'private', tag: 'cem-card' } })).rejects.toThrow('ownership');
     await expect(engine.compile({ ...input, templateArtifactId: 'empty', instanceStylesheetIdentity: '' })).rejects.toThrow('instance stylesheet identity');

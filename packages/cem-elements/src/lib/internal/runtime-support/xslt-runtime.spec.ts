@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('./native-code.js', () => ({ loadCemQlWasmModule: () => Promise.resolve(new WebAssembly.Module(Uint8Array.from([0,97,115,109,1,0,0,0]))) }));
 
 const wasm = vi.hoisted(() => ({
     retain: vi.fn(), render: vi.fn(), dispose: vi.fn(), imports: vi.fn(),

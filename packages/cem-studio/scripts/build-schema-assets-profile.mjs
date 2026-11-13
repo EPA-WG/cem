@@ -5,6 +5,7 @@ import { relative, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
 import { ownedWasmFactory } from '../../../tools/scripts/cem-ql-wasm-factory.mjs';
+import { cemQlCodeAssets } from '../../../tools/scripts/cem-ql-code-assets.mjs';
 import { deploymentRevisionModule } from './deployment-revision.mjs';
 
 // Build configuration only. CEM's native graph emits every deployment byte;
@@ -42,7 +43,12 @@ if (Object.keys(pin).some(key => nativePin[key] !== pin[key])
 }
 const rendererGlue = rendererBindings(glue);
 await writeFile(resolve(generated, 'cem_ql.js'), rendererGlue);
-await writeFile(resolve(generated, 'cem_ql_factory.js'), ownedWasmFactory(rendererGlue, 'cem_ql', 'CemQl'));
+await writeFile(resolve(generated, 'cem_ql_factory.js'), ownedWasmFactory(rendererGlue, 'cem_ql', 'CemQl', true));
+// Regenerate the JS owner from this profile's pinned glue even when the native
+// binary predates a factory API change; never reuse a stale generated wrapper.
+await writeFile(resolve(generated, 'cem_ml_factory.js'), ownedWasmFactory(glue, 'cem_ml', 'CemMl'));
+const codeAssets = cemQlCodeAssets(await readFile(resolve(native, 'cem_ml_bg.wasm')), rendererGlue, 'cem-ml-optional-schema-assets');
+await writeFile(resolve(generated, 'cem_ql_code.js'), codeAssets.js);
 for (const group of ['imports', 'resources']) {
     for (const entry of Object.values(source[group])) {
         entry.path = relative(generated, resolve(canonical, entry.path)).replaceAll('\\', '/');
@@ -51,11 +57,12 @@ for (const group of ['imports', 'resources']) {
 const entry = id => source.imports[id] ?? source.resources[id];
 for (const [id, file] of [
     ['@epa-wg/cem-ml/wasm', 'cem_ml.js'], ['@epa-wg/cem-ml/wasm-binary', 'cem_ml_bg.wasm'],
-    ['@epa-wg/cem-ml/wasm/factory', 'cem_ml_factory.js'],
     ['@epa-wg/cem-elements/cem-ql-wasm', 'cem_ml_bg.wasm'],
 ]) entry(id).path = relative(generated, resolve(native, file)).replaceAll('\\', '/');
 entry('@epa-wg/cem-elements/cem-ql').path = './cem_ql.js';
 entry('@epa-wg/cem-elements/cem-ql-factory').path = './cem_ql_factory.js';
+entry('@epa-wg/cem-elements/cem-ql-code').path = './cem_ql_code.js';
+entry('@epa-wg/cem-ml/wasm/factory').path = './cem_ml_factory.js';
 const assetHashes = [];
 entry('@epa-wg/cem-studio/deployment-revision').path = './revision.js';
 await writeFile(resolve(generated, 'revision.js'), deploymentRevisionModule(''));

@@ -2,6 +2,7 @@
 import { parseSchemaAssetPackageRequest } from './schema-asset-protocol.js';
 import type { CemSchemaAssetTransportRuntime } from '../../schema-asset-pack.js';
 import { workerSchemaAssetTransport, runtimeMemoryStatus } from './native-runtime.js';
+import { CEM_NATIVE_CODE_PROTOCOL, CEM_QL_CODE_IDENTITY, installCemQlWasmModule } from './native-code.js';
 
 import { processCheckpointControl, ensureRuntimeReady, closeRenderingNativeAdmission, renderingNativeResourceInventory, prepareRenderingNativeRetirement } from './cem-ql-render.js';
 import { CemProcessingEngine } from './processing-engine.js';
@@ -30,15 +31,28 @@ let prepared = false;
 let packageConfiguration: string | undefined, packageConfigured = false, packageEndpoint: CemSchemaAssetTransportRuntime | undefined;
 let packageActive = false, packageQueued = 0, runtimeWorkStarted = false;
 let packageQueue: Promise<void> = Promise.resolve();
+let codeReady = false, codeDeliveryStarted = false;
 
 
 workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
     const message = event.data as Record<string, unknown> | undefined;
+    if (message?.type === 'cem-render-code-delivery') {
+        if (codeDeliveryStarted || codeReady || runtimeWorkStarted || Object.keys(message).length !== 4
+            || message.protocol !== CEM_NATIVE_CODE_PROTOCOL || !(message.module instanceof WebAssembly.Module))
+            throw Error('cem.runtime.code.delivery');
+        codeDeliveryStarted = true;
+        void installCemQlWasmModule(message.module, message.identity).then(() => {
+            codeReady = true;
+            workerScope.postMessage(createCemProcessingReadyEnvelope('worker'));
+        }).catch(error => { queueMicrotask(() => { throw error; }); });
+        return;
+    }
     if (message && typeof message === 'object' && message.type === 'cem-render-package-initialize') {
         if (packageConfigured || packageEndpoint || runtimeWorkStarted || activeRequests || nativeClosed || prepared || Object.keys(message).length !== 2
             || typeof message.configuration !== 'string') throw Error('cem.schema_asset.policy');
         packageConfiguration = message.configuration; packageConfigured = true; return;
     }
+    if (!codeReady) throw Error('cem.runtime.code.not-ready');
     if (message && typeof message === 'object' && message.type === 'cem-render-package') {
         if (++packageQueued > 8) { packageQueued--; throw Error('cem.schema_asset.busy'); }
         packageQueue = packageQueue.then(() => handlePackage(message)).finally(() => { packageQueued--; });
@@ -48,7 +62,7 @@ workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
     else void handleMessage(event.data);
 });
 
-workerScope.postMessage(createCemProcessingReadyEnvelope('worker'));
+workerScope.postMessage({ type: 'cem-render-code-request', protocol: CEM_NATIVE_CODE_PROTOCOL, identity: CEM_QL_CODE_IDENTITY });
 cemMainThreadCheckpointDomain.onPressure(reason => workerScope.postMessage(createCemProcessingPressureEnvelope(reason)));
 
 async function handleMessage(message: unknown): Promise<void> {

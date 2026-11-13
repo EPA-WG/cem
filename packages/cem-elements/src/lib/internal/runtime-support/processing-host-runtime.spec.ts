@@ -1,6 +1,9 @@
 import { nativeCheckpointSnapshot, nativeCheckpointIdentity, nativeCheckpointSourceProof, nativeCheckpointSubscribe } from './checkpoint-domain.js';
 import { closeNativeRenderingGeneration, retireNativeRenderingGeneration, nativeCheckpointDrain, nativeCheckpointDrainCurrent } from './checkpoint-domain.js';
 import { describe, expect, it, vi } from 'vitest';
+const codeDelivery = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock('./native-code.js', async original => ({ ...await original<typeof import('./native-code.js')>(), loadCemQlWasmModule: codeDelivery.load }));
+import { CEM_NATIVE_CODE_PROTOCOL, CEM_QL_CODE_IDENTITY } from './native-code.js';
 
 vi.mock('./cem-ql-render.js', () => ({
     highlightSource: vi.fn(async () => ({ schemaVersion: 1, status: 'painted', ranges: [{ start: 1, end: 2, role: 'syntax.name' }] })),
@@ -579,7 +582,7 @@ it('releases the exact stylesheet generation cancelled during fallback processin
     await rejected;
     expect(processRetainedTemplateStylesheet).toHaveBeenLastCalledWith(1,
         expect.objectContaining({ action: 'release', loadId: expect.stringMatching(/:17$/) }),
-        expect.any(String), 'registration:css', 17);
+        expect.any(String), 'registration:css', 17, undefined);
     await host.dispose({ reason: 'runtime-disposed' }).result;
 });
 
@@ -1248,4 +1251,80 @@ it('refuses adding a demand gate after an ordinary root has selected its worker 
     const host = cemProcessingHostForScope(scope, options); await host.ready;
     expect(() => cemProcessingHostForScope(scope, { ...options, nativeWork: async (_host, work) => work() })).toThrow('configuration');
     scope.dispose();
+});
+
+
+class CodeDeliveryWorker extends ControlledProcessingWorker {
+    readonly deliveries: { module: WebAssembly.Module }[] = [];
+    constructor(private readonly codeIdentity: unknown = CEM_QL_CODE_IDENTITY, private readonly premature = false) { super(); }
+    protected override emit(type: string, data: unknown): void {
+        if (type === 'message' && (data as { direction?: string }).direction === 'ready' && !this.deliveries.length) {
+            super.emit('message', { type: 'cem-render-code-request', protocol: CEM_NATIVE_CODE_PROTOCOL, identity: this.codeIdentity });
+            if (this.premature) super.emit('message', createCemProcessingReadyEnvelope('worker'));
+        } else super.emit(type, data);
+    }
+    override postMessage(request: CemProcessingRequestEnvelope): void {
+        const packet = request as unknown as { type?: string; module: WebAssembly.Module };
+        if (packet.type === 'cem-render-code-delivery') {
+            this.deliveries.push(packet);
+            queueMicrotask(() => this.emit('message', createCemProcessingReadyEnvelope('worker')));
+        } else super.postMessage(request);
+    }
+}
+
+describe('original compiled-code worker bootstrap', () => {
+    const module = new WebAssembly.Module(Uint8Array.from([0,97,115,109,1,0,0,0]));
+    const create = (worker: CodeDeliveryWorker) => {
+        const root = createCemDeclarationScope({ document: {} as Document });
+        const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/code-worker.js'),
+            workerFactory: () => worker as unknown as Worker });
+        return { root, host };
+    };
+    it('holds readiness until code delivery and allows the same immutable code for independent workers', async () => {
+        let complete!: (module: WebAssembly.Module) => void;
+        codeDelivery.load.mockReset().mockReturnValue(new Promise(resolve => { complete = resolve; }));
+        const a = new CodeDeliveryWorker(), b = new CodeDeliveryWorker();
+        const first = create(a), second = create(b);
+        let ready = false; void first.host.ready.then(() => { ready = true; });
+        await flushMicrotasks(); expect(ready).toBe(false); expect(a.deliveries).toHaveLength(0);
+        complete(module); await Promise.all([first.host.ready, second.host.ready]);
+        expect(a.deliveries[0].module).toBe(module); expect(b.deliveries[0].module).toBe(module);
+        expect(first.host.checkpointClient).not.toBe(second.host.checkpointClient);
+        first.root.dispose(); second.root.dispose();
+    });
+    it('refuses mismatched build pins before acquisition or worker execution', async () => {
+        codeDelivery.load.mockReset().mockResolvedValue(module);
+        const worker = new CodeDeliveryWorker({ ...CEM_QL_CODE_IDENTITY, profile: 'foreign' });
+        const {root,host} = create(worker); await host.ready;
+        expect(host.mode).toBe('main-thread'); expect(worker.terminated).toBe(true);
+        expect(codeDelivery.load).not.toHaveBeenCalled(); expect(worker.deliveries).toHaveLength(0); root.dispose();
+    });
+    it('refuses readiness before code has been delivered', async () => {
+        let complete!: (module: WebAssembly.Module) => void;
+        codeDelivery.load.mockReset().mockReturnValue(new Promise(resolve => { complete = resolve; }));
+        const worker = new CodeDeliveryWorker(CEM_QL_CODE_IDENTITY, true), {root,host} = create(worker);
+        await host.ready; expect(host.mode).toBe('main-thread'); expect(worker.terminated).toBe(true);
+        complete(module); await flushMicrotasks(); expect(worker.deliveries).toHaveLength(0); root.dispose();
+    });
+    it('contains code-load failure at startup and permits a fresh worker to acquire later', async () => {
+        codeDelivery.load.mockReset().mockRejectedValueOnce(Error('cem.runtime.code.load')).mockResolvedValue(module);
+        const failedWorker = new CodeDeliveryWorker(), failed = create(failedWorker);
+        await failed.host.ready;
+        expect(failed.host.mode).toBe('main-thread'); expect(failedWorker.terminated).toBe(true);
+        expect(failedWorker.deliveries).toHaveLength(0);
+        const freshWorker = new CodeDeliveryWorker(), fresh = create(freshWorker);
+        await fresh.host.ready;
+        expect(fresh.host.mode).toBe('worker'); expect(freshWorker.deliveries).toHaveLength(1);
+        failed.root.dispose(); fresh.root.dispose();
+    });
+    it('does not deliver code after retirement and keeps another waiting owner alive', async () => {
+        let complete!: (module: WebAssembly.Module) => void;
+        codeDelivery.load.mockReset().mockReturnValue(new Promise(resolve => { complete = resolve; }));
+        const a = new CodeDeliveryWorker(), b = new CodeDeliveryWorker(), first = create(a), second = create(b);
+        const retired = first.host.ready.catch(() => undefined);
+        await flushMicrotasks(); first.root.dispose(); await flushMicrotasks();
+        complete(module); await retired; await second.host.ready;
+        expect(a.terminated).toBe(true); expect(a.deliveries).toHaveLength(0);
+        expect(b.deliveries).toHaveLength(1); expect(second.host.mode).toBe('worker'); second.root.dispose();
+    });
 });

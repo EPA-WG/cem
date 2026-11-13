@@ -23,11 +23,19 @@
         ]
     },
     "targets": {
+        "build:code-bindings": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "node tools/scripts/refresh-cem-ql-code.mjs",
+                "cwd": ""
+            }
+        },
         "test:browser-runtime-metrics": {
             "executor": "nx:run-commands",
             "cache": false,
             "options": {
-                "command": "node --test --test-concurrency=1 tools/scripts/browser-runtime-metrics.test.mjs tools/scripts/audit-components-wasm.test.mjs tools/scripts/wasm-acquisition-trace.test.mjs",
+                "command": "node --test --test-concurrency=1 tools/scripts/browser-runtime-metrics.test.mjs tools/scripts/audit-components-wasm.test.mjs tools/scripts/wasm-acquisition-trace.test.mjs tools/scripts/cem-ql-code-assets.test.mjs",
                 "cwd": ""
             }
         },
@@ -344,6 +352,8 @@
                 "rustDependencies",
                 "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ql-code-assets.mjs",
+                "{workspaceRoot}/tools/scripts/refresh-cem-ql-code.mjs",
                 "{workspaceRoot}/tools/scripts/wasm-opt.mjs",
                 { "externalDependencies": ["binaryen"] }
             ],

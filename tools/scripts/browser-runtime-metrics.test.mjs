@@ -79,7 +79,7 @@ test('matched benchmark assembly deduplicates runtime assets and refuses drift b
         for (const path of [core, vendor, 'packages/cem-components/dist', 'packages/cem-components/src/components', 'packages/cem-theme/dist/lib/css']) {
             await mkdir(join(root, path), { recursive: true });
         }
-        for (const path of [core, vendor]) for (const name of ['cem_ql.js', 'cem_ql_bg.wasm', 'cem_ql_factory.js']) {
+        for (const path of [core, vendor]) for (const name of ['cem_ql.js', 'cem_ql_bg.wasm', 'cem_ql_factory.js', 'cem_ql_code.js']) {
             await writeFile(join(root, path, name), name);
         }
         const prepared = await prepareComponentBenchmark(root, destination);

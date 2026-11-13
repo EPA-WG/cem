@@ -675,9 +675,9 @@ Deferred execution gates, in order within this workstream:
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm
-  consumer loading. Keep unavailable counters explicit. Diagnose duplicate full
-  WASM acquisition observed in local no-store worker runs (two transfers of one
-  unique binary; fallback one). Retain matched hashes/toolchains and fixed budget
+  consumer loading. Keep unavailable counters explicit. Preserve the matched
+  before/after full-WASM acquisition evidence (worker two transfers to one;
+  fallback one). Retain matched hashes/toolchains and fixed budget
   selection after the native boundary/prototype report, not an invented minimum.
   - [x] Measure repeated fresh-process cold starts and first use for the selected
         cart entry/JSON API and full-runtime controls, data and editor workloads.
@@ -692,7 +692,8 @@ Deferred execution gates, in order within this workstream:
   120 complete process-family PSS snapshots and 14 collector/audit tests. Selected
   entry readiness medians: 109/99 ms (worker/fallback); first use: 21/24 ms.
   Browser-family PSS after use: 264.8/261.2 MiB, including browser overhead.
-  Full worker workloads retain two WASM transfers with one live worker; see the
+  In this before-sharing archive, full worker workloads retain two WASM transfers
+  with one live worker; see the
   [startup report and per-run evidence](cem-components-wasm-startup.md).
 
   - [x] Trace duplicate full-runtime acquisition to its original page/worker
@@ -709,10 +710,51 @@ Deferred execution gates, in order within this workstream:
   adds no acquisition; the ordinary 40-run archive is preserved. See the
   [acquisition diagnosis and evidence](cem-components-wasm-acquisition.md).
 
-  - [ ] Deduplicate immutable code delivery across page/worker initialization,
+  - [x] Deduplicate immutable code delivery across page/worker initialization,
         retaining separate instances/memories, native leases and recovery owners.
         Verify concurrent initialization, load failure, worker loss and fresh
         recovery before rerunning uninstrumented startup/network measurements.
+    - [x] Verify generated artifact hash/ABI/profile pins, concurrent module loads,
+          failed-load retry and mismatched or repeated code-delivery refusal.
+    - [x] Verify worker bootstrap ordering, retirement during acquisition, fresh
+          worker/fallback heaps and recovery without mutation replay.
+    - [x] Align the three existing stylesheet-call fixtures with the optional
+          portable-owner argument, retaining every original lease/load assertion.
+    - [x] Rebuild shared runtime assets and compare original worker/fallback
+          workflows, diagnostic acquisitions and repeated startup/memory samples.
+    - [x] Verify deployed recovery can reuse verified code after byte-cache loss,
+          while a fresh realm without code/bytes refuses; preserve unknown-write
+          and credential fences and the optional-schema deployment profile.
+    - [x] Capture the original optional-profile startup error stack and resolve
+          any code-delivery regression without changing readiness deadlines.
+    - [x] Regenerate the stale optional bootstrap pin from the complete native
+          catalog and verify it before rebuilding the optional Studio profile.
+
+  Verified 840 runtime unit tests, 20 collector/code-asset tests and 12 native
+  asset-pack tests, clean package import, selected actions, deployed cart UI and
+  nine offline/service-failure cases. Complete Studio worker/fallback recovery
+  passes three cycles per mode with original 7/4-owner physical groups, privacy
+  fences and retained iframe/control identity. The optional Studio profile passes
+  online/offline native format demand and all 205 pack assets after regenerating
+  its stale bootstrap pin. Shared code retains separate native heaps and leases;
+  original declarative/theme and credential policies remain in force. All 40 new
+  startup runs and 12 traces acquire WASM once; all 120 PSS snapshots are complete.
+  Full-worker after-use PSS medians fall by 45.7–49.3 MiB; fallback ready medians
+  increase by 419–456 ms with roughly unchanged memory. Preserve the original
+  archives and the [code-sharing results and limits](cem-components-wasm-code-sharing.md).
+  Earlier initial-mutation and complete-recovery deadline stalls remain
+  unattributed; subsequent original assertions pass without deadline changes.
+
+  - [ ] Attribute the increased fallback readiness medians to original loading,
+        compilation and declaration phases before changing the loader or claiming
+        a cause; retain matched artifacts, original assertions and separate PSS.
+  - [ ] Measure all-capabilities delivery and installed offline byte totals with
+        original artifact hashes, cache inventories and explicit capability scope.
+  - [ ] Measure cold loading and first use in clean npm worker/fallback consumers,
+        checking asset closure and combined memory before selecting fixed budgets.
+  - [ ] If the initial fallback/offline cart mutation or complete Studio recovery
+        deadline recurs, use the original case/request/error and phase capture to
+        attribute it before changing readiness or recovery deadlines.
 
 - [ ] Prove native call reachability and dynamic mode/provider/template closure
   alongside module extraction. Keep the conservative source matrix separate

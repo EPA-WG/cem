@@ -4,6 +4,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { homedir, platform, release, arch, cpus, totalmem } from 'node:os';
 import { resolve, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { readDemoInventory } from './demo-deployment.mjs';
 import { createDemoSiteHandler } from './serve-demo-site.mjs';
@@ -14,11 +15,12 @@ import { traceWasmAcquisition, nativeHeapInspection } from './wasm-acquisition-t
 
 const root = resolve(import.meta.dirname, '../..');
 const args=process.argv.slice(2).filter(arg=>arg!=='--');
-const usage='Usage: node tools/scripts/measure-components-wasm.mjs [deployment | --prepare] [--runs=3] [--case=selected|controls|data|editor] [--trace-wasm] [--write-doc]';
+const usage='Usage: node tools/scripts/measure-components-wasm.mjs [deployment | --prepare] [--runs=3] [--case=selected|controls|data|editor] [--trace-wasm] [--record=code-sharing] [--write-doc]';
 if(args.length===1 && args[0]==='--help') { console.log(usage); process.exit(0); }
-assert(args.every(arg=>['--write-doc','--prepare','--trace-wasm'].includes(arg)||/^--runs=\d+$/.test(arg)||/^--case=(selected|controls|data|editor)$/.test(arg)||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1,usage);
+assert(args.every(arg=>['--write-doc','--prepare','--trace-wasm','--record=code-sharing'].includes(arg)||/^--runs=\d+$/.test(arg)||/^--case=(selected|controls|data|editor)$/.test(arg)||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1,usage);
 assert(args.filter(arg=>arg.startsWith('--runs=')).length<=1 && args.filter(arg=>arg.startsWith('--case=')).length<=1,usage);
 const tracing=args.includes('--trace-wasm');
+const recordSuffix=args.includes('--record=code-sharing')?'-code-sharing':'';
 const runs=Number(args.find(arg=>arg.startsWith('--runs='))?.slice(7)??(tracing?1:3));
 assert(Number.isInteger(runs)&&runs>=1&&runs<=20,'runs must be between 1 and 20');
 const only=args.find(arg=>arg.startsWith('--case='))?.slice(7);
@@ -27,6 +29,7 @@ assert(!args.includes('--prepare')||!args.some(arg=>!arg.startsWith('-')),'--pre
 const deployment = resolve(args.includes('--prepare') ? join(root,'dist/fixtures/component-browser-startup') : args.find(arg=>!arg.startsWith('-')) ?? join(homedir(),'cem-bin'));
 if(args.includes('--prepare')) await prepareComponentBenchmark(root,deployment);
 const output = resolve(root,'dist/reports/components-wasm');
+const codeIdentity=recordSuffix?(await import(pathToFileURL(resolve(root,'packages/cem_ql/dist/wasm/cem_ql_code.js')))).CEM_QL_CODE_IDENTITY:undefined;
 const expected = createHash('sha256').update(await readFile(resolve(root,'packages/cem_ql/dist/wasm/cem_ql_bg.wasm'))).digest('hex');
 assert.equal(createHash('sha256').update(await readFile(join(deployment,'packages/cem_ql/dist/wasm/cem_ql_bg.wasm'))).digest('hex'),expected,'deployment/core cohort mismatch');
 const inventory=await readDemoInventory(deployment); assert(inventory,'deployment inventory required');
@@ -229,6 +232,7 @@ try {
         }
         const traffic=summarizeTraffic(responses);
         assert(traffic.uniqueWasm.length>0,'native rendering must load WASM');
+        if(recordSuffix) assert.equal(traffic.wasmRequests,1,'compiled-code sharing must acquire WASM only once');
         for(const wasm of traffic.uniqueWasm) assert.equal(wasm.sha256,kind==='selected'?selectedSha256:expected,'unexpected second/mismatched runtime');
         const workerCounters=await page.evaluate(()=>window.auditWorkerCounters);
         if(mode==='worker') {assert(workerCounters.ready>0 && workerCounters.success>0,'default worker must actually process successful jobs');assert.equal(workerCounters.failure,0);}
@@ -242,7 +246,7 @@ try {
         await cdp.detach();await context.close();await browser.close();await browserServer.close();browser=undefined;browserServer=undefined;
     }
     await mkdir(output,{recursive:true});
-    const report={schemaVersion:2,scope:'selected-native-entry-and-separate-full-runtime-workloads',runs,
+    const report={schemaVersion:2,recordSuffix,codeIdentity,scope:'selected-native-entry-and-separate-full-runtime-workloads',runs,
         transport:'assembled-demo deduplicated adapters; local no-store HTTP; selected original compiled cart/JSON API fixture',
         coreSha256:expected,selectedSha256,chromium:chromiumVersion,node:process.version,
         platform:`${platform()} ${release()} ${arch()}`,cpu:cpus()[0]?.model,cpuCount:cpus().length,hostMemoryBytes:totalmem(),
@@ -256,16 +260,16 @@ try {
             sampling:'snapshots after network/render idle outside timed intervals; no explicit GC; diagnostic work occurs between readiness and first use',
             workers:'live dedicated workers observed by Playwright, separate from creation/job counters and OS processes'},
         summary:tracing?[]:summarizeStartup(results),results};
-    await writeFile(join(output,tracing?'browser-wasm-acquisition.json':'browser-startup.json'),`${JSON.stringify(report,null,2)}\n`);
+    await writeFile(join(output,`browser-${tracing?'wasm-acquisition':'startup'}${recordSuffix}.json`),`${JSON.stringify(report,null,2)}\n`);
     if(tracing&&args.includes('--write-doc')) {
-        const evidence={contract:'cem-wasm-acquisition-diagnosis/1',coreSha256:expected,chromium:chromiumVersion,node:process.version,measuredAt:report.measuredAt,harnessHashes:report.harnessHashes,
+        const evidence={contract:'cem-wasm-acquisition-diagnosis/1',recordSuffix,codeIdentity,coreSha256:expected,chromium:chromiumVersion,node:process.version,measuredAt:report.measuredAt,harnessHashes:report.harnessHashes,
             sourceHashes:Object.fromEntries(results.flatMap(row=>row.responses.filter(response=>response.path.split('?')[0].endsWith('.js')||response.path.split('?')[0].endsWith('.mjs')).map(response=>[response.path,response.sha256]))),
             limits:['Debugger instrumentation invalidates latency comparisons.','Worker stacks unavailable; original performance resource entries and initialized native exports identify worker acquisitions.'],
             results:results.map(row=>({kind:row.kind,mode:row.mode,run:row.run,workers:row.afterMemory.activeWorkers,workerCounters:row.workerCounters,traffic:row.traffic,evidence:row.acquisitionEvidence}))};
-        await writeFile(resolve(root,'docs/cem-components-wasm-acquisition.json'),`${JSON.stringify(evidence,null,2)}\n`);
+        await writeFile(resolve(root,`docs/cem-components-wasm-acquisition${recordSuffix}.json`),`${JSON.stringify(evidence,null,2)}\n`);
     }
     if(!tracing&&args.includes('--write-doc')) {
-        await writeFile(resolve(root,'docs/cem-components-wasm-startup.md'),renderStartupReport(report));
+        await writeFile(resolve(root,`docs/cem-components-wasm-startup${recordSuffix}.md`),renderStartupReport(report));
         const compact = sample => { const {processes,...aggregate}=sample; return aggregate; };
         const evidence={...report,results:results.map(row=>{
             const {responses,...sample}=row;
@@ -273,6 +277,6 @@ try {
                 coldMemory:{...row.coldMemory,browserFamily:compact(row.coldMemory.browserFamily)},
                 afterMemory:{...row.afterMemory,browserFamily:compact(row.afterMemory.browserFamily)}};
         })};
-        await writeFile(resolve(root,'docs/cem-components-wasm-startup.json'),`${JSON.stringify(evidence,null,2)}\n`);
+        await writeFile(resolve(root,`docs/cem-components-wasm-startup${recordSuffix}.json`),`${JSON.stringify(evidence,null,2)}\n`);
     }
 } finally {await browser?.close();await browserServer?.close();server.closeAllConnections();await new Promise(done=>server.close(done));}

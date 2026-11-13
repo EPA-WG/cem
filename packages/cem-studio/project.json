@@ -1105,6 +1105,7 @@
                 "{projectRoot}/scripts/example-projects.mjs",
                 "{projectRoot}/scripts/deployment-revision.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ql-code-assets.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false

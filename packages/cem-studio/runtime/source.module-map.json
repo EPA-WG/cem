@@ -843,8 +843,16 @@
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-runtime.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/native-code": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-code.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-elements/cem-ql-factory": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cem-ql-code": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_code.js",
             "contentType": "text/javascript"
         },
         "@epa-wg/cem-elements/native-generation": {

@@ -93,7 +93,7 @@ template source for its optional source-cache behavior. A separate strict
 processing input now admit native binary IR from build-pinned source/artifact
 hashes without source text. Worker/fallback processing shares this path and never
 falls back to source compilation when a deployment pin is refused. The processing
-protocol is v30; old source/cache inputs remain supported.
+protocol is v31; old source/cache inputs remain supported.
 
 Native build-generated declaration metadata and explicit shared
 `CemElementRuntime.registerCompiledDeclaration` now register canonical components
@@ -562,3 +562,7 @@ and cancelled demand, corruption/version refusal, offline/preload behavior,
 worker/fallback recovery and component/accessibility/theme equivalence. Bundle
 checks prove consumers do not accidentally import both full and minimal runtimes.
 Only advertise a minimum size after a measured profile passes these gates.
+
+The full source runtime shares verified immutable code across the page and its
+workers while keeping separate native instances and recovery owners. See the
+[code-delivery contract and measurements](cem-components-wasm-code-sharing.md).

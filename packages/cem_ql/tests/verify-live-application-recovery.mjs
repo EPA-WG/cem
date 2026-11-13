@@ -195,16 +195,33 @@ try {
         const quantity = frame.getByRole('spinbutton', { name: 'Quantity' }).first();
         assert.equal(await quantity.inputValue(), '2');
         await quantity.fill('3'); await quantity.press('Tab');
-        await frame.getByText('USD 27.00', { exact: true }).waitFor();
+        await frame.getByText('USD 27.00', { exact: true }).waitFor().catch(async error => {
+            const errors = await page.evaluate(() => window.cartRecoveryFixture.errors);
+            throw Error(`${mode}/${scenario} initial mutation: ${JSON.stringify({ errors, attempts, requests: service.requests, value: await quantity.inputValue() })}`, { cause: error });
+        });
         const before = structuredClone(service.requests);
         if (deployed) {
             const baselineAttempts = attempts.length, baselineService = serviceAttempts.length;
             let removed;
             if (scenario === 'missing-runtime') removed = await removeRuntimeAsset(page, origin);
+            let uncachedRealm;
+            if (scenario === 'missing-runtime') {
+                uncachedRealm = await context.newPage();
+                await uncachedRealm.goto(`${origin}/fixture`);
+                await uncachedRealm.waitForFunction(() => navigator.serviceWorker.controller);
+            }
             if (scenario === 'offline' || scenario === 'missing-runtime') await context.setOffline(true);
             if (scenario === 'unavailable' || scenario === 'lost-reply') serviceMode = 'unavailable';
             if (scenario === 'missing-runtime') {
-                await assert.rejects(page.evaluate(() => window.cartRecoveryFixture.recovery()), /fetch|load|allocation|worker/i);
+                // The original host still owns verified immutable code; fresh
+                // heaps need no second byte transfer. A new realm has no such
+                // code and must refuse while the byte asset is unavailable.
+                await page.evaluate(() => window.cartRecoveryFixture.recovery());
+                await assert.rejects(uncachedRealm.evaluate(async () => {
+                    const native = await import('/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-runtime.js');
+                    await native.default();
+                }), /fetch|load|allocation|worker|code/i);
+                await uncachedRealm.close();
                 assert.equal(await quantity.inputValue(), '3');
                 assert.equal(await frame.getByText('USD 27.00', { exact: true }).count(), 1);
             } else {
@@ -216,7 +233,7 @@ try {
             if (scenario === 'lost-reply') serviceMode = 'lost-reply';
             await quantity.fill('4'); await quantity.press('Tab');
             await page.waitForFunction(() => window.cartRecoveryFixture.errors.length > 0);
-            if (scenario !== 'missing-runtime') await page.evaluate(() => window.cartRecoveryFixture.refuseUnknown());
+            await page.evaluate(() => window.cartRecoveryFixture.refuseUnknown());
             await context.setOffline(false); serviceMode = 'online';
             if (removed) await restoreRuntimeAsset(page, removed);
             const reconnect = attempts.length;

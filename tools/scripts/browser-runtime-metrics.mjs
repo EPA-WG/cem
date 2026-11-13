@@ -119,13 +119,13 @@ export function summarizeStartup(results) {
 export function renderStartupReport(report) {
     const number = (metric, divisor = 1) => metric.status !== 'available' ? 'unavailable'
         : `${(metric.median / divisor).toFixed(divisor === 1 ? 0 : 1)} [${(metric.min / divisor).toFixed(divisor === 1 ? 0 : 1)}–${(metric.max / divisor).toFixed(divisor === 1 ? 0 : 1)}]`;
-    const mib = 1024 ** 2;
+    const mib = 1024 ** 2, suffix=report.recordSuffix??'';
     return `# Runtime cold-start and memory measurements
 
-Generated with \`yarn nx run cem_ql:measure:browser-startup -- --runs=${report.runs} --write-doc\`.
-Committed per-run evidence: [cem-components-wasm-startup.json](cem-components-wasm-startup.json).
+Generated with \`yarn nx run cem_ql:measure:browser-startup -- --runs=${report.runs}${suffix?' --record=code-sharing':''} --write-doc\`.
+Committed per-run evidence: [cem-components-wasm-startup${suffix}.json](cem-components-wasm-startup${suffix}.json).
 Full local observations, phase traffic, process identities and native samples:
-\`dist/reports/components-wasm/browser-startup.json\`.
+\`dist/reports/components-wasm/browser-startup${suffix}.json\`.
 
 ## Method and scope
 
@@ -162,6 +162,6 @@ ${report.summary.map(row => `| ${row.kind} | ${row.mode} | ${number(row.blankPss
 
 ## Remaining measurements
 
-Keep the [historical single-context baseline](cem-components-wasm-baseline.md) separate. These observations do not establish causation from binary-size reduction, an OOM threshold, a peak or a complete reduced live-component distribution. Diagnose repeated full-WASM acquisition, then measure all-capabilities/offline totals and clean npm consumers before selecting fixed budgets. Full dynamic/native link closure and optional-module ABI/loader work remain separate gates.
+Keep the [historical single-context baseline](cem-components-wasm-baseline.md) separate. These observations do not establish causation from binary-size reduction, an OOM threshold, a peak or a complete reduced live-component distribution. ${suffix?'The measured code-sharing path acquires WASM once per workload. Measure':'Diagnose repeated full-WASM acquisition, then measure'} all-capabilities/offline totals and clean npm consumers before selecting fixed budgets. Full dynamic/native link closure and optional-module ABI/loader work remain separate gates.
 `;
 }

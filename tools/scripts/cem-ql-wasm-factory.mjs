@@ -2,9 +2,9 @@ import ts from 'typescript';
 
 /** Pin the wasm-bindgen module shape at build time. Each invocation owns every
  * binding/cache/registry closure; no eval, blob module or per-generation URL. */
-export function cemQlWasmFactory(source) { return ownedWasmFactory(source, 'cem_ql', 'CemQl'); }
+export function cemQlWasmFactory(source, sharedCode = false) { return ownedWasmFactory(source, 'cem_ql', 'CemQl', sharedCode); }
 
-export function ownedWasmFactory(source, stem, name) {
+export function ownedWasmFactory(source, stem, name, sharedCode = false) {
     if (!['cem_ql', 'cem_ml'].includes(stem) || !['CemQl', 'CemMl'].includes(name)) throw new Error('Unknown owned WASM module');
     const ast = ts.createSourceFile(`${stem}.js`, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
     const edits = [], functions = [];
@@ -39,7 +39,7 @@ export function ownedWasmFactory(source, stem, name) {
 // Generated from pinned wasm-bindgen bindings. Owned lifecycle controls only.
 // One immutable code module per installed asset; never cache an Instance,
 // Memory, binding closure, custom input or an unbounded set of URLs.
-let defaultModule;
+${sharedCode ? `import { loadCemQlWasmModule } from './cem_ql_code.js';\nexport { loadCemQlWasmModule };\n` : `let defaultModule;
 export function load${name}WasmModule() {
     return defaultModule ??= fetch(new URL('${stem}_bg.wasm', import.meta.url)).then(async response => {
         if (!response.ok) throw new Error('cem.runtime.generation.load');
@@ -48,6 +48,7 @@ export function load${name}WasmModule() {
         return WebAssembly.compile(await response.arrayBuffer());
     }).catch(error => { defaultModule = undefined; throw error; });
 }
+`}
 function cancellable(input, signal) {
     if (!signal) return input;
     signal.throwIfAborted();
@@ -151,7 +152,7 @@ export const cemQlWasmFactoryTypes = ownedWasmFactoryTypes('cem_ql', 'CemQl');
 
 export function ownedWasmFactoryTypes(stem, name) { return `import type { InitInput } from './${stem}.js';
 export interface ${name}WasmGeneration {
-    initialize(input?: InitInput, signal?: AbortSignal): Promise<void>;
+    initialize(input?: InitInput | Promise<InitInput>, signal?: AbortSignal): Promise<void>;
     memory(): WebAssembly.Memory | undefined;
     call(name: string, args: unknown[]): unknown;
     prepareRetirement(expectedRevision: number): Readonly<{ schemaVersion: 1; frozen: true; inventoryRevision: number; frozenRevision: number; replacementAllowed: false }>;

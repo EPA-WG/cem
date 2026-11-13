@@ -94,6 +94,7 @@ async function copyDemoSite(destination) {
         'docs/cem-elements-http-request-design.md',
         `${sharedDirectory}/cem_ql.js`,
         `${sharedDirectory}/cem_ql_factory.js`,
+        `${sharedDirectory}/cem_ql_code.js`,
         `${sharedDirectory}/cem_ql_bg.wasm`,
         `${sharedDirectory}/package.json`,
     ];
@@ -151,7 +152,7 @@ async function copyDemoSite(destination) {
     // Check both nested runtime copies against the release build. A stale
     // package/vendor cache must not silently reintroduce a debug binary.
     for (const [directory] of runtimeCopies.filter(([, name]) => name === 'cem_ql')) {
-        for (const name of ['cem_ql.js', 'cem_ql_bg.wasm']) {
+        for (const name of ['cem_ql.js', 'cem_ql_bg.wasm', 'cem_ql_code.js']) {
             const release = await readFile(resolve(repoRoot, sharedDirectory, name));
             const packaged = await readFile(resolve(repoRoot, directory, name));
             if (!release.equals(packaged)) {
@@ -186,10 +187,13 @@ export { default } from ${specifier};
         const factoryFile = `${directory}/${name}_factory.js`;
         const factoryPath = relative(dirname(factoryFile), `${sharedDirectory}/cem_ql_factory.js`).split(sep).join('/');
         const factoryShim = `// Share factory code and binary URLs, preserving a new heap per generation.\nexport * from ${JSON.stringify(factoryPath.startsWith('.') ? factoryPath : `./${factoryPath}`)};\n`;
+        const codeFile = `${directory}/cem_ql_code.js`;
+        const codePath = relative(dirname(codeFile), `${sharedDirectory}/cem_ql_code.js`).split(sep).join('/');
+        const codeShim = `export * from ${JSON.stringify(codePath.startsWith('.') ? codePath : `./${codePath}`)};\n`;
         if (retired(file)) {
             legacyEntries.push({ path: file, content: shim }, { path: factoryFile, content: factoryShim },
                 { path: file, content: shim.replace('CEM-QL gallery consumers share matching glue and WASM.', 'the generated glue and WASM are shared by all demos.') });
-        } else { generated.set(file, shim); generated.set(factoryFile, factoryShim); }
+        } else { generated.set(file, shim); generated.set(factoryFile, factoryShim); generated.set(codeFile, codeShim); }
     }
     // Consumer-only rebasing: standalone package outputs retain their vendor tree.
     const generatorFile = 'packages/cem-theme/dist/lib/css-generators/cem-css-generator.js';

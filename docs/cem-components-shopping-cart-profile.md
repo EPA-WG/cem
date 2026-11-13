@@ -88,7 +88,7 @@ native owners.
 existing binary transfer fields. The transfer's format/policy/source-map identity
 must match the host request. Source/cache fallback, source-module overrides and
 XSLT/CSS compilation options cannot be mixed into this strict input. The shared
-processing protocol is v30. Shared compiled registration below uses this transport;
+processing protocol is v31. Shared compiled registration below uses this transport;
 the declarative loader below now acquires build-generated component closures.
 
 The host validates bounds before copying buffers and owns deployment inputs
@@ -291,7 +291,7 @@ dynamically constructed module closure or reduced binary.
 `cem-template-artifact/2` / `cem-template-ir-v2` envelope. Native declaration and
 static-closure builds select this format; ordinary source/WASM compilation keeps
 v1. Both formats remain supported by native and shared worker/fallback readers.
-The existing processing transport stays v30, with explicit format agreement
+The existing processing transport uses v31, with explicit format agreement
 checked against native import results. A v2 pin cannot accept a v1 body or invoke
 a source fallback.
 

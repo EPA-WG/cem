@@ -1,5 +1,6 @@
 import { cemSchemaAssetTransportFromBinding, type CemSchemaAssetTransportRuntime } from '../../schema-asset-pack.js';
 import { discardNativeGenerationResources } from './native-generation.js';
+import { loadCemQlWasmModule } from './native-code.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated native bindings are vendored by the package build.
 import * as legacy from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated owned-factory contract is vendored with its bindings.
@@ -70,7 +71,11 @@ export function nativeRuntimeUsable(): boolean { return !owned || owned.usable()
 export default function initializeNativeRuntime(): Promise<void> {
     started = true;
     if (owned) return owned.initialize();
-    return legacyInitialization ??= legacy.default().then(native => { domain.bindNativeRuntime(native.memory); });
+    if (legacyInitialization) return legacyInitialization;
+    let alreadyInitialized = false;
+    try { legacy.cemQlVersion(); alreadyInitialized = true; } catch { /* Preserve an embedding's original instance; never initialize in the probe. */ }
+    return legacyInitialization ??= (alreadyInitialized ? legacy.default() : loadCemQlWasmModule().then(module => legacy.default({ module_or_path: module })))
+        .then(native => { domain.bindNativeRuntime(native.memory); });
 }
 
 class OwnedFallback {
@@ -110,7 +115,7 @@ class OwnedFallback {
         // eslint-disable-next-line @nx/enforce-module-boundaries -- lazy generated factory; the package build rewrites this to its vendored copy.
         return this.initialization ??= import('../../../../../cem_ql/dist/wasm/cem_ql_factory.js').then(async module => {
             this.native = module.createCemQlWasmGeneration();
-            await this.native.initialize(undefined, signal);
+            await this.native.initialize(loadCemQlWasmModule(), signal);
             if (signal?.aborted) throw new Error('cem.runtime.allocation.cancelled');
             const memory = this.native.memory();
             if (!memory) throw new Error('cem.runtime.generation.identity');

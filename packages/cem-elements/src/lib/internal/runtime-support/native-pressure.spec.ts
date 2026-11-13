@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 const native = vi.hoisted(() => ({ pressure: false, calls: 0, reads: 0, closeAt: Infinity }));
+vi.mock('./native-code.js', () => ({ loadCemQlWasmModule: () => Promise.resolve(new WebAssembly.Module(Uint8Array.from([0,97,115,109,1,0,0,0]))) }));
 vi.mock('../../../../../cem_ql/dist/wasm/cem_ql.js', () => ({
     default: async () => ({ memory: new WebAssembly.Memory({ initial: 1 }) }),
     runtimeMemoryStatus: () => JSON.stringify({ softPressure: native.pressure || ++native.reads >= native.closeAt, hardPressure: false }),

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ dispose: vi.fn(), initialize: vi.fn(), call: vi.fn(), legacy: vi.fn() }));
+vi.mock('./native-code.js', () => ({ loadCemQlWasmModule: () => Promise.resolve(new WebAssembly.Module(Uint8Array.from([0,97,115,109,1,0,0,0]))) }));
 vi.mock('../../../../../cem_ql/dist/wasm/cem_ql.js', () => ({ default: mocks.legacy, cemQlVersion: () => 'legacy' }));
 vi.mock('../../../../../cem_ql/dist/wasm/cem_ql_factory.js', () => ({ createCemQlWasmGeneration: () => {
     let dead = false; const memory = new WebAssembly.Memory({ initial: 1 });
