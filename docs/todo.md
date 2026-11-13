@@ -695,6 +695,25 @@ Deferred execution gates, in order within this workstream:
   Full worker workloads retain two WASM transfers with one live worker; see the
   [startup report and per-run evidence](cem-components-wasm-startup.md).
 
+  - [x] Trace duplicate full-runtime acquisition to its original page/worker
+        callers; verify heap ownership and distinguish transfers from instances.
+    - [x] Add diagnostic-only CDP capture with native readiness-gated inspection;
+          verify original worker execution and no acquisition caused by inspection.
+    - [x] Record controls/data/editor worker and fallback evidence, required
+          owners and the supported boundary for sharing immutable compiled code.
+
+  Verified 12 original controls/data/editor traces across worker and fallback,
+  independent native heap/resource censuses and 16 serial collector/audit tests.
+  Page declaration diagnostics/metadata preparation and worker retained rendering
+  each load one copy; the extra local no-store body is 24,476,684 bytes. Inspection
+  adds no acquisition; the ordinary 40-run archive is preserved. See the
+  [acquisition diagnosis and evidence](cem-components-wasm-acquisition.md).
+
+  - [ ] Deduplicate immutable code delivery across page/worker initialization,
+        retaining separate instances/memories, native leases and recovery owners.
+        Verify concurrent initialization, load failure, worker loss and fresh
+        recovery before rerunning uninstrumented startup/network measurements.
+
 - [ ] Prove native call reachability and dynamic mode/provider/template closure
   alongside module extraction. Keep the conservative source matrix separate
   from linked-code omission evidence; map required source packs and compiled

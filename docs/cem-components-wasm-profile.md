@@ -143,6 +143,10 @@ same WASM twice, so unique file size and repeated transfer cost are reported
 separately. Repeated timing runs, live worker counts and combined browser-family
 resident memory are recorded in the startup report. All-capabilities/offline
 totals, clean npm consumers and fixed budget selection remain follow-up work.
+The [acquisition diagnosis](cem-components-wasm-acquisition.md) identifies the
+page's source-declaration diagnostics/metadata compiler and the worker's retained
+rendering heap as the two loading realms. Both reuse their own instances;
+deduplicating immutable code delivery must preserve their independent owners.
 
 The [selected cart link audit and source-module handoff](cem-components-shopping-cart-profile.md#linked-audit-and-source-module-handoff)
 identifies retained lifecycle adapter and transform roots in the named optimizer
