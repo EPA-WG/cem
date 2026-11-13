@@ -199,10 +199,42 @@ for the current native work and the conditional diagnostic items on recurrence.
       format/source snapshots, safe code projection after the toolbar, retained
       rendering controls, source preservation and clipboard-denial fallback.
 
-- [ ] Assess adding an **Open in separate window** icon button (arrow pointing
+- [x] Assess adding an **Open in separate window** icon button (arrow pointing
       to the upper right) to Studio's **Output preview** heading. Determine
       whether the existing preview artifact URL and resource lifecycle can be
       reused, and record the effort and behavior for opening the current preview.
+      Assessed 2026-11-13: the header control is small, but there is no standalone
+      preview URL. Realm-local trees and frame-owned blobs are revoked with their
+      current run/view. Recommend a read-only passive snapshot with an independent
+      viewer-owned registration; shared snapshot/handoff/viewer support is medium
+      scope. Interactive live/application detachment is a separate larger task.
+      See [the assessment](cem-studio.md#separate-preview-window-assessment).
+
+- [ ] Implement **Open in separate window** for the current passive Output preview
+      using the assessed snapshot contract, without rerunning or saving a build.
+  - [ ] Add shared bounded snapshot ownership and a one-use viewer handoff before
+        Studio UI work; preserve exact output resources and existing isolation,
+        limits, native CSS remapping and navigation. Give the viewer its own
+        registration and cleanup, independent of Studio run/context replacement.
+    - [ ] Add shared fixtures for source/pinned/current selection, stale successes,
+          relative assets, tree navigation, run replacement, parent/viewer close,
+          failed/cancelled/expired handoffs and resource accounting/cleanup.
+  - [ ] Add a trusted viewer with declarative CEM composition for artifact,
+        document, text and data previews; defer live/application state migration.
+  - [ ] Add a general `cem-workspace` preview-actions slot and the small contextual
+        `cem-icon-button` with `north_east`, matching title/accessibility label and
+        an explicit unavailable reason for unsupported or missing previews.
+    - [ ] Verify popup/handshake failure, offline use, preserved Studio selection,
+          keyboard/focus, six themes, inherited overrides and forced colors.
+
+- [ ] Give `cem-menu-item` selected styling while its submenu is open. Derive
+      the appearance from the shared submenu's actual expanded state, using
+      existing CEM state tokens; clear it when the submenu closes or switches.
+      Preserve menu roles and `aria-expanded` rather than adding `aria-selected`
+      solely for styling.
+  - [ ] Add colocated stories/gallery coverage for nested submenu switching,
+        keyboard and pointer opening, dismissal, disabled items, themes,
+        inherited token overrides and forced colors.
 
 ## Amsterdam presentation samples: active Studio priority
 

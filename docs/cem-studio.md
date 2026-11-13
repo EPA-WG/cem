@@ -1668,6 +1668,76 @@ URL/persistence transport. The planned
 [Markdown + CEM-ML site project](../roadmap.md#studio-example-markdown--cem-ml-site-project)
 exercises these contracts after single-output and Supplier multi-output previews.
 
+### Separate preview window assessment
+
+Assessed 2026-11-13. An **Open in separate window** action is feasible, but the
+current preview is not a navigable page URL. The heading control is a small
+change; preserving the same content, isolation and resource lifetime is a
+medium-sized shared-runtime/viewer change. This assessment does not add the
+button or a detached viewer.
+
+The existing paths establish these boundaries:
+
+| Surface | Existing representation | Reuse for a separate viewer |
+| --- | --- | --- |
+| Heading | `cem-workspace` owns Output preview; it exposes `preview-heading`, but only Navigation has an actions slot. | Add a general `preview-actions` slot, then compose a small contextual `cem-icon-button` with the `north_east` glyph and matching title/accessible name. |
+| HTML site/artifact | `registerCemArtifactTree` returns a realm-local handle; `mountCemArtifactPreview` fills a sandboxed `srcdoc` frame and creates temporary CSS/image blobs. | Reuse artifact admission, native CSS remapping and navigation in a new viewer-owned registration. The handle and frame URL cannot be used as a standalone page link. |
+| Single HTML/SVG document | `cem-media-preview mode=document` uses a fixed deny-all `srcdoc` sandbox. | Keep that document policy inside the viewer's frame. Opening raw output in a top-level page would omit this iframe boundary. |
+| Text and JSON/CSV table | Studio selects literal bounded text or the shared `cem-data-view` projection. | Reuse the same shared controls, text/row limits and truncation indicators; do not substitute an unbounded download. |
+| Live CEM/application | `mountCemLivePreview` owns a fresh runtime, explicit resources and transient controls; application previews may have provider/recovery owners. | Defer interactive detachment. A fresh mount would restart the view rather than preserve its current forms, credentials or application operations. |
+| Studio route/download | Route parameters identify project/build/artifact selection; download blobs are temporary. | A second Studio route does not transfer an in-memory successful run, and a download URL is not an admitted preview session. |
+
+The source evidence is in the
+[workspace declaration](../packages/cem-components/src/components/cem-workspace/cem-workspace.xhtml),
+[Studio preview selection](../packages/cem-studio/src/workbench.js),
+[run/source lifetime services](../packages/cem-studio/src/navigation.js),
+[artifact registry and mount](../packages/cem-elements/src/lib/artifact-preview.ts),
+[live preview mount](../packages/cem-elements/src/lib/live-preview.ts) and
+[media preview policy](../packages/cem-components/docs/passive-payload-contract.md#explicit-output-preview-modes).
+In particular, replacing a run, switching a pin/context or disposing a source
+preview releases its tree and all attached mounts/object URLs. A separate view
+cannot borrow that lifetime and remain stable through another build.
+
+Recommended first delivery: a **read-only snapshot of the currently displayed
+passive preview**, opened in a trusted same-origin viewer with declarative CEM
+composition and an independent resource registration. Resolve the same visible
+selection as `workbenchPreviewState`, including source/draft overrides, pinned
+runs, selected path/query/fragment and retained stale successes. Capture its
+identity/freshness before asynchronous work; do not build, save, fetch missing
+inputs, serialize rendered DOM or replay a command to open it. Missing,
+download-only and live/application previews have an explicit unavailable reason.
+
+Use a one-use bounded snapshot handoff to the viewer; do not put document bytes,
+credentials or an opaque registry handle in a shareable URL. Keep the original
+count/byte and active-content limits, and account for the additional snapshot,
+viewer runtime and remapped resources. Start with one detached snapshot per
+workbench. Its file navigation stays inside the captured output set and does not
+change Studio's source/artifact selection. New builds and edits leave it unchanged;
+opening again replaces it only after a successful new handoff. The viewer owns
+cleanup and should remain usable after Studio closes once transfer completes.
+Refreshing or reopening an expired handoff shows an explicit unavailable state;
+durable retention continues to use the existing pin/export flows.
+
+Request the new browsing context directly from the trusted action, before awaiting
+snapshot preparation. The browser may choose a tab instead of a window. Preserve
+the current preview if opening or transfer fails. Use an explicit viewer-ready
+handshake: `noopener` removes opener access and makes `window.open` return `null`
+even on success, so that return value alone cannot identify a blocked popup.
+These browser constraints are documented by
+[MDN Window.open](https://developer.mozilla.org/en-US/docs/Web/API/Window/open).
+Blob URLs also require explicit lifetime ownership and can disappear when their
+creator unloads; see [MDN blob URLs](https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Schemes/blob).
+The viewer must create its own URLs and retain the existing sandbox/CSP policies.
+
+Implement shared snapshot ownership/handoff and the viewer first, with fixtures
+for run replacement, source/pinned selection, relative assets, navigation,
+cancelled/failed transfers, limits and cleanup. Then add the workspace actions
+slot and Studio command using production CEM controls. Keep all rendering and
+bindings declarative; JavaScript only orchestrates browser windows, transport and
+resource ownership. Finish with keyboard/title/focus, six-theme/inherited-token,
+forced-color, offline and popup-policy checks. Live-state migration remains a
+separate larger follow-up over the existing provider/recovery contracts.
+
 ### Source Modes
 
 A resource supports these source modes:
