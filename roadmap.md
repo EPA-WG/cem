@@ -200,6 +200,33 @@ CEM trees, source maps and diagnostics.
       notation alignment, Nelumbo compatibility criteria and adoption. Record the
       agreed pilot, participants and acceptance criteria before adoption.
 
+### XSD schema parity and direct validation
+
+Goal: provide functional parity for schemas defined in **XML Schema (XSD)** and
+allow documents to be validated directly against supplied XSD schemas, without a
+manual schema rewrite. Pin XSD 1.0/1.1 profiles and reference validators before
+implementation; use the W3C [Structures](https://www.w3.org/TR/xmlschema11-1/)
+and [Datatypes](https://www.w3.org/TR/xmlschema11-2/) specifications as references.
+
+- [ ] Publish a parity matrix for element/attribute declarations, namespaces,
+      content models and occurrence constraints, simple/complex types, facets,
+      type derivation, identity constraints, composition and version-specific
+      features such as assertions and conditional type alternatives.
+- [ ] Define XSD import/compilation into shared CEM schema capabilities, retaining
+      schema hierarchy, rule ownership, source locations and explicit diagnostics
+      for unsupported constructs; compare native lowering with validator adapters.
+- [ ] Add direct XSD validation through the shared native lifecycle, exposed
+      consistently in Rust, CLI, WASM and Studio. Admit schema imports/includes
+      through explicit resolver policies and retain typed document ownership,
+      instance/schema source maps, cancellation and original operation budgets.
+- [ ] Verify valid/invalid documents and composed schemas against pinned reference
+      validators and a standards conformance corpus. Compare validation outcomes,
+      datatype/namespace semantics, rule locations and diagnostics before claiming
+      functional parity for any profile.
+- [ ] Connect imported XSD rules to the schema-constraints UI, per-element rule
+      inspection and immediate document/project validation, and include XSD in
+      the CEM stack comparison and migration guidance.
+
 ### Schematron functional parity
 
 Goal: provide Schematron-equivalent rule-based schema validation through the
@@ -227,7 +254,7 @@ Goal: publish a reproducible comparison with existing solutions, including
 **XQuery** and **Schematron**, to guide compatibility, adoption and priorities.
 
 - [ ] Select and pin representative implementations, versions and profiles for
-      XQuery, Schematron, XProc, XPath/XSLT, JSON Schema, RELAX NG and Nelumbo where
+      XQuery, Schematron, XProc, XPath/XSLT, XSD, JSON Schema, RELAX NG and Nelumbo where
       relevant. State each solution's role and compare overlapping capabilities
       without treating different language purposes as equivalent.
 - [ ] Run a shared corpus of document/schema definitions, validation constraints,
