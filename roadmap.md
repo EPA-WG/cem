@@ -179,6 +179,48 @@ Exit criteria:
   embedded in a template or schema behavior slot.
 - The same fixture can feed docs/examples without copying business structure into multiple formats.
 
+### Generic grammar notation for schema definitions
+
+Goal: support defining CEM schemas through a generic grammar-definition notation,
+compiled through the shared native schema/parser pipeline with retained typed
+CEM trees, source maps and diagnostics.
+
+- [ ] Select the notation and define its mapping to schema structure, lexical
+      rules, precedence, cardinality, references and embedded-language boundaries.
+      Keep grammar acceptance and executable semantic rules explicit and separate.
+- [ ] Use [Nelumbo](https://nelumbo.nl/) as the compatibility check. Nelumbo
+      describes both declarative syntax and logic-based semantics; pin an agreed
+      version and representative language definitions, then document the supported
+      mapping, semantic boundaries and unsupported constructs without claiming
+      full compatibility before verification.
+- [ ] Add native compatibility fixtures for grammar import/compilation, equivalent
+      CEM schema behavior, original source attribution and refusal diagnostics;
+      verify the same admitted definitions through CLI and WASM consumers.
+- [ ] Follow up with **Wim Bast** and **Victor (identity to confirm)** about
+      notation alignment, Nelumbo compatibility criteria and adoption. Record the
+      agreed pilot, participants and acceptance criteria before adoption.
+
+### Schematron functional parity
+
+Goal: provide Schematron-equivalent rule-based schema validation through the
+shared native CEM document/schema lifecycle. Use
+[ISO/IEC 19757-3:2025](https://www.iso.org/standard/85625.html) as the standards
+reference and pin the exact edition and query-binding profiles before implementation.
+
+- [ ] Define a functional parity matrix covering rule contexts, assertions and
+      reports, patterns/phases, variables, reusable rules, schema composition,
+      diagnostics and validation-report interchange. Keep any unsupported feature
+      explicit until its conformance cases pass.
+- [ ] Preserve native typed document/source ownership, namespace and source-map
+      attribution, bounded resolver behavior and consistent diagnostics across
+      Rust, CLI, WASM and Studio. Reuse the standards-track XPath foundations
+      where a selected Schematron query binding requires them.
+- [ ] Verify representative schemas and valid/invalid documents against a pinned
+      reference implementation, including report contents, locations and failure
+      behavior; publish the compatibility results before claiming functional parity.
+- [ ] Contact the **Schematron book author** to review the parity scope and
+      adoption opportunities; confirm the intended book, author and contact details.
+
 ## Phase 2.5 - CEM-ML CLI Product And Deployment Foundation
 
 Goal: turn the Phase 2 command contract into separately deployable, version-synchronized CLI packages before Studio,
