@@ -41,6 +41,40 @@ physical-device/spoken AT acceptance.
 Amsterdam presentation delivery is accepted and archived. Use the SSR follow-ups
 for the current native work and the conditional diagnostic items on recurrence.
 
+## Studio project build command
+
+- [ ] Add a **Copy CLI** button on Studio's project page beside **Cancel build**.
+      Copy the Bash command equivalent of **Build project** to the clipboard and,
+      on the same click, display that command in a `<code>` section immediately
+      after the buttons group. Use the current project's actual build configuration
+      and shared command rendering, with correct shell quoting and working-folder
+      context; keep the UI declarative through shared CEM controls.
+  - [ ] Verify copied/displayed command parity with project build inputs, correct
+        button placement, repeated clicks, project/configuration changes,
+        clipboard failure, keyboard access and theme behavior in focused fixtures.
+
+- [ ] In Studio project options, use a radio-button group when there are **7 or
+      fewer choices**, and retain the dropdown for **8 or more**. Preserve the
+      selected value, labels, disabled states and shared declarative CEM controls;
+      handle an empty choice set explicitly.
+  - [ ] Verify the 0/1/7/8-choice boundaries, project/configuration changes,
+        selection preservation, keyboard/accessibility and theme behavior.
+
+- [ ] Add shared project-bootstrap configuration and a guided questionnaire,
+      available to Studio, VS Code and IntelliJ. In Studio, **New project** opens
+      this flow. Use declarative CEM components to collect project type, resource
+      hierarchy and transformation pipeline, then generate the project hierarchy
+      and saved runnable configurations through the shared native producer.
+      Include presets for a Markdown-based site, transformation pipeline, simple
+      conversion, schema-validation project and a minimal custom project; allow
+      users to review and adjust generated folders, resources and pipeline stages.
+  - [ ] Define one versioned bootstrap configuration/schema and producer consumed
+        by all three hosts; keep editor integrations thin and avoid separate
+        scaffolding/semantic implementations.
+  - [ ] Verify preset/questionnaire transitions, pipeline and path validation,
+        generated hierarchy/build parity, cancellation and failed-generation
+        atomicity, independent project identities, accessibility and themes.
+
 ## Amsterdam presentation samples: active Studio priority
 
 Completed 2026-11-04. The [completed delivery archive](archive/todo-completed-amsterdam-delivery-2026-11-04.md#amsterdam-presentation-samples-active-studio-priority)

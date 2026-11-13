@@ -1561,6 +1561,30 @@ Exit criteria:
 - A Studio dependency audit proves that every Angular-Material-equivalent control comes from its completed general CEM
   parity component; only controls with no catalog counterpart may originate in `/studio` or the application.
 
+### Shared project bootstrap and guided creation
+
+Goal: provide one versioned project-bootstrap configuration and native producer
+for Studio, VS Code and IntelliJ, with host-specific entry points over shared
+project/schema and transformation-graph contracts.
+
+- [ ] Define a bootstrap schema describing project type, resources/folders,
+      inputs/outputs, schema identities and transformation-pipeline stages.
+      Include Markdown-based site, transformation pipeline, simple conversion,
+      schema-validation and minimal custom presets with expandable choices.
+- [ ] Make Studio's **New project** action open a guided questionnaire built from
+      declarative CEM components. Collect the project structure and pipeline,
+      display the proposed hierarchy and let users review/edit it before creation.
+- [ ] Generate the project hierarchy, original resources and saved build/validation
+      configurations through the shared native producer. Validate paths, stage
+      dependencies and identities, and publish atomically with cancellation and
+      failure preserving the existing workspace.
+- [ ] Expose the same bootstrap configuration and producer through the CLI/tooling
+      contract for **VS Code** and **IntelliJ** project-creation flows. Reuse schema
+      defaults, validation and generation rather than duplicating them per editor.
+- [ ] Verify preset and custom flows, generated structure/build parity across
+      hosts, independent identities, invalid-rule/pipeline repair, keyboard and
+      accessibility behavior, theme survivability and offline Studio creation.
+
 ### Schema constraints UI flow
 
 Goal: let a user associate a sample document with a custom schema, inspect the
