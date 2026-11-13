@@ -227,7 +227,7 @@ Goal: publish a reproducible comparison with existing solutions, including
 **XQuery** and **Schematron**, to guide compatibility, adoption and priorities.
 
 - [ ] Select and pin representative implementations, versions and profiles for
-      XQuery, Schematron, XPath/XSLT, JSON Schema, RELAX NG and Nelumbo where
+      XQuery, Schematron, XProc, XPath/XSLT, JSON Schema, RELAX NG and Nelumbo where
       relevant. State each solution's role and compare overlapping capabilities
       without treating different language purposes as equivalent.
 - [ ] Run a shared corpus of document/schema definitions, validation constraints,
@@ -243,6 +243,53 @@ Goal: publish a reproducible comparison with existing solutions, including
       tradeoffs and reproducible evidence before making comparative claims or
       choosing adoption work. Feed the results into the grammar-notation and
       Schematron workstreams and their recorded contact follow-ups.
+
+### XProc comparison, functional parity and implementation R&D
+
+Goal: compare CEM transformation pipelines with XProc, define functional parity
+targets and evaluate a potential implementation. Start from the
+[XProc 3.1 specifications](https://xproc.org/specifications.html); pin the language,
+standard step library and selected optional libraries for each evaluation.
+
+- [ ] Publish a capability/gap matrix for ports and document sequences, typed
+      options, step/library composition, branching, iteration, parallel dataflow,
+      error handling, resource resolution and transformation/validation steps.
+      Distinguish equivalent outcomes from XProc syntax and conformance support.
+- [ ] Run representative pipelines through CEM and a pinned XProc processor;
+      compare results, diagnostics, source attribution, resource policies,
+      cancellation, performance and memory under the same workloads and limits.
+- [ ] Evaluate native CEM pipeline parity, an XProc-to-CEM lowering and integration
+      with an existing processor. Record implementation effort, compatibility,
+      licensing and deployment tradeoffs before selecting an approach and scope.
+- [ ] For any selected implementation, keep external format parsing at the shared
+      CEM import boundary and reuse native pipeline/resource ownership across
+      CLI, WASM and Studio. Add conformance fixtures and publish supported steps,
+      explicit gaps and migration examples before claiming functional parity.
+- [ ] Use the Greek Tax Authority workflow in **Geert Bormans**'s Declarative
+      Amsterdam 2026 talk, **When the going gets tough, XProc gets going**, as a
+      candidate real-world comparison; follow up about representative pipelines
+      and adoption criteria. See the [program](https://declarative.amsterdam/program)
+      and [slides](https://declarative.amsterdam/resources/da/slides/da.2026.bormans.xproc.pdf).
+
+### Akoma Ntoso legislation XML R&D
+
+Goal: investigate **Akoma Ntoso (LegalDocML)** legislation XML compatibility and
+potential CEM applications. Use the [OASIS LegalDocML sources](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=legaldocml)
+to confirm the intended vocabulary, edition and application profile.
+
+- [ ] Follow up with **Geert Bormans** after his
+      [Declarative Amsterdam presentation](https://declarative.amsterdam/program)
+      about the Greek Tax Authority project. Confirm the tax site's URL, its
+      legislation format/profile and representative documents: the published
+      abstract confirms an XML-native XProc workflow, but does not identify
+      Akoma Ntoso as its vocabulary.
+- [ ] Assess import/export fidelity for namespaces, mixed content, identifiers,
+      references, metadata, amendments and document versions, with original
+      source maps retained at the shared native import boundary.
+- [ ] Evaluate schema/rule validation, querying, transformation and accessible
+      publication with a permitted sample corpus; connect findings to Schematron
+      parity and the XProc comparison. Record gaps, a bounded pilot and adoption
+      criteria before committing to implementation.
 
 ## Phase 2.5 - CEM-ML CLI Product And Deployment Foundation
 
