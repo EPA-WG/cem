@@ -1773,11 +1773,18 @@ project/schema and transformation-graph contracts.
       defaults, validation and generation rather than duplicating them per editor.
       `cem-ml project-bootstrap` and Studio's owned `projectBootstrapV1` API share
       the producer. The actual editor dialogs/plugins remain below.
-- [ ] Implement the thin VS Code and IntelliJ project-creation dialogs over the
-      shared transport, with generated-tree review and transactional publication.
-- [ ] Verify preset and custom flows, generated structure/build parity across
-      hosts, independent identities, invalid-rule/pipeline repair, keyboard and
-      accessibility behavior, theme survivability and offline Studio creation.
+- [ ] Implement thin **VS Code** and **IntelliJ** project-bootstrap adapters over
+      the shared native `plan`/`review`/`generate` control transport. Provide
+      creation dialogs, generated hierarchy/pipeline review and cancellation-safe
+      transactional publication; preserve exact bytes and immutable resource
+      identities without duplicating generation or validation in the editors.
+      Deferred from the active TODO on 2026-11-13; the shared native producer and
+      Studio questionnaire are complete.
+- [ ] Verify editor preset/custom flows and generated structure/build parity
+      against native CLI and Studio, including independent identities, invalid
+      path/pipeline repair, cancellation, publication failure, keyboard and
+      accessibility behavior and themes. Native/Studio verification and offline
+      Studio creation are recorded in [the completed TODO](docs/todo.md#studio-project-build-command).
 
 ### Schema constraints UI flow
 

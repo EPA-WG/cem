@@ -119,8 +119,8 @@ for the current native work and the conditional diagnostic items on recurrence.
       lint, typecheck, UI classification and packaged-output verification pass;
       existing lint warnings remain. No runtime allocation policy was changed.
 
-- [ ] Add shared project-bootstrap configuration and a guided questionnaire,
-      available to Studio, VS Code and IntelliJ. In Studio, **New project** opens
+- [x] Add shared project-bootstrap configuration and Studio's guided questionnaire,
+      with a native producer reusable by editor integrations. **New project** opens
       this flow. Use declarative CEM components to collect project type, resource
       hierarchy and transformation pipeline, then generate the project hierarchy
       and saved runnable configurations through the shared native producer.
@@ -175,11 +175,12 @@ for the current native work and the conditional diagnostic items on recurrence.
       passes a forced-colors keyboard/modal check without browser errors.
       WASM, CLI, Studio and Playground builds, lint, typecheck, UI classification
       and packaged Studio output verification pass; existing lint warnings remain.
-  - [ ] Add thin VS Code and IntelliJ creation adapters over the same native
-        control transport, with review and cancellation-safe publication.
   - [x] Verify native/Studio preset/questionnaire transitions, pipeline and path validation,
         generated hierarchy/build parity, cancellation and failed-generation
         atomicity, independent project identities, accessibility and themes.
+      VS Code and IntelliJ project-bootstrap adapters are deferred to the
+      [roadmap](../roadmap.md#shared-project-bootstrap-and-guided-creation),
+      including editor review, cancellation-safe publication and cross-host parity.
 
 - [x] Add **Copy CLI** to the demo Playground, matching Studio's clipboard
       feedback and inline command display. Reuse the shared command grammar
