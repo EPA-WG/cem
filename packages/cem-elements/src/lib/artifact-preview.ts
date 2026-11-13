@@ -93,6 +93,17 @@ export function registerCemArtifactTree(artifacts: readonly CemPreviewArtifact[]
         tree.revoked.clear(); tree.artifacts.clear();
     } });
 }
+/** Copy admitted output bytes for a new owner, never rendered DOM or blob URLs. */
+export function copyCemArtifactTree(resourceSet: string): readonly CemPreviewArtifact[] {
+    if (typeof resourceSet !== 'string' || resourceSet.length > 256) throw new Error('cem.preview.artifact_set_invalid');
+    let envelope: { artifactTree?: unknown };
+    try { envelope = JSON.parse(resourceSet); }
+    catch { throw new Error('cem.preview.artifact_set_invalid'); }
+    if (!envelope || Object.keys(envelope).length !== 1 || typeof envelope.artifactTree !== 'string') throw new Error('cem.preview.artifact_set_invalid');
+    const tree = trees.get(envelope.artifactTree);
+    if (!tree) throw new Error('cem.preview.artifact_set_released');
+    return [...tree.artifacts.values()].map(artifact => ({ ...artifact, bytes: artifact.bytes.slice() }));
+}
 /** Small declarative demonstrations may supply literal text/base64 instead of a retained handle. */
 export function registerCemInlineArtifactTree(envelope: { artifacts?: readonly { path: string; contentType: string; text?: string; base64?: string }[] }): CemArtifactTree {
     if (!Array.isArray(envelope.artifacts) || envelope.artifacts.length > 128) throw new Error('cem.preview.artifact_set');

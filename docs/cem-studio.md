@@ -1738,6 +1738,19 @@ resource ownership. Finish with keyboard/title/focus, six-theme/inherited-token,
 forced-color, offline and popup-policy checks. Live-state migration remains a
 separate larger follow-up over the existing provider/recovery contracts.
 
+The first shared layer is implemented in `cem-elements`:
+`createCemPreviewSnapshotStore` owns bounded passive copies, and
+`offerCemPreviewSnapshot` / `receiveCemPreviewSnapshot` provide a one-use
+same-origin/storage-partition handoff without relying on `window.opener`.
+Artifact snapshots register independent byte sets; the receiver owns its
+registration after commit, so releasing the source run cannot revoke its assets.
+The protocol validates candidate ownership before commit, releases failed or
+expired candidates, and retains no live/application runtime state. See the
+[shared API and limits](../packages/cem-elements/README.md#passive-preview-snapshots-and-handoff).
+This layer does not yet resolve Studio's visible source/pinned/current selection,
+open a window or render a dedicated viewer. Those integrations and their UI,
+popup-policy and accessibility checks remain in TODO.
+
 ### Source Modes
 
 A resource supports these source modes:

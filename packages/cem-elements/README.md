@@ -2042,3 +2042,77 @@ its existing 32 MiB bound and normalized immutable transport policy.
 optional profile and runs real native ABI integration tests plus an isolated
 production-service-worker offline fixture. Ordinary unit tests do not require
 that optional build.
+
+## Passive preview snapshots and handoff
+
+`createCemPreviewSnapshotStore` captures immutable passive preview inputs, outside
+declarative state. Artifact snapshots copy a live `resourceSet` or an explicit
+array of `{ path, contentType, bytes }` into an independent artifact-tree
+registration. `copyCemArtifactTree` exposes copies of admitted output bytes;
+neither API serializes rendered DOM, exports object URLs or transfers a runtime
+owner. The existing artifact path/content admission and native CSS remapper
+remain authoritative when the snapshot is mounted.
+
+```ts
+const store = createCemPreviewSnapshotStore();
+const snapshot = store.capture({
+    identity: { label: 'Site output', ownerId: 'project-id', runId: 'run-id', stale: false },
+    preview: { mode: 'artifact-tree', resourceSet: currentTree.resourceSet, artifactPath: 'index.html' },
+});
+const handoff = offerCemPreviewSnapshot(snapshot, { signal });
+snapshot.dispose(); // The offer retains its own lease until completion/failure.
+// Pass handoff.token once to a trusted same-origin viewer, not document bytes.
+try { await handoff.completed; }
+finally { store.dispose(); }
+```
+
+The receiving realm calls `receiveCemPreviewSnapshot(viewerStore, token,
+{ signal })`. It gets a `CemPreviewSnapshot` whose readonly `identity` and
+`preview` describe its own registration. The viewer can bind that descriptor to
+production CEM controls; mounting or opening a window is not part of this API.
+The source registration/store may close after transfer completes. The viewer
+must dispose its store on close, and abort pending receipt on cancellation or
+page exit. A completed transfer is not undone by later AbortSignal changes.
+
+Snapshots also accept `text` (with optional `truncated`), isolated `document`, and
+`data` (`json`/`csv`) string values. They retain literal supplied text, not an
+AST, and confer no parsing, execution, network or provider authority. Hosts must
+select already-admitted preview content and keep the existing media-preview
+sandbox and data-view row limits. Live/application modes and unknown control
+fields are refused. Selection identity supports label, owner/configuration/run
+IDs, project/source revisions, and draft/stale/pinned facts. Those facts are
+display metadata, not proof of source freshness or permission to rerun work.
+
+The default store admits one snapshot and 16 MiB aggregate payload bytes;
+`maxSnapshots` can explicitly allow up to eight owners within that same maximum
+byte budget. `maxBytes` may lower the budget. Artifact sets retain the existing
+128-resource bound; single text/document values retain 256 KiB, and data retains
+the existing 65,536-code-point limit. Identity control metadata is separately
+bounded to 16 KiB. `usage()` reports live snapshots, leases and payload bytes;
+retained leases share one charge. Final lease release or store disposal revokes
+all registration-owned mounts/URLs and aborts the snapshot's lifetime signal.
+This accounts for retained payloads, not total DOM/WASM memory or temporary
+structured-clone buffers. Handoff copies and viewer runtime memory remain
+additional bounded host costs.
+
+Handoff uses `BroadcastChannel` within one origin/storage partition, scoped by a
+random one-use bearer token. Treat the token as temporary authority to receive
+the bytes, keep it out of shared links/logs, and use a trusted viewer. The first
+receiver claims the offer; it validates and reserves its own copy, asks for
+commit, then publishes only on the sender's commit and acknowledges receipt.
+Failures release uncommitted reservations. Wrong versions/modes/counts, exhausted
+budgets, cancellation, closed stores and delivery errors cannot publish a new
+snapshot. Senders cannot supply receiver-local `resourceSet` handles or byte views
+with uncharged backing storage. Replay and abandoned offers expire (15 seconds by default; callers
+may choose 1–60,000 ms). Both endpoints close channels/timers and release their
+temporary leases on completion or failure. If the final acknowledgement is lost
+after receiver commit, the receiver may own the snapshot while the sender reports
+expiry; this is not a transactional guarantee across a browser crash. A later
+viewer-ready signal must separately establish successful rendering.
+
+The colocated `preview-snapshot.stories.ts` uses real browser channels and a
+separate iframe realm to verify exact bytes/metadata, independent leases, nested
+CSS/images, navigation, URL revocation, single-receiver/replay behavior,
+pre-commit cancellation, quota failures, malformed payloads and cleanup. A
+dedicated viewer page, popup-policy behavior, Studio selection capture and the
+Output preview heading action remain downstream integration work.

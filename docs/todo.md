@@ -212,15 +212,33 @@ for the current native work and the conditional diagnostic items on recurrence.
 
 - [ ] Implement **Open in separate window** for the current passive Output preview
       using the assessed snapshot contract, without rerunning or saving a build.
-  - [ ] Add shared bounded snapshot ownership and a one-use viewer handoff before
+  - [x] Add shared bounded snapshot ownership and a one-use viewer handoff before
         Studio UI work; preserve exact output resources and existing isolation,
         limits, native CSS remapping and navigation. Give the viewer its own
         registration and cleanup, independent of Studio run/context replacement.
-    - [ ] Add shared fixtures for source/pinned/current selection, stale successes,
-          relative assets, tree navigation, run replacement, parent/viewer close,
-          failed/cancelled/expired handoffs and resource accounting/cleanup.
+    - [x] Add shared snapshot ownership/admission and real cross-realm handoff
+          fixtures before implementation: exact byte copies, independent leases,
+          budgets, one receiver, replay/invalid-envelope refusal, cancellation,
+          expiry, failed delivery and cleanup. Exercise existing artifact
+          admission, relative CSS/images and navigation after source release.
+      Implemented 2026-11-13: the shared store copies admitted artifact bytes or
+      bounded passive text/document/data values, preserves selection metadata,
+      charges retained payloads once and revokes owned resources on final release.
+      Real BroadcastChannel handoff selects one receiver, validates its independent
+      copy and commits ownership without transferring frame/runtime handles.
+      Eight new browser stories plus 13 existing artifact/live-preview cases pass,
+      including nested CSS/images, byte immutability, separate receiver realm,
+      navigation after source release, URL revocation, quota/invalid payloads,
+      cancellation before commit, expiry, replay and failed delivery. Source/pin
+      selection integration and actual window close/popup policy remain below.
+      Shared package and Studio builds, lint, packaged-output verification and
+      a handoff through the locally served production Studio modules pass;
+      existing lint warnings remain. No viewer or heading action is enabled yet.
   - [ ] Add a trusted viewer with declarative CEM composition for artifact,
         document, text and data previews; defer live/application state migration.
+    - [ ] Add Studio/viewer fixtures for source/pinned/current selection, stale
+          successes, run replacement, parent/viewer close, expired handoffs and
+          total resource accounting/cleanup through the actual window lifecycle.
   - [ ] Add a general `cem-workspace` preview-actions slot and the small contextual
         `cem-icon-button` with `north_east`, matching title/accessibility label and
         an explicit unavailable reason for unsupported or missing previews.
@@ -235,6 +253,22 @@ for the current native work and the conditional diagnostic items on recurrence.
   - [ ] Add colocated stories/gallery coverage for nested submenu switching,
         keyboard and pointer opening, dismissal, disabled items, themes,
         inherited token overrides and forced colors.
+
+- [ ] Use CSS anchor positioning with `position-area` for menus, tooltips and
+      popups, including `position-try-fallbacks` for alternate placements when
+      the preferred area overflows. Map the shared placement/anchor contract to
+      declarative CSS; assess overflow fallbacks, viewport boundaries and supported browsers;
+      keep any required compatibility behavior in `cem-elements`.
+  - [ ] Verify nested surfaces, scrolling/resizing, RTL/writing modes, keyboard
+        focus, dismissal and anchor removal through shared fixtures and the
+        production component galleries.
+
+- [ ] Assess implementing dialogs through the popover mechanism, building on
+      existing shared native-surface support. Define modal/nonmodal behavior,
+      top-layer/backdrop handling, focus entry/return, background inertness,
+      Escape/light dismissal and nested menu/tooltip interaction. Record the
+      recommended design, accessibility implications and compatibility limits
+      before changing `cem-dialog`.
 
 ## Amsterdam presentation samples: active Studio priority
 

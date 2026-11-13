@@ -797,6 +797,14 @@
             "path": "./assets/@epa-wg/cem-elements/dist/lib/artifact-preview.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/dist/lib/preview-snapshot.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/preview-snapshot.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/preview-snapshot-handoff.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/preview-snapshot-handoff.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-elements/dist/lib/committed-checkpoint.js": {
             "path": "./assets/@epa-wg/cem-elements/dist/lib/committed-checkpoint.js",
             "contentType": "text/javascript"

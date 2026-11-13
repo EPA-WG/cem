@@ -52,7 +52,9 @@ export type { CemSortDirection, CemSortDetail } from './lib/sort-action-capabili
 export type { CemPageDetail } from './lib/pagination-capability.js';
 
 export { mountCemLivePreview, type CemLivePreview, type CemLivePreviewOptions, type CemLivePreviewResource, type CemLivePreviewResources } from './lib/live-preview.js';
-export { registerCemArtifactTree, mountCemArtifactPreview, type CemPreviewArtifact, type CemArtifactTree, type CemArtifactPreview, type CemArtifactPreviewOptions } from './lib/artifact-preview.js';
+export { registerCemArtifactTree, copyCemArtifactTree, mountCemArtifactPreview, type CemPreviewArtifact, type CemArtifactTree, type CemArtifactPreview, type CemArtifactPreviewOptions } from './lib/artifact-preview.js';
+export { createCemPreviewSnapshotStore, type CemPreviewSnapshot, type CemPreviewSnapshotStore, type CemPreviewSnapshotStoreOptions, type CemPreviewSnapshotIdentity, type CemPreviewSnapshotDescriptor, type CemPreviewSnapshotInput } from './lib/preview-snapshot.js';
+export { offerCemPreviewSnapshot, receiveCemPreviewSnapshot, type CemPreviewSnapshotOffer, type CemPreviewSnapshotHandoffOptions } from './lib/preview-snapshot-handoff.js';
 
 export { CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOptions, type CemCheckpointEndpointOwner, type CemCheckpointPublicationOwner, type CemCheckpointJournalAuthority, type CemCheckpointOperation, type CemCheckpointAction } from './lib/checkpoint-publication.js';
 
