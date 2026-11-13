@@ -1420,6 +1420,30 @@ Scheduling note: the former Phase 5 UI Kit and Phase 7 Figma demo were reassigne
 now reserved for the separate Hugo framework integration; the other non-Figma phase identifiers remain stable so their
 established plans and references do not need unrelated renumbering.
 
+### Musical instruments, violin visualization and note plots
+
+Goal: regenerate a violin SVG from MIDI or authored notes, synchronize it with
+sound, and expose reusable declarative CEM instrument and note-plot components.
+
+- [ ] Define a shared timed-note/performance model for MIDI and authored
+      notation, including pitch, duration, instrument tuning, string/fingering
+      choices and optional pressure/expression data. Keep format import at the
+      native CEM boundary and preserve source attribution.
+- [ ] Regenerate the violin SVG as notes change: show pitch through finger
+      press position on the appropriate string and pressure through color.
+      Distinguish supplied pressure from any chosen velocity/expression mapping;
+      MIDI notes alone do not determine physical pressure or unique fingering.
+- [ ] Synchronize instrument animation, note plot and sound with shared
+      playback position, tempo, pause/seek and looping controls. Evaluate sound
+      generation/playback and explicit browser audio activation.
+- [ ] Implement reusable `cem-components` instruments and a notes plot with
+      selection and playback highlighting. Author UI in CEM-ML and place shared
+      interaction/audio capabilities in `cem-elements`; begin with violin and
+      leave a common contract for additional instruments.
+- [ ] Verify timing, pitch/fingering mappings, SVG updates, audio recovery and
+      accessible keyboard controls. Provide text/position cues alongside pressure
+      colors and verify themes, forced colors and reduced motion.
+
 ### XForms + CEM components: XFormsMaterial evaluation
 
 Goal: evaluate combining XForms with production CEM components as a potential
@@ -1732,14 +1756,17 @@ project/schema and transformation-graph contracts.
       ordinary project entries retain grouping. Native graph resources retain
       the existing stage/dependency language. See
       [the shared contract](docs/cem-studio.md#shared-project-bootstrap-v1).
-- [ ] Make Studio's **New project** action open a guided questionnaire built from
+- [x] Make Studio's **New project** action open a guided questionnaire built from
       declarative CEM components. Collect the project structure and pipeline,
       display the proposed hierarchy and let users review/edit it before creation.
+      Native plan/review requests support nested Markdown sites with common
+      layout/navigation/CSS/static assets, paired XML-to-HTML pipelines, simple
+      conversion, validation samples and custom file stubs.
 - [x] Generate the project hierarchy, original resources and saved build/validation
       configurations through the shared native producer. Validate paths, stage
       dependencies and identities before returning a complete archive and
       native-written manifest; failures return no partial bundle.
-- [ ] Publish reviewed projects atomically with cancellation and failure
+- [x] Publish reviewed projects atomically with cancellation and failure
       preserving the existing workspace.
 - [x] Expose the same bootstrap configuration and producer through the CLI/tooling
       contract for **VS Code** and **IntelliJ** project-creation flows. Reuse schema
