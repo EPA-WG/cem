@@ -23,6 +23,24 @@
         ]
     },
     "targets": {
+        "test:offline-footprint": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "node --test tools/scripts/studio-offline-footprint.test.mjs",
+                "cwd": ""
+            }
+        },
+        "measure:offline-footprint": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "parallelism": false,
+            "dependsOn": ["test:offline-footprint"],
+            "options": {
+                "command": "node tools/scripts/measure-offline-footprint.mjs",
+                "cwd": ""
+            }
+        },
         "report:startup-phases": {
             "executor": "nx:run-commands",
             "cache": false,

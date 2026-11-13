@@ -363,8 +363,15 @@ Deferred execution gates, in order within this workstream:
   assertions cannot publish a result. Preserve historical archives and the
   separate metric definitions when extending these measurements.
 
-  - [ ] Measure all-capabilities delivery and installed offline byte totals with
-        original artifact hashes, cache inventories and explicit capability scope.
+
+  The [delivery/offline footprint audit](cem-components-offline-footprint.md)
+  verifies all 59 canonical declaration assets separately from actual default
+  and schema-assets Studio cache inventories. Five accounting/refusal fixtures
+  and all 223/348/553 offline URL hashes pass. Cached response bodies total
+  26.80/53.80/63.04 MiB; physical disk use, runtime memory and complete UI/format
+  conformance are separate. Preserve original artifact hashes, scope limits,
+  uncached files and the optional profile's duplicated native-body observation.
+
   - [ ] Measure cold loading and first use in clean npm worker/fallback consumers,
         checking asset closure and combined memory before selecting fixed budgets.
   - [ ] If the initial fallback/offline cart mutation or complete Studio recovery
