@@ -1451,6 +1451,36 @@ package and every Cargo crate with `publish = true`; cached static, search,
 interactive, accessibility, deterministic-output, and dependency-artifact gates
 close through `cem-site:verify`.
 
+### Site and page publishing to document, archive and presentation formats
+
+Goal: publish a whole website or an individual page as **PDF**, a **web archive**,
+**Google Slides**, **PowerPoint**, **DOCX** or **Excel**, using the same canonical
+content and explicit transformation pipeline as the HTML site.
+
+- [ ] Define page/site scope, route selection and ordering, asset inclusion,
+      navigation, internal-link rewriting and output metadata. Choose and document
+      interoperable web-archive formats and verify offline replay of captured pages
+      and assets, with explicit treatment of interactive content.
+- [ ] Add PDF publishing with print layouts, pagination, headings/bookmarks,
+      tables, code, links and accessible reading order; support both a single page
+      and an ordered multi-page site publication.
+- [ ] Define presentation mappings for sections, slide boundaries, themes,
+      speaker notes, code, tables and images. Evaluate editable **Google Slides**
+      publishing and **PowerPoint (`.pptx`)** export with documented fidelity and
+      interactive-demo fallbacks.
+- [ ] Add **DOCX** export with semantic headings, styles, tables, code, images and
+      links; add **Excel (`.xlsx`)** export with explicit mappings from page/site
+      tables and structured datasets to named sheets, typed cells and links.
+      Make omissions and non-tabular content handling visible in export reports.
+- [ ] Share export configuration and native graph stages across CLI and Studio,
+      with declarative CEM controls for scope, format, options and preview.
+      Keep account-backed publishing adapters separate from local file generation;
+      review the destination and artifacts before an authorized remote publish.
+- [ ] Verify representative single-page and whole-site exports for content,
+      layout, accessibility, source attribution, asset/link completeness and
+      target-application compatibility; publish supported features and fidelity
+      limits for every format before declaring parity with the HTML publication.
+
 ### Studio Example: Markdown + CEM-ML Site Project
 
 Status: implemented 2026-10-18 as the ordinary
