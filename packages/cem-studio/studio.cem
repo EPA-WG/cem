@@ -18,6 +18,12 @@
         @content-type="application/json"}
   }
 
+  {import @id=studio-preview-viewer-html @src="src/preview-viewer.html"
+      @content-type="text/html" @opaque=true |
+    {export @id=studio-preview-viewer-html-output @out="dist/static/preview.html"
+        @content-type="text/html"}
+  }
+
   {import @id=studio-build @src="src/studio.build.json"
       @content-type="application/json"
       @opaque=true |

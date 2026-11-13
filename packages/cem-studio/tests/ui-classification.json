@@ -238,16 +238,16 @@
         },
         {
             "id": "safe-preview-frame",
-            "surface": "Results",
+            "surface": "Results and read-only viewer",
             "requirement": "Render bounded output in an isolated, non-scriptable preview while retaining metadata and safe text/download fallbacks.",
-            "disposition": "studio-export",
+            "disposition": "application-orchestration",
             "compositionGate": "open",
-            "generalComponents": ["cem-media-preview", "cem-card", "cem-alert", "cem-action", "cem-progress-spinner"],
-            "studioComponents": ["cem-studio-preview-frame"],
+            "generalComponents": ["cem-media-preview", "cem-data-view", "cem-stack", "cem-card", "cem-alert", "cem-action", "cem-progress-spinner"],
+            "studioComponents": [],
             "materialReferences": ["card", "button", "progress-spinner"],
-            "contractBounds": ["Sandbox, CSP, byte limits, projection identity, and fallback behavior have no Material counterpart; all surrounding actions and feedback remain general CEM controls."],
-            "applicationOwns": ["projection selection", "sandbox policy", "resource limits", "download lifecycle"],
-            "evidence": ["docs/cem-studio.md#preview-rules", "docs/cem-studio.md#security-and-privacy"]
+            "contractBounds": ["Shared CEM controls own literal/data projection, sandboxed frames and artifact resource admission. Studio composes the read-only viewer and owns captured selection metadata and the one-use handoff lifecycle."],
+            "applicationOwns": ["displayed preview selection", "snapshot identity and lifetime", "viewer route and handoff", "download lifecycle"],
+            "evidence": ["docs/cem-studio.md#preview-rules", "docs/cem-studio.md#security-and-privacy", "docs/cem-studio.md#separate-preview-window-assessment"]
         },
         {
             "id": "transformation-graph-view",

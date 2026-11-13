@@ -316,6 +316,7 @@ export declare function mountCemStudioWorkbench(options: {
     Readonly<{
         root: Element;
         workbench: CemStudioFeatureTourWorkbench;
+        capturePreview(store: import('@epa-wg/cem-elements').CemPreviewSnapshotStore): import('@epa-wg/cem-elements').CemPreviewSnapshot;
         whenSettled(): Promise<void>;
         dispose(): void;
     }>
@@ -354,3 +355,4 @@ export type CemStudioReadOnlyWorkbench = Pick<CemStudioFeatureTourWorkbench,
 export declare const createCemStudioFeatureTourWorkbench: typeof createCemStudioWorkbench;
 /** @deprecated Use the shared workspace mount. */
 export declare const mountCemStudioFeatureTourWorkbench: typeof mountCemStudioWorkbench;
+export declare function captureCemStudioDisplayedPreview(state: CemStudioWorkbenchState, store: import('@epa-wg/cem-elements').CemPreviewSnapshotStore): import('@epa-wg/cem-elements').CemPreviewSnapshot;

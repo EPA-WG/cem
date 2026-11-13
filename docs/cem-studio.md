@@ -1747,9 +1747,41 @@ registration after commit, so releasing the source run cannot revoke its assets.
 The protocol validates candidate ownership before commit, releases failed or
 expired candidates, and retains no live/application runtime state. See the
 [shared API and limits](../packages/cem-elements/README.md#passive-preview-snapshots-and-handoff).
-This layer does not yet resolve Studio's visible source/pinned/current selection,
-open a window or render a dedicated viewer. Those integrations and their UI,
-popup-policy and accessibility checks remain in TODO.
+The read-only viewer is served at `preview.html#snapshot=<one-use-token>`. It
+receives before component startup, removes the token from history immediately,
+and composes shared `cem-media-preview` or `cem-data-view` controls in
+`preview-viewer.xhtml`. Document isolation, native data import/table limits and
+artifact CSS/image/navigation admission remain owned by those controls. The
+viewer installs no application/provider runtime and cannot build, save or replay
+commands. Live CEM/application previews remain unavailable for capture.
+
+`mountedWorkbench.capturePreview(store)` captures the last settled pane model
+and refuses capture while publication is pending or after disposal. It uses the
+same resolver as the pane; `captureCemStudioDisplayedPreview(state, store)` is
+also available for hosts that own their publication fence. Capture follows
+source/invocation/project-output precedence, the selected pinned/current run and
+the exact artifact path/query/fragment. It retains draft/stale facts and original
+run/project/input revisions only where the displayed selection proves them;
+an unrelated open editor does not supply the output's source revision. The data
+table branch captures admitted literal JSON/CSV, including its displayed label,
+and refuses oversized or unavailable tables. Missing output and download-only
+states do not silently substitute another result.
+
+The viewer receives its own bounded registration, so source edits, a new run or
+source-window closure after receipt leave the snapshot intact. Artifact links
+navigate within that captured set and do not change Studio selection. Closing
+the viewer aborts pending receipt and disposes the view and store. Refreshing
+after the token has been consumed shows an explicit unavailable state; this is
+an ephemeral snapshot, not a durable build pin. The page and its module/declaration
+assets join the existing offline cache. Its import map has an exact CSP hash,
+checked against graph-emitted HTML by packaged-output verification.
+
+The Output preview header action and actual popup/opening policy remain the next
+integration step. Use the trusted click to open the viewer under the same Studio
+base URL before any
+asynchronous work, then capture/offer the settled pane and pass only the token.
+Repeated-open behavior, blocked-popup feedback and the complete launcher keyboard
+and window-lifecycle checks remain in TODO.
 
 ### Source Modes
 

@@ -12,6 +12,32 @@
         "cem_ml_cli"
     ],
     "targets": {
+        "test:preview-viewer": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "parallelism": false,
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node scripts/verify-preview-viewer.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/studio.cem",
+                "{projectRoot}/runtime/**/*",
+                "{projectRoot}/scripts/verify-preview-viewer.mjs",
+                "{projectRoot}/scripts/serve-preview.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/preview-viewer.json"
+            ]
+        },
         "test": { "parallelism": false },
         "test-ci--src/feature-tour.browser.spec.js": { "parallelism": false },
         "test-ci--src/file-system-provider.browser.spec.js": { "parallelism": false },
@@ -355,11 +381,12 @@
                 }
             ],
             "options": {
-                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/workbench.browser.spec.js src/navigation.browser.spec.js src/recovery.browser.spec.js --no-file-parallelism",
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/workbench.browser.spec.js src/navigation.browser.spec.js src/recovery.browser.spec.js src/preview-viewer.browser.spec.js --no-file-parallelism",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
                 "{projectRoot}/src/workbench.js",
+                "{projectRoot}/src/preview-viewer*",
                 "{projectRoot}/src/workbench.browser.spec.js",
                 "{projectRoot}/src/recovery.browser.spec.js",
                 "{projectRoot}/src/recovery.fixture.js",
@@ -749,6 +776,7 @@
                 "test:file-system-provider",
                 "test:feature-tour",
                 "test:preview",
+                "test:preview-viewer",
                 "test:shell",
                 "test:workbench",
                 "verify:dependencies",

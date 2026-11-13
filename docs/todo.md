@@ -234,16 +234,37 @@ for the current native work and the conditional diagnostic items on recurrence.
       Shared package and Studio builds, lint, packaged-output verification and
       a handoff through the locally served production Studio modules pass;
       existing lint warnings remain. No viewer or heading action is enabled yet.
-  - [ ] Add a trusted viewer with declarative CEM composition for artifact,
+  - [x] Add a trusted viewer with declarative CEM composition for artifact,
         document, text and data previews; defer live/application state migration.
-    - [ ] Add Studio/viewer fixtures for source/pinned/current selection, stale
-          successes, run replacement, parent/viewer close, expired handoffs and
-          total resource accounting/cleanup through the actual window lifecycle.
+    - [x] Add displayed-selection capture and declarative viewer fixtures before
+          implementation: source/invocation/build precedence, pinned and stale
+          outputs, unavailable/live/oversized refusals, isolated HTML, bounded
+          tables, artifact navigation and cancellation/cleanup. Verify the
+          packaged viewer across actual browsing contexts and offline reload.
+      Implemented 2026-11-13: `preview.html` receives a one-use snapshot before
+      component startup, clears its token from history and renders through shared
+      media/data/feedback controls. The mounted workbench captures only settled
+      displayed selection; the pane and capture share one resolver for source,
+      invocation, project and pinned output precedence. Missing/live/download-only
+      or oversized results are refused without rerunning commands. Original
+      snapshot identities and stale/draft facts survive later source changes;
+      unrelated editors cannot supply output revision metadata.
+      Six viewer/capture browser cases and 52 navigation plus eight recovery
+      cases pass, with the new viewer cases repeated from a fresh module cache.
+      The production verifier passes all four modes offline, including quoted
+      native data cells, source-window closure, isolated HTML, relative CSS/images,
+      captured-tree navigation, token removal and refused reloads. Six themes,
+      inherited typography, forced colors and receiver disposal are exercised.
+      Build, lint, typecheck, UI classification and packaged-output checks pass;
+      the viewer import map has a verified exact CSP hash. The launcher is next.
   - [ ] Add a general `cem-workspace` preview-actions slot and the small contextual
         `cem-icon-button` with `north_east`, matching title/accessibility label and
         an explicit unavailable reason for unsupported or missing previews.
     - [ ] Verify popup/handshake failure, offline use, preserved Studio selection,
           keyboard/focus, six themes, inherited overrides and forced colors.
+    - [ ] Complete source/pinned/current selection, stale success, run replacement,
+          repeated opening, parent/viewer close and resource-accounting fixtures
+          through the actual header launcher and window lifecycle.
 
 - [ ] Give `cem-menu-item` selected styling while its submenu is open. Derive
       the appearance from the shared submenu's actual expanded state, using

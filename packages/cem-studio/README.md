@@ -48,6 +48,17 @@ provenance relates source files to generated artifacts; bounded per-file Markdow
 conversion and the shared `cem-data-view` provide read-only HTML/table previews
 without saving drafts or starting arbitrary project builds.
 
+The read-only `preview.html` viewer accepts an ephemeral
+`#snapshot=<one-use-token>` handoff. `mountedWorkbench.capturePreview(store)`
+captures the settled Output preview through the same selection resolver used by
+the pane, including source overrides, owned invocation results, pinned runs and
+retained stale output. It refuses pending/missing/unsupported previews rather
+than rerunning a command. The viewer removes its token from history, keeps its
+own admitted resources and uses shared document/text/table/artifact controls.
+Its offline page cache does not persist the snapshot itself; reload without a
+new handoff reports that the preview is unavailable. The header launch button
+is a separate next step. See [the contract](../../docs/cem-studio.md#separate-preview-window-assessment).
+
 Entered passwords or one-time codes continue to block recovery until the user
 clears them. Automatic whole-Studio recovery remains disabled, and portable
 workspace checkpoints retain the existing aggregate 4 MiB budget.

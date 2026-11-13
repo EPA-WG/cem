@@ -1,0 +1,22 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-preview-viewer">
+<template id="cem-studio-preview-viewer" type="text/cem-ml">
+{module |{slice @name=state}{body |{style @type=text/css |```
+:scope { display: block; min-block-size: 100dvb; min-inline-size: 0; }
+[part~='root'] { box-sizing: border-box; min-block-size: 100dvb; min-inline-size: 0; padding: var(--cem-inset-container); color: var(--cem-palette-comfort-text); background: var(--cem-palette-comfort); font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+[part~='title'] { font-family: inherit; font-weight: var(--cem-typography-heading-font-weight); overflow-wrap: anywhere; }
+[part~='identity'] { overflow-wrap: anywhere; }
+[part~='preview'] { min-inline-size: 0; }
+@media (forced-colors: active) { [part~='root'] { background: Canvas; color: CanvasText; forced-color-adjust: auto; } }
+```}{cem:variable @name=s @select=datadom.slices.state}{section @part=root @data-theme={s.theme} @aria-label="Read-only output preview" |{cem-stack |
+{header |{h1 @part=title |{$ | s.identity.label ?? "Output preview"}}{p | Read-only snapshot. Later Studio edits and builds do not update this view.}{cem:if @test=s.identity.runId |{p @part=identity | Captured run: {$ | s.identity.runId}}}{cem:if @test=s.identity.draft |{p @role=status | Draft source snapshot}}{cem:if @test=s.identity.stale |{p @role=status | Stale output retained from the captured preview}}{cem:if @test=s.identity.pinned |{p @role=status | Pinned build snapshot}}}
+{cem:choose |
+{cem:when @test='s.phase == "waiting"' |{p @role=status | Waiting for the captured preview…}}
+{cem:when @test='s.phase == "error"' |{cem-alert @tone=danger @role=alert @label={s.error}}}
+{cem:when @test='s.phase == "ready"' |{div @part=preview |{cem:choose |
+{cem:when @test='s.preview.mode == "data"' |{cem-data-view @label={s.identity.label} @format={s.preview.format} @value={s.preview.value}}}
+{cem:otherwise |{cem-media-preview @label={s.identity.label} @mode={s.preview.mode} @value={s.preview.value} @truncated={if s.preview.truncated { true } else { null }} @resource-set={s.preview.resourceSet} @artifact-path={s.preview.artifactPath} @host-command=navigate @host-command-event=cem-preview-navigate}}
+}}}
+}
+}}}}
+</template>
+</cem-element>

@@ -120,6 +120,17 @@ for (const asset of declaredAssets.filter(asset => asset.contentType === 'text/j
 }
 
 const shellModule = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/shell.js'), 'utf8');
+const viewerHtml = await readFile(resolve(outputRoot, 'preview.html'), 'utf8');
+const viewerScript = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/preview-viewer.js'), 'utf8');
+const viewerView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/preview-viewer.xhtml'), 'utf8');
+const policy = (await readJson(resolve(outputRoot, 'security-headers.json'))).headers['Content-Security-Policy'];
+const viewerMap = viewerHtml.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1];
+assert.ok(viewerMap);
+assert.ok(policy.includes(`'sha256-${createHash('sha256').update(viewerMap).digest('base64')}'`), 'Viewer import map requires its exact CSP hash');
+assert.match(viewerHtml, /src="\.\/assets\/@epa-wg\/cem-studio\/preview-viewer-main\.js"/);
+assert.match(viewerScript, /mountCemView/); assert.doesNotMatch(viewerScript, /innerHTML|textContent|classList/);
+assert.match(viewerView, /cem-media-preview/); assert.match(viewerView, /cem-data-view/);
+assert.doesNotMatch(viewerView, /<script|\son[a-z]+=|javascript:/i);
 const shellView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/shell.xhtml'), 'utf8');
 assert.match(shellModule, /mountCemView/);
 assert.doesNotMatch(shellModule, /shellMarkup|innerHTML|textContent|querySelector|toggleAttribute|classList/);

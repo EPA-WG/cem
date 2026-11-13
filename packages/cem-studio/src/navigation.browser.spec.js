@@ -1,4 +1,4 @@
-import { mountCemArtifactPreview } from '@epa-wg/cem-elements';
+import { createCemPreviewSnapshotStore, mountCemArtifactPreview } from '@epa-wg/cem-elements';
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createCemStudioNavigation, createCemStudioProjectPreview, createCemStudioSourcePreview, describeCemStudioProjectBuildCli } from './navigation.js';
 import { commandSchema, parseCemMlCommandText, serializeCemMlCommand } from '@epa-wg/cem-ml-cli/browser-commands';
@@ -1099,3 +1099,25 @@ describe('Studio compact declarative layout', () => {
         } finally { view.dispose(); root.remove(); }
     }, 30_000);
 });
+
+it('captures only the settled displayed preview and preserves stale build ownership through source edits', async () => {
+    const { service, setState } = await fixture();
+    await service.buildProjectPreview();
+    const root = document.createElement('main'); document.body.append(root);
+    const store = createCemPreviewSnapshotStore();
+    const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
+    try {
+        await view.whenSettled();
+        const captured = view.capturePreview(store);
+        expect(captured.preview.mode).toBe('artifact-tree');
+        expect(captured.preview.artifactPath).toBe(service.snapshot().projectPreview.preview.artifactPath);
+        expect(captured.identity.runId).toBe('run'); captured.dispose();
+        setState({ draft: '# A changed draft', dirty: true });
+        expect(() => view.capturePreview(store)).toThrow('changing');
+        await view.whenSettled();
+        const stale = view.capturePreview(store);
+        expect(stale.identity.stale).toBe(true); expect(stale.identity.draft).toBe(false);
+        expect(stale.identity.sourceRevision).toBe(1); stale.dispose();
+        view.dispose(); expect(() => view.capturePreview(store)).toThrow('changing');
+    } finally { view.dispose(); store.dispose(); root.remove(); }
+}, 60_000);

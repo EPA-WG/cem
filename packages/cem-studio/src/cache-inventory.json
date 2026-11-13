@@ -7,6 +7,7 @@
             "id": "shell",
             "urls": [
                 "./index.html",
+                "./preview.html",
                 "./manifest.webmanifest",
                 "./icon.svg",
                 "./material-icons.css",

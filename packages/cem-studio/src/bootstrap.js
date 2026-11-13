@@ -83,7 +83,7 @@ export {
     mountCemStudioApplicationShell,
 } from './shell.js';
 export { createCemStudioProjectSession } from './project-session.js';
-export { createCemStudioWorkbench, mountCemStudioWorkbench, createCemStudioProjectWorkbench, createCemStudioSessionWorkbench, createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
+export { createCemStudioWorkbench, mountCemStudioWorkbench, captureCemStudioDisplayedPreview, createCemStudioProjectWorkbench, createCemStudioSessionWorkbench, createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
 export {
     CEM_STUDIO_LIMITS,
     CemStudioLimitError,

@@ -2071,7 +2071,7 @@ export async function mountCemStudioWorkbench({
             provenance: ({ value }) => perform(async () => { center.update({ pane: 'source' }); await center.whenSettled(); await workbench.navigateProvenance(Number(value)); }),
         },
     });
-    let latestSnapshot;
+    let latestSnapshot, displayedSnapshot;
     const render = (snapshot) => {
         latestSnapshot = snapshot;
         renderPromise = renderPromise.then(async () => {
@@ -2091,6 +2091,7 @@ export async function mountCemStudioWorkbench({
             layout.update({ navigation: workbenchLayoutNavigation(current.navigation) });
             center.update({ navigation: workbenchLayoutNavigation(current.navigation) });
             await Promise.all([layout.whenSettled(), center.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), buildView.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
+            if (active && latestSnapshot === current) displayedSnapshot = current;
         });
     };
     const unsubscribe = workbench.subscribe(render);
@@ -2099,6 +2100,10 @@ export async function mountCemStudioWorkbench({
     return Object.freeze({
         root: host,
         workbench,
+        capturePreview(store) {
+            if (!active || !displayedSnapshot || displayedSnapshot !== latestSnapshot) throw new Error('The displayed preview is changing. Wait for it to settle before opening it.');
+            return captureCemStudioDisplayedPreview(displayedSnapshot, store);
+        },
         async whenSettled() {
             while (true) {
                 const controlAction = controlPromise;
@@ -2945,6 +2950,10 @@ function workbenchInvocationProjection(state) {
 }
 
 function workbenchPreviewState(state, includePreview = true) {
+    return resolveWorkbenchPreview(state, includePreview).view;
+}
+
+function resolveWorkbenchPreview(state, includePreview = true) {
     const project = state.projectPreview;
     const source = includePreview ? state.navigation?.sourcePreview : undefined;
     const configuration = state.navigation?.selection.configuration;
@@ -2982,7 +2991,7 @@ function workbenchPreviewState(state, includePreview = true) {
             selected: Boolean(project.selectedArtifact), copyable: Boolean(project.selectedArtifact && project.preview?.kind !== 'download'), artifacts: project.artifacts.map(({ path }) => ({ path })),
             runId: project.projection?.buildRun.id, projectRevision: project.projection?.buildRun.projectRevision,
             transfer: project.projection?.transfer };
-    return { sourcePreview: includePreview && sourceContext && !project?.missingArtifact && source ? { draft: Boolean(source.draft && !selected && (format || sourceFallback && source.status === 'ready' && !source.stale)),
+    const view = { sourcePreview: includePreview && sourceContext && !project?.missingArtifact && source ? { draft: Boolean(source.draft && !selected && (format || sourceFallback && source.status === 'ready' && !source.stale)),
         stale: Boolean(!selected && source.stale), status: source.status, error: source.error } : undefined,
         dataPreview: includePreview && format && data && (typeof dataText === 'string' || admitted?.truncated) ? { format, text: tooLarge ? undefined : dataText, tooLarge: tooLarge || admitted?.truncated,
             label: (invocation ? invocation.buildRun.artifacts.find(item => item.uri === invocation.output?.uri)?.path : selected ? projectArtifact?.path : state.navigation?.path) || 'Data preview' } : undefined,
@@ -2994,6 +3003,42 @@ function workbenchPreviewState(state, includePreview = true) {
             hasRun: Boolean(invocation ?? (projectContext ? project.projection : undefined)), missingArtifact: project.missingArtifact, busy: project.busy,
             attempt: { status: invocation ? undefined : project.attempt?.status },
         } : build };
+    const fromSource = !selected && source && (data === source && format || sourceFallback && preview === source.preview);
+    const run = fromSource ? undefined : projection?.buildRun;
+    const ownsInput = invocation || sourceContext && projectArtifact?.uri && project.relatedArtifacts?.some(item => item.uri === projectArtifact.uri);
+    const originalInput = ownsInput ? run?.inputs?.find(input => input.resourceId === state.resourceId) : undefined;
+    const identity = {
+        label: view.dataPreview?.label ?? preview?.label ?? 'Output preview',
+        ownerId: project?.projectId ?? state.navigation?.selection.project ?? state.navigation?.selection.sample ?? state.projectId,
+        configurationId: run?.configuration?.id, runId: run?.id,
+        projectRevision: run?.projectRevision,
+        sourceRevision: fromSource ? source.revision : originalInput?.revision,
+        draft: Boolean(fromSource && source.draft), stale: Boolean(fromSource ? source.stale : invocation ? invocation.stale : project?.stale ?? projection?.stale),
+        pinned: Boolean(!fromSource && !invocation && project?.pinId),
+    };
+    return { view, identity };
+}
+
+/** Capture the same admitted values selected for the pane, never the pane DOM.
+ * The mounted view's capturePreview additionally fences pending publication. */
+export function captureCemStudioDisplayedPreview(state, store) {
+    const { view, identity } = resolveWorkbenchPreview(state);
+    const unavailable = message => { throw Object.assign(new Error(message), { code: 'cem.studio.preview.snapshot_unavailable' }); };
+    if (view.projectPreview?.missingArtifact) unavailable('The selected preview is unavailable.');
+    let preview;
+    if (view.dataPreview) {
+        if (view.dataPreview.tooLarge || typeof view.dataPreview.text !== 'string') unavailable('The displayed data is too large for a detached table preview.');
+        preview = { mode: 'data', format: view.dataPreview.format, value: view.dataPreview.text };
+    } else {
+        const value = view.projection?.preview;
+        if (view.projection?.output?.available === false || !value) unavailable('No displayed output is available to capture.');
+        if (value.kind === 'live-cem') unavailable('Interactive live previews cannot be detached.');
+        if (value.kind === 'artifact-tree') preview = { mode: 'artifact-tree', resourceSet: value.resourceSet, artifactPath: value.artifactPath };
+        else if (value.kind === 'sandboxed-html') preview = { mode: 'document', value: value.source };
+        else if (value.kind === 'text') preview = { mode: 'text', value: value.text, truncated: Boolean(value.truncated) };
+        else unavailable(value.reason ?? 'This preview is unavailable for a separate viewer.');
+    }
+    return store.capture({ identity, preview });
 }
 
 function workbenchResultState(state) {
