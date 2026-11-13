@@ -355,10 +355,14 @@ Deferred execution gates, in order within this workstream:
   before/after full-WASM acquisition evidence (worker two transfers to one;
   fallback one). Retain matched hashes/toolchains and fixed budget
   selection after the native boundary/prototype report, not an invented minimum.
-  - [ ] Add a separately named browser-side readiness timing metric beside the
-        original assertion wall time, preserving all workflow validation and
-        refusing hidden/incomplete controls or failed assertions; rerun ordinary
-        distributions before selecting budgets.
+
+  Browser-side fixture timing now supplements the original assertion wall time.
+  The [readiness report and limits](cem-components-browser-readiness-timing.md)
+  retain 29 passing collector/readiness tests, 40 original workflow observations
+  and 120 complete PSS snapshots; hidden/incomplete controls and failed
+  assertions cannot publish a result. Preserve historical archives and the
+  separate metric definitions when extending these measurements.
+
   - [ ] Measure all-capabilities delivery and installed offline byte totals with
         original artifact hashes, cache inventories and explicit capability scope.
   - [ ] Measure cold loading and first use in clean npm worker/fallback consumers,
@@ -366,6 +370,11 @@ Deferred execution gates, in order within this workstream:
   - [ ] If the initial fallback/offline cart mutation or complete Studio recovery
         deadline recurs, use the original case/request/error and phase capture to
         attribute it before changing readiness or recovery deadlines.
+  - [ ] On recurrence of the benchmark controls/fallback Apply-button visibility
+        deadline, retain recorder state, page errors, native diagnostics and
+        bounded markup to attribute it before changing behavior. The first smoke
+        failure lacked this capture; later controls/full runs pass with the
+        original deadline and do not establish its cause.
 
 - [ ] Prove native call reachability and dynamic mode/provider/template closure
   alongside module extraction. Keep the conservative source matrix separate

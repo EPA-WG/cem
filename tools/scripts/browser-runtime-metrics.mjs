@@ -84,6 +84,16 @@ export function distribution(values) {
         max: sorted.at(-1) };
 }
 
+export function browserReadyValue(row) {
+    const proof = row.browserReadiness;
+    if (row.workflowVerified !== true || proof?.contract !== 'cem-browser-fixture-readiness/1'
+        || proof.kind !== row.kind || proof.originalAssertionsPassed !== true
+        || !Number.isInteger(proof.eligibleFrames) || proof.eligibleFrames < 2
+        || ![proof.readyMs, proof.firstEligibleMs, proof.confirmationGapMs, proof.assertionConfirmedMs].every(Number.isFinite)
+        || proof.firstEligibleMs >= proof.readyMs || proof.readyMs > proof.assertionConfirmedMs || proof.confirmationGapMs <= 0) return undefined;
+    return proof.readyMs;
+}
+
 export function summarizeStartup(results) {
     const groups = new Map();
     for (const row of results) {
@@ -101,6 +111,7 @@ export function summarizeStartup(results) {
     const live = native => native?.status === 'available' ? native.sample?.sample?.allocatorLiveBytes : undefined;
     return [...groups.values()].map(rows => ({ kind: rows[0].kind, mode: rows[0].mode, samples: rows.length,
         browserLaunchMs: metric(rows, row => row.browserLaunchMs), readyMs: metric(rows, row => row.readyMs),
+        browserReadyMs: metric(rows, browserReadyValue),
         firstUseMs: metric(rows, row => row.firstUseMs),
         blankPssBytes: metric(rows, row => row.blankMemory?.pssBytes),
         readyPssBytes: metric(rows, row => row.coldMemory.browserFamily.pssBytes),
@@ -119,10 +130,10 @@ export function summarizeStartup(results) {
 export function renderStartupReport(report) {
     const number = (metric, divisor = 1) => metric.status !== 'available' ? 'unavailable'
         : `${(metric.median / divisor).toFixed(divisor === 1 ? 0 : 1)} [${(metric.min / divisor).toFixed(divisor === 1 ? 0 : 1)}–${(metric.max / divisor).toFixed(divisor === 1 ? 0 : 1)}]`;
-    const mib = 1024 ** 2, suffix=report.recordSuffix??'';
+    const mib = 1024 ** 2, suffix=report.recordSuffix??'', browserTiming=!!report.methods?.browserReadiness;
     return `# Runtime cold-start and memory measurements
 
-Generated with \`yarn nx run cem_ql:measure:browser-startup -- --runs=${report.runs}${suffix?' --record=code-sharing':''} --write-doc\`.
+Generated with \`yarn nx run cem_ql:measure:browser-startup -- --runs=${report.runs}${suffix?' --record='+suffix.slice(1):''} --write-doc\`.
 Committed per-run evidence: [cem-components-wasm-startup${suffix}.json](cem-components-wasm-startup${suffix}.json).
 Full local observations, phase traffic, process identities and native samples:
 \`dist/reports/components-wasm/browser-startup${suffix}.json\`.
@@ -133,6 +144,7 @@ Full local observations, phase traffic, process identities and native samples:
 - ${report.runs} observations per workload/mode; tables show median [minimum–maximum], not a percentile or performance budget. Workload/mode order rotates between runs. No CPU/network throttling is applied.
 - Selected entry measures the pinned compiled cart/JSON API in one dedicated worker or one main-thread heap, with the first guarded response rendered natively. It has no DOM/control host. Full controls, JSON/CSV data view and editor use the existing complete runtime and canonical components; these are separate workloads, not a reduced whole-application comparison.
 - Readiness/first use use the original control/render assertions. Timings include browser automation and local HTTP overhead. Memory snapshots run outside timed intervals; they still add diagnostic work between readiness and first use. No explicit GC, heap enumeration or production instrumentation is installed.
+${browserTiming?'- Browser fixture ms is a separate renderer-clock measurement: complete fixture predicates hold for two consecutive animation frames with the same nodes and are rechecked after original assertions. Hidden/inert/disabled/incomplete controls refuse. Sampling stops before memory snapshots, and every original first-use assertion still gates publication. Frame cadence and renderer work limit precision; this is neither a paint timestamp nor general application readiness. Selected-entry timing samples its original native-initialization flag; it has no control DOM. Assertion wall ms preserves the original Node-clock measurement, including selector polling; the clock origins and confirmation criteria differ.\n':''}\
 - Combined resident memory is the sum of Linux \`smaps_rollup\` **PSS** for the browser and its surviving descendants, including renderer/worker/WASM, GPU and network processes. PSS apportions shared resident pages ([kernel definition](https://docs.kernel.org/filesystems/proc.html)). Process identities and membership must match before/after each snapshot; missing/unstable counters are unavailable. Sampling spans multiple reads, not an atomic peak or an application-only allocation total. Node/Playwright/server memory, detached non-descendants and explicit huge pages outside PSS are excluded. Per-process private bytes, swap PSS and huge-page counters remain in the raw report.
 - Main-thread JS heap and available native allocator/linear-memory capacity are separate diagnostics. **Do not add them to PSS** or treat reserved WASM capacity as resident/allocated bytes. Worker count means live dedicated workers observed by Playwright, separate from creation/job counters and OS processes.
 - The local server uses no-store responses. Decoded and wire bodies, unique assets and repeated transfers are recorded separately against served-file/inventory hashes. No compressed-CDN, offline/all-capabilities or isolated npm-consumer claim is made.
@@ -148,9 +160,9 @@ Chromium: ${report.chromium}; Node: ${report.node}; platform: ${report.platform}
 
 Times are milliseconds. Worker counts are live dedicated workers, not native heaps or OS process counts.
 
-| Workload | Mode | Samples | Browser launch ms | Ready ms | First use ms | Live workers ready / after | WASM requests |
-| --- | --- | ---: | --- | --- | --- | --- | --- |
-${report.summary.map(row => `| ${row.kind} | ${row.mode} | ${row.samples} | ${number(row.browserLaunchMs)} | ${number(row.readyMs)} | ${number(row.firstUseMs)} | ${number(row.readyWorkers)} / ${number(row.afterWorkers)} | ${number(row.wasmRequests)} |`).join('\n')}
+| Workload | Mode | Samples | Browser launch ms | ${browserTiming?'Assertion wall ms':'Ready ms'} | ${browserTiming?'Browser fixture ms | ':''}First use ms | Live workers ready / after | WASM requests |
+| --- | --- | ---: | --- | --- | ${browserTiming?'--- | ':''}--- | --- | --- |
+${report.summary.map(row => `| ${row.kind} | ${row.mode} | ${row.samples} | ${number(row.browserLaunchMs)} | ${number(row.readyMs)} | ${browserTiming?number(row.browserReadyMs)+' | ':''}${number(row.firstUseMs)} | ${number(row.readyWorkers)} / ${number(row.afterWorkers)} | ${number(row.wasmRequests)} |`).join('\n')}
 
 ## Combined resident memory and separate native diagnostics
 

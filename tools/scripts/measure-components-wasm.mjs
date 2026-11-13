@@ -12,13 +12,14 @@ import { summarizeTraffic } from './audit-components-wasm.mjs';
 import { browserProcessMemory, summarizeStartup, renderStartupReport } from './browser-runtime-metrics.mjs';
 import { prepareComponentBenchmark } from './component-benchmark-deployment.mjs';
 import { browserStartupPhases } from './browser-startup-phases.mjs';
+import { browserFixtureReadiness } from './browser-fixture-readiness.mjs';
 import { traceWasmAcquisition, nativeHeapInspection } from './wasm-acquisition-trace.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const args=process.argv.slice(2).filter(arg=>arg!=='--');
-const usage='Usage: node tools/scripts/measure-components-wasm.mjs [deployment | --prepare] [--runs=3] [--case=selected|controls|data|editor] [--trace-wasm | --trace-startup] [--phase-cohort=before-sharing|code-sharing] [--phase-observe-only] [--record=code-sharing] [--write-doc]';
+const usage='Usage: node tools/scripts/measure-components-wasm.mjs [deployment | --prepare] [--runs=3] [--case=selected|controls|data|editor] [--trace-wasm | --trace-startup] [--phase-cohort=before-sharing|code-sharing] [--phase-observe-only] [--record=code-sharing|browser-readiness] [--write-doc]';
 if(args.length===1 && args[0]==='--help') { console.log(usage); process.exit(0); }
-assert(args.every(arg=>['--write-doc','--prepare','--trace-wasm','--trace-startup','--phase-observe-only','--record=code-sharing'].includes(arg)||/^--phase-cohort=(before-sharing|code-sharing)$/.test(arg)||/^--runs=\d+$/.test(arg)||/^--case=(selected|controls|data|editor)$/.test(arg)||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1,usage);
+assert(args.every(arg=>['--write-doc','--prepare','--trace-wasm','--trace-startup','--phase-observe-only','--record=code-sharing','--record=browser-readiness'].includes(arg)||/^--phase-cohort=(before-sharing|code-sharing)$/.test(arg)||/^--runs=\d+$/.test(arg)||/^--case=(selected|controls|data|editor)$/.test(arg)||!arg.startsWith('-')) && args.filter(arg=>!arg.startsWith('-')).length<=1,usage);
 assert(args.filter(arg=>arg.startsWith('--runs=')).length<=1 && args.filter(arg=>arg.startsWith('--case=')).length<=1,usage);
 const tracing=args.includes('--trace-wasm');
 const startupTracing=args.includes('--trace-startup');
@@ -27,7 +28,10 @@ const phaseCohort=args.find(arg=>arg.startsWith('--phase-cohort='))?.slice(15)??
 const phaseObserveOnly=args.includes('--phase-observe-only');
 assert(startupTracing||(!phaseObserveOnly&&!args.some(arg=>arg.startsWith('--phase-cohort='))),'phase options require --trace-startup');
 const phaseLabel=phaseCohort+(phaseObserveOnly?'-observe-only':'');
-const recordSuffix=args.includes('--record=code-sharing')?'-code-sharing':'';
+assert(args.filter(arg=>arg.startsWith('--record=')).length<=1,'choose one record');
+const browserTiming=args.includes('--record=browser-readiness');
+assert(!browserTiming||!(tracing||startupTracing),'browser readiness distributions exclude diagnostic wrappers');
+const recordSuffix=browserTiming?'-browser-readiness':args.includes('--record=code-sharing')?'-code-sharing':'';
 const runs=Number(args.find(arg=>arg.startsWith('--runs='))?.slice(7)??(tracing?1:3));
 assert(Number.isInteger(runs)&&runs>=1&&runs<=20,'runs must be between 1 and 20');
 const only=args.find(arg=>arg.startsWith('--case='))?.slice(7);
@@ -150,6 +154,7 @@ try {
         const context=await browser.newContext({viewport:{width:1280,height:800},serviceWorkers:'block'});
         const page=await context.newPage(); page.setDefaultTimeout(30000);
         if(startupTracing) await page.addInitScript(browserStartupPhases,{kind,instrumentCalls:!phaseObserveOnly});
+        if(browserTiming) await page.addInitScript(browserFixtureReadiness,{kind});
         const blankMemory=await browserProcessMemory(browserPid);
         let phase='cold'; const requestPhases=new WeakMap(), pending=new Set(), responses=[], errors=[];
         context.on('request',request=>requestPhases.set(request,phase));
@@ -197,16 +202,28 @@ try {
         };
         const fence=async()=> {await page.waitForLoadState('networkidle');while(pending.size) await Promise.all([...pending]);};
         const started=performance.now();
-        await page.goto(`${origin}/__component_audit__/?case=${kind}&mode=${mode}`);
-        if(kind==='selected') await page.waitForFunction(()=>window.auditSelectedReady===true);
-        else if(kind==='controls') {
-            await page.getByRole('button',{name:'Apply',exact:true}).waitFor();
-            await page.getByRole('textbox',{name:'Item',exact:true}).waitFor();
-        } else if(kind==='data') await page.locator('cem-data-view > [part~=root]').waitFor();
-        else await page.getByRole('textbox',{name:'Source',exact:true}).waitFor();
-        const readyMs=performance.now()-started;
-        const assertionAt=startupTracing?await page.evaluate(()=>performance.now()):undefined;
-        await fence(); const coldMemory=await memory();
+        let readyMs,assertionAt,browserReadiness;
+        try {
+            await page.goto(`${origin}/__component_audit__/?case=${kind}&mode=${mode}`);
+            if(kind==='selected') await page.waitForFunction(()=>window.auditSelectedReady===true);
+            else if(kind==='controls') {
+                await page.getByRole('button',{name:'Apply',exact:true}).waitFor();
+                await page.getByRole('textbox',{name:'Item',exact:true}).waitFor();
+            } else if(kind==='data') await page.locator('cem-data-view > [part~=root]').waitFor();
+            else await page.getByRole('textbox',{name:'Source',exact:true}).waitFor();
+            readyMs=performance.now()-started;
+            assertionAt=(startupTracing||browserTiming)?await page.evaluate(()=>performance.now()):undefined;
+            await fence();
+            if(browserTiming) browserReadiness={...await page.evaluate(()=>window.__cemFixtureReadiness.finish(true)),originalAssertionCompletedMs:assertionAt};
+        } catch(error) {
+            const failure = browserTiming ? await page.evaluate(() => ({ readiness: window.__cemFixtureReadiness?.inspect(),
+                diagnostics: [...document.querySelectorAll('main cem-action,main cem-text-field,main cem-data-view,main cem-source-editor')]
+                    .map(host=>({tag:host.localName,diagnostics:window.auditRuntime?.diagnosticsFor(host)})),
+                markup: document.querySelector('main')?.innerHTML.slice(0, 12000) })).catch(()=>null) : null;
+            if(browserTiming) await page.evaluate(()=>window.__cemFixtureReadiness?.cancel()).catch(()=>{});
+            throw new Error(`${kind}/${mode} readiness failed: ${error.message}; ${JSON.stringify({errors,failure})}`, {cause:error});
+        }
+        const coldMemory=await memory();
         const startupEvidence=startupTracing?{...await page.evaluate(()=>window.__cemStartupPhases.stop()),assertionAt,readyMs}:undefined;
         if(startupEvidence) {assert.equal(startupEvidence.overflow,false);assert(startupEvidence.visibleAt!==null,'diagnostic visibility witness required');}
         phase='first-use'; const used=performance.now();
@@ -251,7 +268,7 @@ try {
         else assert.equal(workerCounters.created,0,'fallback fixture must not create a worker');
         if(mode==='worker') assert(coldMemory.activeWorkers>0 && afterMemory.activeWorkers>0,'a live dedicated worker is required');
         else assert.equal(afterMemory.activeWorkers,0,'fallback must have no active worker');
-        const result={kind,mode,run,acquisitionEvidence,startupEvidence,browserPid,browserLaunchMs,blankMemory,samples:1,readyMs,firstUseMs,coldMemory,afterMemory,workerCounters,traffic,
+        const result={kind,mode,run,acquisitionEvidence,startupEvidence,...(browserTiming?{browserReadiness,workflowVerified:true}:{}),browserPid,browserLaunchMs,blankMemory,samples:1,readyMs,firstUseMs,coldMemory,afterMemory,workerCounters,traffic,
             phases:Object.fromEntries(['cold','first-use'].map(name=>[name,summarizeTraffic(responses.filter(r=>r.phase===name))])),responses};
         results.push(result);
         console.log(`${kind}/${mode} run ${run}: ready ${Math.round(readyMs)} ms, first use ${Math.round(firstUseMs)} ms, ${traffic.wasmRequests} WASM requests / ${traffic.uniqueWasm.length} unique file.`);
@@ -263,10 +280,10 @@ try {
         coreSha256:expected,selectedSha256,chromium:chromiumVersion,node:process.version,
         platform:`${platform()} ${release()} ${arch()}`,cpu:cpus()[0]?.model,cpuCount:cpus().length,hostMemoryBytes:totalmem(),
         measuredAt:new Date().toISOString(),
-        harnessHashes:Object.fromEntries(await Promise.all(['measure-components-wasm.mjs','browser-runtime-metrics.mjs','component-benchmark-deployment.mjs',...(tracing?['wasm-acquisition-trace.mjs']:[]),...(startupTracing?['browser-startup-phases.mjs']:[])].map(async name=>[
+        harnessHashes:Object.fromEntries(await Promise.all(['measure-components-wasm.mjs','browser-runtime-metrics.mjs','component-benchmark-deployment.mjs',...(tracing?['wasm-acquisition-trace.mjs']:[]),...(startupTracing?['browser-startup-phases.mjs']:[]),...(browserTiming?['browser-fixture-readiness.mjs']:[])].map(async name=>[
             name,createHash('sha256').update(await readFile(resolve(root,'tools/scripts',name))).digest('hex')]))),
         fixtureHashes:Object.fromEntries([...selectedFiles].map(([path,bytes])=>[path,createHash('sha256').update(bytes).digest('hex')])),
-        methods:{cold:'fresh browser process/profile/context per observation; OS/server caches may be warm; browser launch separate',
+        methods:{...(browserTiming?{browserReadiness:'renderer performance.now from navigation time origin; complete visible fixture in two consecutive animation frames; identity/predicate rechecked after original assertions; recorder stopped before memory sampling; workflow validation gates publication'}:{}),cold:'fresh browser process/profile/context per observation; OS/server caches may be warm; browser launch separate',
             timing:'automation wall time; rotated workload/mode order; descriptive median/min/max; no percentile or budget claim',
             memory:'browser-family Linux smaps_rollup PSS, stable process identities/membership; main JS and native capacity separate, never added to PSS',
             sampling:'snapshots after network/render idle outside timed intervals; no explicit GC; diagnostic work occurs between readiness and first use',

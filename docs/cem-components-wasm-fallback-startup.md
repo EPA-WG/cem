@@ -136,10 +136,11 @@ yarn nx run cem_ql:measure:startup-phases -- --prepare --phase-observe-only --ru
 yarn nx run cem_ql:report:startup-phases
 ```
 
-Next, add a separately named browser-side readiness timing metric while
-preserving the original assertion wall time and all workflow validations.
-Verify that it cannot publish a hidden/incomplete control or drop a failed
-assertion, then rerun ordinary distributions before selecting budgets.
+The separate [browser-side fixture timing](cem-components-browser-readiness-timing.md)
+now supplements the original assertion wall time and workflow validations.
+Its frame-sampled predicates refuse hidden/incomplete controls, and failed
+assertions cannot publish a result. Forty new observations retain both metrics;
+the phase records above remain historical diagnostic evidence.
 All-capabilities/offline byte totals and clean npm-consumer measurements remain
 the following distribution gates. No runtime loading change is justified by the
 half-second polling gap alone, and these traces cannot retroactively assign

@@ -1515,6 +1515,34 @@ Exit criteria:
 - A Studio dependency audit proves that every Angular-Material-equivalent control comes from its completed general CEM
   parity component; only controls with no catalog counterpart may originate in `/studio` or the application.
 
+### Schema constraints UI flow
+
+Goal: let a user associate a sample document with a custom schema, inspect the
+rules that apply to each element, and evolve the schema while validating the
+current document or the whole project immediately.
+
+- [ ] Provide an ordinary sample project whose document explicitly references an
+      editable custom schema resource by stable identity and version. Preserve the
+      original example and schema when creating an independent user-owned copy.
+- [ ] Show each selected element's associated schema rules, including applicable
+      inherited/composed constraints and their source locations. Link document
+      selection, rule details and the corresponding schema hierarchy node.
+- [ ] Display the schema hierarchy and allow rules to be added at the selected
+      level through shared declarative CEM controls. Retain native schema topology,
+      source provenance and ordinary project edit/save/undo behavior.
+- [ ] Immediately revalidate the current document or project after rule changes,
+      using the current document/schema revisions, including unsaved edits. Show
+      attributable results and malformed-rule diagnostics, cancel superseded work
+      and refuse stale validation results without losing either edited resource.
+- [ ] Connect this flow to the [generic grammar notation](#generic-grammar-notation-for-schema-definitions)
+      and [Schematron parity](#schematron-functional-parity) contracts where their
+      capabilities are admitted; keep validation in the shared native engine.
+- [ ] Verify schema association, per-element rule display, hierarchy insertion,
+      document/project validation, invalid-rule repair and offline editing, with
+      keyboard, accessibility, theme and source-identity coverage.
+- [ ] Follow up with **Cai Jinqing**, **Henrik Pätzold** and **Ghislain Fourny**
+      on the flow, representative schemas/documents and adoption criteria.
+
 ## Phase 7 - Hugo Framework Integration
 
 Goal: define and prove a supported way to adopt the CEM-ML stack in Hugo projects after the native CEM Site contracts

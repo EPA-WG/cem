@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { prepareComponentBenchmark } from './component-benchmark-deployment.mjs';
-import { processStat, processFamily, smapsRollup, browserProcessMemory, distribution, summarizeStartup } from './browser-runtime-metrics.mjs';
+import { processStat, processFamily, smapsRollup, browserProcessMemory, distribution, summarizeStartup, browserReadyValue, renderStartupReport } from './browser-runtime-metrics.mjs';
 
 const rollup = 'Rss: 20 kB\nPss: 8 kB\nPrivate_Clean: 2 kB\nPrivate_Dirty: 3 kB\nSwapPss: 0 kB\nShared_Hugetlb: 0 kB\nPrivate_Hugetlb: 0 kB\n';
 const stat = (pid, parent, ticks = '17') => `${pid} (worker (name)) S ${parent} ${Array(17).fill('0').join(' ')} ${ticks} 0\n`;
@@ -69,6 +69,30 @@ test('descriptive summaries retain all samples and do not turn unavailable memor
     assert.equal(result.readyPssBytes.status, 'unavailable');
     assert.equal(result.readyPssBytes.availableSamples, 2);
     assert.equal(result.afterPssBytes.median, 120);
+});
+
+test('browser readiness summaries require passed workflows and complete proofs, preserving assertion wall time', () => {
+    const row = { kind: 'controls', mode: 'fallback', workflowVerified: true, readyMs: 1200, firstUseMs: 80,
+        coldMemory: { browserFamily: {} }, afterMemory: { browserFamily: {} }, traffic: { wasmRequests: 1 },
+        browserReadiness: { contract: 'cem-browser-fixture-readiness/1', kind: 'controls', originalAssertionsPassed: true,
+            eligibleFrames: 2, firstEligibleMs: 600, readyMs: 616, confirmationGapMs: 16, assertionConfirmedMs: 1300 } };
+    assert.equal(browserReadyValue(row), 616);
+    for (const proof of [{ originalAssertionsPassed: false }, { kind: 'editor' }, { eligibleFrames: undefined },
+        { eligibleFrames: 1 }, { readyMs: NaN }, { firstEligibleMs: 700 }, { assertionConfirmedMs: 500 }]) {
+        assert.equal(browserReadyValue({ ...row, browserReadiness: { ...row.browserReadiness, ...proof } }), undefined);
+    }
+    assert.equal(browserReadyValue({ ...row, workflowVerified: false }), undefined);
+    const missing = { ...row, browserReadiness: undefined };
+    const [partial] = summarizeStartup([row, missing]);
+    assert.equal(partial.browserReadyMs.status, 'unavailable');
+    assert.equal(partial.browserReadyMs.availableSamples, 1);
+    assert.equal(partial.readyMs.median, 1200);
+    const [complete] = summarizeStartup([row]);
+    assert.equal(complete.browserReadyMs.median, 616);
+    const output = renderStartupReport({ runs: 1, recordSuffix: '-browser-readiness', methods: { browserReadiness: 'frame-sampled' }, summary: [complete] });
+    assert.match(output, /--record=browser-readiness/);
+    assert.match(output, /Assertion wall ms \| Browser fixture ms/);
+    assert.match(output, /1200 \[1200–1200\].*616 \[616–616\]/);
 });
 
 test('matched benchmark assembly deduplicates runtime assets and refuses drift before publication', async () => {
