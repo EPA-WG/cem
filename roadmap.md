@@ -221,6 +221,29 @@ reference and pin the exact edition and query-binding profiles before implementa
 - [ ] Contact the **Schematron book author** to review the parity scope and
       adoption opportunities; confirm the intended book, author and contact details.
 
+### Comparative evaluation of the CEM stack
+
+Goal: publish a reproducible comparison with existing solutions, including
+**XQuery** and **Schematron**, to guide compatibility, adoption and priorities.
+
+- [ ] Select and pin representative implementations, versions and profiles for
+      XQuery, Schematron, XPath/XSLT, JSON Schema, RELAX NG and Nelumbo where
+      relevant. State each solution's role and compare overlapping capabilities
+      without treating different language purposes as equivalent.
+- [ ] Run a shared corpus of document/schema definitions, validation constraints,
+      queries and transformations. Compare results, type/namespace behavior,
+      diagnostics, source attribution, standards conformance and interchange.
+- [ ] Compare end-to-end authoring flows, including the schema-constraints UI,
+      per-element rule inspection, immediate document/project validation and
+      integration with CLI, editors and Studio.
+- [ ] Measure build/install size, cold start, first use, combined memory and
+      offline behavior under documented matched workloads and environments;
+      distinguish compilation, execution and tooling costs and retain limits.
+- [ ] Publish a capability/gap matrix, compatibility and migration opportunities,
+      tradeoffs and reproducible evidence before making comparative claims or
+      choosing adoption work. Feed the results into the grammar-notation and
+      Schematron workstreams and their recorded contact follow-ups.
+
 ## Phase 2.5 - CEM-ML CLI Product And Deployment Foundation
 
 Goal: turn the Phase 2 command contract into separately deployable, version-synchronized CLI packages before Studio,
@@ -354,6 +377,29 @@ Exit criteria:
   the read-only inspection channel.
 - Editor completion/linting recognizes the island topology and delegated domain vocabularies; debugger and DevTools
   views preserve producing-schema AST identity instead of projecting runtime state through JSON by default.
+
+### Language server, VS Code and IntelliJ support for CEM formats
+
+Goal: provide first-class CEM-ML, CEMT and CEM-QL authoring in both editors
+through the shared native tooling service and Language Server Protocol (LSP).
+
+- [ ] Define CEM format/file associations, explicit schema and project configuration
+      discovery, and embedded CEM regions in XHTML/Markdown. Generate language
+      metadata from the canonical schema packages rather than parallel editor grammars.
+- [ ] Implement a shared language server for current unsaved document revisions:
+      incremental validation, attributable diagnostics, completion, hover, document
+      symbols, definition/reference navigation and native formatting. Preserve
+      namespace/schema identity, source maps and byte-to-editor-position mappings;
+      cancel superseded work and refuse stale diagnostics or edits.
+- [ ] Ship an installable **VS Code extension** that connects to the server and
+      exposes project configuration, language features and validation commands.
+- [ ] Ship an installable **IntelliJ plugin** with the same CEM format coverage,
+      language-server behavior and project/document workflows, reusing the native
+      semantic service instead of a separate JVM schema/query implementation.
+- [ ] Verify both integrations with shared CEM documents and projects, including
+      custom schemas, embedded regions, Unicode/source ranges, unsaved changes,
+      malformed-input repair and disconnected operation. Publish installation and
+      compatibility requirements and keep unsupported features explicit.
 
 ## Phase 2.8 - Native XSLT 3.x And 4.x Standards Engine
 
