@@ -391,6 +391,7 @@
                 "{projectRoot}/src/project-session.js",
                 "{projectRoot}/src/project-session.d.ts",
                 "{projectRoot}/src/navigation.js",
+                "{projectRoot}/src/project-bootstrap.js",
                 "{projectRoot}/src/navigation.d.ts",
                 "{projectRoot}/src/navigation.browser.spec.js",
                 "{projectRoot}/src/workbench-center.xhtml"

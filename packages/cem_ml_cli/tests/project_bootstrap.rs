@@ -159,6 +159,109 @@ fn invalid_request_has_structured_error_exit_and_no_partial_archive() {
 }
 
 #[test]
+fn planned_site_builds_nested_navigation_layout_css_and_exact_static_assets() {
+    let plan = success(request(
+        &json!({"action":"plan","preset":"markdown-site","projectId":"site-planned","name":"My site","createdAt":"2026-11-13T00:00:00Z", "answers":{"sourceFiles":"index.md\nabout.md\nguides/start.md","outputFolder":"public"}}),
+    ));
+    let dir = materialize_and_build(&plan["configuration"]);
+    let nested = fs::read_to_string(dir.0.join("public/guides/start.html")).unwrap();
+    assert!(
+        nested.contains("<html") && nested.contains("<main>") && nested.contains("<header>"),
+        "{nested}"
+    );
+    assert!(
+        nested.contains("../index.html") && nested.contains("../guides/start.html"),
+        "{nested}"
+    );
+    assert!(nested.contains("../assets/css/site.css"), "{nested}");
+    assert!(nested.contains("Add your content here."), "{nested}");
+    for path in ["assets/css/site.css", "static/logo.svg"] {
+        assert_eq!(
+            fs::read(dir.0.join(path)).unwrap(),
+            fs::read(dir.0.join("public").join(path)).unwrap()
+        );
+    }
+    assert!(dir.0.join("public/index.html").exists() && dir.0.join("public/about.html").exists());
+}
+
+#[test]
+fn planned_pipeline_and_format_choices_build_all_targets() {
+    for (preset, answers, targets) in [
+        (
+            "transformation-pipeline",
+            json!({"sourceFiles":"in/a.xml\nin/nested/b.xml","targetFiles":"out/a.html\nout/nested/b.html"}),
+            vec!["out/a.html", "out/nested/b.html"],
+        ),
+        (
+            "simple-conversion",
+            json!({"inputFormat":"json","outputFormat":"cem","sourceFiles":"in/source.json","targetFiles":"out/result.cem"}),
+            vec!["out/result.cem"],
+        ),
+        (
+            "simple-conversion",
+            json!({"inputFormat":"yaml","outputFormat":"json","sourceFiles":"in/source.yaml","targetFiles":"out/result.json"}),
+            vec!["out/result.json"],
+        ),
+        (
+            "schema-validation",
+            json!({"sourceFiles":"samples/a.xhtml\nsamples/b.xhtml"}),
+            vec![],
+        ),
+    ] {
+        let plan = success(request(
+            &json!({"action":"plan","preset":preset,"projectId":"pipeline-planned","name":"Planned","createdAt":"2026-11-13T00:00:00Z","answers":answers}),
+        ));
+        let dir = materialize_and_build(&plan["configuration"]);
+        for target in targets {
+            assert!(!fs::read(dir.0.join(target)).unwrap().is_empty());
+        }
+    }
+}
+
+fn materialize_and_build(config: &Value) -> Directory {
+    let generated = success(request(
+        &json!({"action":"generate","configuration":config}),
+    ));
+    let dir = Directory::new();
+    fs::write(
+        dir.0.join("project.cem"),
+        generated["manifest"].as_str().unwrap(),
+    )
+    .unwrap();
+    for resource in config["resources"].as_array().unwrap() {
+        let path = dir.0.join(resource["path"].as_str().unwrap());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, resource["text"].as_str().unwrap()).unwrap();
+    }
+    let command = config["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["role"] == "run-config")
+        .unwrap();
+    let command: Value = serde_json::from_str(command["text"].as_str().unwrap()).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .args(
+            command["argv"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap()),
+        )
+        .args(["--resolver-project", "project.cem"])
+        .current_dir(&dir.0)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    dir
+}
+
+#[test]
 fn editable_commands_use_the_canonical_host_grammar_before_archive_publication() {
     let config = success(request(
         &json!({"action":"preset", "preset":"simple-conversion",

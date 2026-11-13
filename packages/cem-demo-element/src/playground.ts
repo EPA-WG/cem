@@ -1,6 +1,6 @@
 import './index.js';
 import type { CemDemoElement } from './cem-demo-element.js';
-import { detectPlaygroundFormat, getPlaygroundFormats, renderPlaygroundSource } from './playground-runtime.js';
+import { describePlaygroundCli, detectPlaygroundFormat, getPlaygroundFormats, renderPlaygroundSource } from './playground-runtime.js';
 import { playgroundExamples } from './playground-examples.js';
 
 export interface PlaygroundState {
@@ -10,6 +10,13 @@ export interface PlaygroundState {
     input: string;
     output: string;
 }
+
+/** The embedding page supplies the shared CEM view host it already owns. */
+export type PlaygroundViewMount = (options: {
+    root: Element; element: HTMLElement; tag: string;
+    state: Record<string, unknown>;
+    commands: Record<string, () => Promise<void>>;
+}) => { update(values: Record<string, unknown>): unknown; whenSettled(): Promise<void>; dispose(): void };
 
 /** Query parameters carry authored text, never highlighted HTML or a serialized AST. */
 export function readPlaygroundState(search: string, defaults: PlaygroundState): PlaygroundState {
@@ -33,7 +40,10 @@ export function playgroundLink(baseUrl: string, state: PlaygroundState): string 
     return url.href;
 }
 
-export async function initializePlayground(playground: HTMLElement, runtime: { whenRenderSettled(instance: HTMLElement): Promise<void> }): Promise<{ render(): Promise<void> }> {
+export async function initializePlayground(playground: HTMLElement, runtime: { whenRenderSettled(instance: HTMLElement): Promise<void> }, mountView: PlaygroundViewMount): Promise<{ render(): Promise<void>; dispose(): void }> {
+    const commandElement = required<HTMLElement>(playground, 'cem-demo-playground-cli');
+    await playground.ownerDocument.defaultView?.customElements.whenDefined(commandElement.localName);
+    await runtime.whenRenderSettled(commandElement);
     const form = required<HTMLFormElement>(playground, 'form[aria-label="Render settings"]');
     const editor = required<HTMLElement & { value: string }>(playground, 'cem-source-editor');
     const outputDemo = required<CemDemoElement>(playground, 'cem-demo-element[aria-label="Rendered output"]');
@@ -49,6 +59,8 @@ export async function initializePlayground(playground: HTMLElement, runtime: { w
     const examples = required<HTMLUListElement>(playground, 'ul[aria-label="Examples and copied links"]');
     const window = playground.ownerDocument.defaultView;
     if (!window) throw new Error('The playground needs a browser window.');
+    let commandView: ReturnType<PlaygroundViewMount> | undefined;
+    let active = true;
 
     function announce(message: string, state = 'ready'): void {
         status.textContent = message;
@@ -108,6 +120,32 @@ export async function initializePlayground(playground: HTMLElement, runtime: { w
                 source: editor.value, input: input.value, output: output.value,
             };
         }
+
+        let commandState: { ready: boolean; busy: boolean; text?: string; message?: string; failed?: boolean } = { ready: true, busy: false };
+        const publishCommand = () => { if (active) commandView?.update({ state: commandState }); };
+        const copyCli = async (): Promise<void> => {
+            if (commandState.busy || !active) return;
+            const captured = currentState();
+            commandState = { ready: true, busy: true }; publishCommand();
+            try {
+                const text = describePlaygroundCli(captured.source, captured.input, captured.output);
+                commandState = { ...commandState, text }; publishCommand();
+                try {
+                    if (typeof window.navigator.clipboard?.writeText !== 'function') throw new Error('Clipboard access is unavailable in this browser.');
+                    await window.navigator.clipboard.writeText(text);
+                    commandState = { ...commandState, message: 'Command copied.' };
+                } catch (error) {
+                    commandState = { ...commandState, failed: true, message: `Command ready. Clipboard unavailable: ${error instanceof Error ? error.message : String(error)}` };
+                }
+            } catch (error) {
+                commandState = { ready: true, busy: true, failed: true, message: error instanceof Error ? error.message : String(error) };
+            } finally { commandState = { ...commandState, busy: false }; publishCommand(); }
+        };
+        await window.customElements.whenDefined('cem-demo-playground-cli');
+        const commandMount = required<HTMLElement>(playground, '[data-cem-playground-command-mount]');
+        commandView = mountView({ root: commandMount, element: required<HTMLElement>(commandMount, ':scope > cem-demo-playground-cli'), tag: 'cem-demo-playground-cli',
+            state: { state: commandState }, commands: { 'copy-cli': copyCli } });
+        await commandView.whenSettled();
 
         let rendering = false;
         async function render(): Promise<void> {
@@ -192,8 +230,9 @@ export async function initializePlayground(playground: HTMLElement, runtime: { w
         } else {
             await render();
         }
-        return { render };
+        return { render, dispose() { active = false; commandView?.dispose(); } };
     } catch (error) {
+        active = false; commandView?.dispose();
         announce(error instanceof Error ? error.message : String(error), 'error');
         throw error;
     }

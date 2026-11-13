@@ -1,0 +1,9 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-demo-playground-cli">
+<template id="cem-demo-playground-cli" type="text/cem-ml">
+{module |{slice @name=state}{body |{style @type=text/css |```
+:scope { display: block; min-inline-size: 0; }
+[part~='command'] { min-inline-size: 0; }
+[part~='command'] pre { white-space: pre-wrap; overflow-wrap: anywhere; color: inherit; }
+```}{cem:variable @name=state @select=datadom.slices.state}{div @class=playground-toolbar |{slot @name=controls}{cem-action @type=button @variant=contextual @host-command=copy-cli @disabled={if !state.ready || state.busy { true } else { null }} | Copy CLI}}{cem:if @test=state.text |{section @part=command @aria-label="Conversion command" |{p | Uses the source and formats captured when Copy CLI was clicked.}{pre |{code |{$ | state.text}}}}}{cem:if @test=state.message |{p @role={if state.failed { "alert" } else { "status" }} |{$ | state.message}}}}}
+</template>
+</cem-element>

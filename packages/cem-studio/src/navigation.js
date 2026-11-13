@@ -2,6 +2,7 @@ import { captureCemStudioBuildSnapshot, openCemStudioBuildSnapshot, compareCemSt
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
 import { createCemStudioProjectWorkbench, createCemStudioWorkbench } from './workbench.js';
 import { projectResourceUri } from './resource-reference.js';
+import { createCemStudioProjectBootstrap } from './project-bootstrap.js';
 import { CEM_STUDIO_LIMITS, createCemStudioPreview } from './preview.js';
 import { registerCemArtifactTree } from '@epa-wg/cem-elements';
 import { parseCemMlCommand, parseCemMlCommandResource, serializeCemMlCommand, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
@@ -66,6 +67,9 @@ export async function createCemStudioNavigation({ workbench, repository, example
     let acceptedUrl = browser ? new URL(browser.location.href) : new URL('https://studio.invalid/');
     for (const key of routeFields) acceptedUrl.searchParams.delete(key);
     let model;
+    const bootstrap = createCemStudioProjectBootstrap({ validator, repository, changed: state => {
+        if (action?.kind === 'create' && action.createKind === 'project') { action = { ...action, bootstrap: state }; publish(); }
+    } });
     const sections = { projects: true, structure: false, output: false };
     const sectionTouched = new Set();
     const trees = { projects: { selected: 'samples', expanded: new Set(['samples', 'view=projects']) }, structure: { selected: '', expanded: new Set() }, output: { selected: '', expanded: new Set() } };
@@ -281,6 +285,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
         filePreview.setSource(sourceDescriptor());
     }
     async function navigate(requestedRoute, mode = 'push', preservePreview = false) {
+        if (action?.bootstrap) { action = undefined; bootstrap.cancel(); }
         const { build, artifact, ...rest } = requestedRoute;
         const route = { ...rest, ...(rest.selection === 'output' && artifact !== undefined ? { artifact } : {}), ...(rest.selection === 'output' && build !== undefined ? { build } : {}) };
         const settings = { build, artifact, configuration: route.configuration, reset: !preservePreview, sourceActivation: preservePreview && Boolean(route.file), sourceResourceId: route.file };
@@ -434,8 +439,23 @@ export async function createCemStudioNavigation({ workbench, repository, example
             }
             publish();
         },
-        requestAction(kind) { if (kind === 'create' && !model.canCreate || kind === 'clone' && !model.canClone || kind === 'delete' && !model.canDelete) return; action = { kind, targetName: selected.name, createKind: kind === 'clone' && selected.kind === 'project' ? 'project' : model.createKind }; publish(); },
-        cancelAction() { if (!busy) action = undefined; publish(); },
+        newProject() { action = { kind: 'create', targetName: 'New project', createKind: 'project' }; return bootstrap.open(); },
+        requestAction(kind) {
+            if (kind === 'create' && !model.canCreate || kind === 'clone' && !model.canClone || kind === 'delete' && !model.canDelete) return;
+            if (kind === 'create' && model.createKind === 'project') return api.newProject();
+            action = { kind, targetName: selected.name, createKind: kind === 'clone' && selected.kind === 'project' ? 'project' : model.createKind }; publish();
+        },
+        bootstrapChoose: fields => bootstrap.choose(fields),
+        bootstrapReview: fields => bootstrap.review(fields),
+        bootstrapBack: phase => bootstrap.back(phase),
+        bootstrapInspect: id => bootstrap.inspect(id),
+        async bootstrapCreate() {
+            const created = await bootstrap.create();
+            if (!created) return;
+            action = undefined; bootstrap.cancel();
+            await workbench.refreshNavigation(); await refresh(); await navigate({ project: created.id });
+        },
+        cancelAction() { if (action?.bootstrap) { action = undefined; bootstrap.cancel(); } else if (!busy) action = undefined; publish(); },
         async submitAction(fields) {
             const kind = action?.kind;
             if (!kind || busy) return;
@@ -471,7 +491,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
             finally { busy = false; }
             publish();
         },
-        dispose() { disposed = true; ++version; ++refreshVersion; navigationController?.abort(); navigationController = undefined; unsubscribe(); unsubscribePreview(); unsubscribeFilePreview(); filePreview.dispose(); preview.dispose(); unsubscribeRepository?.(); browser?.removeEventListener('popstate', onPop); subscribers.clear(); workbench.dispose(); },
+        dispose() { disposed = true; action = undefined; bootstrap.dispose(); ++version; ++refreshVersion; navigationController?.abort(); navigationController = undefined; unsubscribe(); unsubscribePreview(); unsubscribeFilePreview(); filePreview.dispose(); preview.dispose(); unsubscribeRepository?.(); browser?.removeEventListener('popstate', onPop); subscribers.clear(); workbench.dispose(); },
     };
     return Object.freeze(api);
 }

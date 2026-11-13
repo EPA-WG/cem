@@ -1,0 +1,23 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default transform
+{module |
+  {template @name=header @visibility=public @cem:whitespace=layout |
+    {param @name=site @type=any @required=true}
+    {param @name=base @type=string @required=true}
+    {body | {header |
+      {p | {$seq:where(site.children.children, fn(p) => p.attributes.value == "title").children.children}}
+      {nav @aria-label="Site navigation" |
+        {cem:for-each @select='seq:where(site.children.children, fn(p) => p.attributes.value == "navigation").children.children' @as=link |
+          {a @href='{$base}/{$seq:where(link.children, fn(p) => p.attributes.value == "href").children.children.value}' |
+            {$seq:where(link.children, fn(p) => p.attributes.value == "label").children.children}
+          }
+        }
+      }
+    }}
+  }
+  {template @name=footer @visibility=public @cem:whitespace=layout | {body |
+    {footer | {p | Built from saved project resources.}}
+  }}
+}

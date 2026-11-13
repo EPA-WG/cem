@@ -196,6 +196,10 @@ check entry focus inside the surface, recheck return eligibility on restoring
 close reasons, and fit independent anchors/boundaries inside the visual viewport.
 Missing geometry rejects opening; established surfaces close on loss unless
 `anchor-lost="freeze"` preserves the previous geometry.
+When an open modal's focused step is replaced, the shared native-surface adapter
+focuses the next eligible control, including controls published or enabled by a
+later render. It preserves a surviving focused control and honors
+`focus-target="none"`; nonmodal surfaces do not claim focus this way.
 
 For foreign authored reference chains, embedding hosts supply
 `elementReferenceInputs(instance, snapshot, signal)` in `CemElementRuntimeOptions`.

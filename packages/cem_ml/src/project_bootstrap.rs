@@ -23,6 +23,8 @@ use crate::transform_graph_request::resolve_transform_graph_reference;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+mod planning;
+pub use planning::{plan_project, review_configuration, ProjectBootstrapAnswers};
 
 pub const PROJECT_BOOTSTRAP_SCHEMA_URI: &str = "https://cem.dev/ns/project-bootstrap/1";
 pub const PROJECT_BOOTSTRAP_SCHEMA_VERSION: u32 = 1;
@@ -85,6 +87,13 @@ enum BootstrapRequest {
     Generate {
         configuration: ProjectBootstrapConfiguration,
     },
+    #[serde(rename_all = "camelCase")]
+    Plan {
+        preset: ProjectBootstrapPreset, project_id: String, name: String, created_at: String,
+        #[serde(default)]
+        answers: ProjectBootstrapAnswers,
+    },
+    Review { configuration: ProjectBootstrapConfiguration },
 }
 
 #[derive(Debug, Serialize)]
@@ -162,6 +171,13 @@ pub fn project_bootstrap_json(request: &str) -> String {
                 BootstrapRequest::Generate {configuration} => {
                     serde_json::to_value(generate_project(configuration)?)
                         .map_err(|e| error("serialization", e.to_string(), None))
+                }
+                BootstrapRequest::Plan {preset, project_id, name, created_at, answers} => {
+                    plan_project(preset, project_id, name, created_at, answers)
+                }
+                BootstrapRequest::Review {configuration} => {
+                    let review = review_configuration(&configuration)?;
+                    Ok(json!({"configuration":configuration, "review":review}))
                 }
             })
     };

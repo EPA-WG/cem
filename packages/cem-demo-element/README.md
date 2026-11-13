@@ -178,6 +178,25 @@ choose Render to execute its preview. If clipboard access is unavailable,
 the page selects the link for manual copying. Links include the complete
 source, so they are intended for small, shareable examples.
 
+**Copy CLI** captures the current editor source and selected formats, copies a
+Bash command, and displays it as a code block immediately after the toolbar.
+Auto resolves to the same input hint used by Render. The command pipes literal
+source through `printf '%s'` into `cem-ml convert /dev/stdin` and writes the converted
+result to stdout without saving the input or output. Install `cem-ml` on PATH
+before running it in Bash on a system with `/dev/stdin` (such as Linux or macOS).
+Terminal escapes are disabled so the command emits reusable
+document text. Title and description belong to the shareable link and do not
+affect conversion. Clipboard failure leaves the code available for manual copy;
+click again after editing to capture a new source/format snapshot.
+
+Playground and Studio reuse the CLI package's generated command grammar and
+literal Bash serializer. Playground adds the shared
+`serializeCemMlCommandWithStdinText` wrapper rather than depending on Studio's
+project-specific resolver service. The embedding page passes its existing
+`mountCemView` capability as the third `initializePlayground` argument; the
+Copy CLI button, status and code projection are authored in
+`demo/playground-cli.xhtml` using the production `cem-action` control.
+
 Build with `yarn nx run @epa-wg/cem-demo-element:build`. Nx builds the CLI
 adapter dependency first; the demo compiles against its generated declarations
 without recursively rebuilding its temporary command-schema source.

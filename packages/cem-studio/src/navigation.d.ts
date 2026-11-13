@@ -90,6 +90,7 @@ export interface CemStudioNavigationState {
         readonly kind: 'create' | 'clone' | 'delete';
         readonly targetName: string;
         readonly createKind: 'project' | 'file';
+        readonly bootstrap?: Readonly<Record<string, unknown>>;
     };
 }
 export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
@@ -100,6 +101,12 @@ export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     setNavigationExpanded(tree: 'projects' | 'structure' | 'output', keys: string | readonly string[]): void;
     toggleNavigationExpanded(tree: 'projects' | 'structure' | 'output', key: string): void;
     requestAction(kind: 'create' | 'clone' | 'delete'): void;
+    newProject(): Promise<unknown>;
+    bootstrapChoose(fields: Readonly<Record<string, readonly string[]>>): Promise<unknown>;
+    bootstrapReview(fields: Readonly<Record<string, readonly string[]>>): Promise<unknown>;
+    bootstrapBack(phase: 'type' | 'structure'): void;
+    bootstrapInspect(id: string): void;
+    bootstrapCreate(): Promise<void>;
     cancelAction(): void;
     submitAction(fields: Readonly<Record<string, readonly string[]>>): Promise<void>;
     openSourceLink(path: string): Promise<void>;

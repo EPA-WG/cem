@@ -31,6 +31,37 @@ export const RemovedDialogFocusOwnership: Story = {
         }
     },
 };
+
+export const ModalStepReplacementKeepsFocusOwned: Story = {
+    render: () => '<section><button>Open task</button><dialog aria-label="Stepped task" mode="modal"><div><button>Continue</button></div><button>Keep focus here</button></dialog></section>',
+    play: async ({ canvasElement }) => {
+        const root = required(canvasElement, 'section'), invoker = required(root, 'button');
+        const dialog = required<HTMLDialogElement>(root, 'dialog'), body = required(dialog, 'div');
+        const stay = required<HTMLButtonElement>(dialog, ':scope > button');
+        const controller = connectCemNativeSurface(dialog);
+        const replace = () => { const input = document.createElement('textarea'); input.setAttribute('aria-label', 'Next step'); body.replaceChildren(input); return input; };
+        try {
+            controller.open({ source: invoker }); required(body, 'button').focus();
+            required<HTMLButtonElement>(body, 'button').disabled = true;
+            await Promise.resolve();
+            const next = replace(); await waitFor(() => expect(document.activeElement).toBe(next));
+            stay.disabled = true; body.replaceChildren();
+            await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+            const deferred = replace(); deferred.disabled = true;
+            await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+            deferred.disabled = false; await waitFor(() => expect(document.activeElement).toBe(deferred));
+            stay.disabled = false; stay.focus(); replace(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+            await expect(document.activeElement).toBe(stay);
+            dialog.setAttribute('focus-target', 'none'); required(body, 'textarea').focus();
+            const untouched = replace(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+            await expect(document.activeElement).not.toBe(untouched);
+            controller.requestClose(); dialog.removeAttribute('focus-target'); dialog.removeAttribute('mode');
+            controller.open({ source: invoker }); required(body, 'textarea').focus();
+            const nonmodal = replace(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+            await expect(document.activeElement).not.toBe(nonmodal);
+        } finally { controller.disconnect(); }
+    },
+};
 export const ModalFocusContextCancellationAndDisconnect: Story = {
     render: () => '<section><button>Invoker</button><button>Return</button><dialog aria-label="Task"><h2 tabindex="-1">Heading</h2><button autofocus>Entry</button></dialog></section>',
     play: async ({ canvasElement }) => {

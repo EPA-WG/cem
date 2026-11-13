@@ -5,6 +5,11 @@ import playgroundDocument from '../demo/playground.html?raw';
 import playgroundCss from '../demo/playground.css?raw';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- Test-only fixture loads the canonical declarative editor, not a copied implementation.
 import editorDeclaration from '../../cem-components/src/components/cem-source-editor/cem-source-editor.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Integration uses the production shared action control.
+import actionDeclaration from '../../cem-components/src/components/cem-action/cem-action.xhtml?raw';
+import cliDeclaration from '../demo/playground-cli.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- The embedding fixture supplies the shared declarative view host.
+import { mountCemView } from '../../cem-elements/src/index.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- Shared development loader supplies the production runtime and native worker for this integration fixture.
 import { loadCemDeclaration, storybookCemRuntime } from '../../cem-elements/.storybook/preview.js';
 import {
@@ -16,7 +21,12 @@ import {
 const meta: Meta = {
     title: 'CEM Demo Element/Playground',
     tags: ['test'],
-    loaders: [async () => { await loadCemDeclaration('cem-source-editor', editorDeclaration); return {}; }],
+    loaders: [async () => {
+        await loadCemDeclaration('cem-source-editor', editorDeclaration);
+        await loadCemDeclaration('cem-action', actionDeclaration);
+        await loadCemDeclaration('cem-demo-playground-cli', cliDeclaration);
+        return {};
+    }],
     render: () => {
         const parsed = new DOMParser().parseFromString(playgroundDocument, 'text/html');
         const playground = parsed.querySelector('main[aria-label="CEM playground"]');
@@ -351,6 +361,60 @@ export const CopyLinkAppendsCurrentExample: Story = {
     },
 };
 
+export const CopyCliCapturesSourceAndFormats: Story = {
+    play: async ({ canvasElement }) => {
+        const playground = requiredPlayground(canvasElement), canvas = within(playground);
+        const controller = await initializePlayground(playground);
+        const originalOutput = requiredOutput(playground).innerHTML;
+        const clipboard = spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+        try {
+            const source = 'message: "Café <b>literal</b> $(touch nope) `touch nope`"\nquote: "it\'s exact"\n';
+            setSource(playground, source);
+            await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Input format' }), 'yaml');
+            await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Output format' }), 'json');
+            await userEvent.click(canvas.getByRole('button', { name: 'Copy CLI', exact: true }));
+            await waitFor(() => expect(playground.querySelector('section[aria-label="Conversion command"] code')).not.toBeNull());
+            const section = playground.querySelector('section[aria-label="Conversion command"]')!;
+            const text = section.querySelector('code')!.textContent!;
+            await expect(clipboard).toHaveBeenCalledWith(text);
+            await expect(text).toContain("printf '%s'");
+            await expect(text).toContain('cem-ml convert /dev/stdin');
+            await expect(text).toContain('application/yaml'); await expect(text).toContain('application/json');
+            await expect(text).toContain('$(touch nope)');
+            await expect(section.querySelector('b, script')).toBeNull();
+            await expect(section.previousElementSibling).toHaveClass('playground-toolbar');
+            await expect(requiredEditor(playground).textContent).toBe(source);
+            await expect(requiredOutput(playground).innerHTML).toBe(originalOutput);
+        } finally { clipboard.mockRestore(); controller.dispose(); }
+    },
+};
+
+export const CopyCliRetainsCommandOnClipboardFailure: Story = {
+    play: async ({ canvasElement }) => {
+        const playground = requiredPlayground(canvasElement), canvas = within(playground);
+        const controller = await initializePlayground(playground);
+        const clipboard = spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new DOMException('Clipboard denied', 'NotAllowedError'));
+        try {
+            setSource(playground, 'enabled: true\n');
+            await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Input format' }), 'auto');
+            await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Output format' }), 'json');
+            await userEvent.click(canvas.getByRole('button', { name: 'Copy CLI', exact: true }));
+            await waitFor(() => expect(playground.textContent).toContain('Clipboard denied'));
+            await expect(playground.querySelector('section[aria-label="Conversion command"] code')).toHaveTextContent('enabled: true');
+            clipboard.mockResolvedValue(undefined);
+            setSource(playground, '{"message":"Latest source"}');
+            await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Input format' }), 'json');
+            await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Output format' }), 'cem');
+            await userEvent.click(canvas.getByRole('button', { name: 'Copy CLI', exact: true }));
+            await waitFor(() => expect(playground.textContent).toContain('Command copied.'));
+            await expect(playground.querySelectorAll('section[aria-label="Conversion command"]')).toHaveLength(1);
+            await expect(playground.querySelector('section[aria-label="Conversion command"] code')).toHaveTextContent('Latest source');
+            await expect(clipboard.mock.calls.at(-1)?.[0]).toContain('application/cem');
+            await expect(requiredEditor(playground).textContent).toBe('{"message":"Latest source"}');
+        } finally { clipboard.mockRestore(); controller.dispose(); }
+    },
+};
+
 function requiredPlayground(root: ParentNode): HTMLElement {
     const playground = root.querySelector<HTMLElement>('main[aria-label="CEM playground"]');
     if (!playground) throw new Error('Expected the authored playground page');
@@ -386,7 +450,8 @@ async function setMetadata(playground: HTMLElement, title: string, description: 
 }
 
 function initializePlayground(playground: HTMLElement) {
-    return initialize(playground, storybookCemRuntime());
+    const runtime = storybookCemRuntime();
+    return initialize(playground, runtime, options => mountCemView(runtime, options));
 }
 
 async function expectPaint(playground: HTMLElement): Promise<void> {

@@ -49,7 +49,7 @@
     font-weight: 600;
 }
 
-.playground :is(select, button, input, textarea) {
+.playground .playground-native-control {
     min-height: 2.75rem;
     box-sizing: border-box;
     padding: 0.55rem 0.8rem;
@@ -73,21 +73,21 @@
     min-width: 10rem;
 }
 
-.playground button[type="submit"] {
+.playground button.playground-native-control[type="submit"] {
     color: var(--cem-palette-trust, ButtonText);
     background: var(--cem-palette-trust-x, ButtonFace);
 }
 
-.playground button {
+.playground button.playground-native-control {
     cursor: pointer;
 }
 
-.playground button:disabled {
+.playground button.playground-native-control:disabled {
     cursor: wait;
     opacity: 0.6;
 }
 
-.playground :is(button, select, input, textarea):focus-visible {
+.playground .playground-native-control:focus-visible {
     outline: 3px solid var(--cem-palette-creativity-x, Highlight);
     outline-offset: 3px;
 }

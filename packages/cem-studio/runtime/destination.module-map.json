@@ -966,6 +966,10 @@
         "@epa-wg/cem-elements/dist/lib/graphql-preview-recovery.js": {
             "path": "./assets/@epa-wg/cem-elements/dist/lib/graphql-preview-recovery.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-studio/project-bootstrap": {
+            "path": "./assets/@epa-wg/cem-studio/project-bootstrap.js",
+            "contentType": "text/javascript"
         }
     }
 }

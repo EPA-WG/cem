@@ -1895,7 +1895,7 @@ export async function mountCemStudioWorkbench({
         tag: 'cem-studio-workbench-navigation',
         state: { state: workbenchNavigationState(workbench.snapshot()), pending },
         commands: {
-            'create-selected': () => workbench.requestAction?.('create'),
+            'create-selected': () => perform(() => workbench.requestAction?.('create')),
             'clone-selected': () => workbench.requestAction?.('clone'),
             'delete-selected': () => workbench.requestAction?.('delete'),
             'refresh-navigation': () => perform(() => workbench.refreshNavigation?.()),
@@ -1928,7 +1928,7 @@ export async function mountCemStudioWorkbench({
         tag: 'cem-studio-workbench-navigation',
         state: { state: workbenchNavigationState(workbench.snapshot(), true), pending },
         commands: {
-            'create-selected': () => workbench.requestAction?.('create'),
+            'create-selected': () => perform(() => workbench.requestAction?.('create')),
             'clone-selected': () => workbench.requestAction?.('clone'),
             'delete-selected': () => workbench.requestAction?.('delete'),
         },
@@ -1939,6 +1939,13 @@ export async function mountCemStudioWorkbench({
         state: { navigation: workbenchListingNavigation(workbench.snapshot().navigation, workbench.snapshot().projectPreview), pending },
         commands: {
             'submit-action': ({ fields }) => perform(() => workbench.submitAction(fields)),
+            'new-project': () => perform(() => workbench.newProject()),
+            'bootstrap-type': ({ fields }) => perform(() => workbench.bootstrapChoose(fields)),
+            'bootstrap-review': ({ fields }) => perform(() => workbench.bootstrapReview(fields)),
+            'bootstrap-back-type': () => workbench.bootstrapBack('type'),
+            'bootstrap-back-structure': () => workbench.bootstrapBack('structure'),
+            'bootstrap-inspect': ({ value }) => workbench.bootstrapInspect(value),
+            'bootstrap-create': () => perform(() => workbench.bootstrapCreate()),
             'cancel-action': () => workbench.cancelAction?.(),
             'home-create': ({ fields }) => perform(() => workbench.createProject(fields.name?.[0] ?? '')),
             'home-example': ({ fields }) => perform(() => workbench.createExampleProject(fields.example?.[0] ?? '')),

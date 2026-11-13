@@ -4101,13 +4101,50 @@ binding methods follow coordinated recovery. Both transports validate editable
 saved command grammar with the canonical Clap/generated command schema before
 returning a generated bundle.
 
-The producer and transport do not publish projects. Studio's future declarative
-questionnaire and the VS Code/IntelliJ creation dialogs must review the generated
-hierarchy, check cancellation/current configuration again, and publish through
-one host transaction. Studio can decode the archive with
-`parseCemStudioProjectBundle` and use its existing validated repository import.
-IDE adapters must preserve exact bytes and immutable addresses when materializing
-the returned manifest and resources; saved native builds use
-`--resolver-project project.cem`. Cancellation, generation failure or publication
-failure must leave the existing workspace unchanged. Creation dialogs and IDE
-plugins remain follow-up work; this API does not change **New project** yet.
+Studio's **New project** action and the project-level create icon open a
+declarative three-step questionnaire: choose a name/type, configure sources and
+targets, then review both hierarchies and the native pipeline stages. The file
+inspector shows readonly starter content. **Edit structure** returns to the
+answers; files can be edited normally after creation. Shared CEM controls supply
+radio groups for the five presets and the two-choice format selectors, keyboard
+interaction, modal focus ownership and inherited themes.
+
+The questionnaire uses a native `plan` request, for example:
+
+```json
+{"action":"plan","preset":"markdown-site","projectId":"my-site","name":"My site","createdAt":"2026-11-13T00:00:00Z","answers":{"sourceFiles":"index.md\nguides/start.md","outputFolder":"public"}}
+```
+
+`plan` returns `configuration`, defaulted `answers` and `review`. Answers are
+control strings: `sourceFiles`, `targetFiles`, `sourceFolder`, `outputFolder`,
+`layoutFolder`, `cssFolder`, `staticFolder`, `inputFormat` and `outputFormat`.
+File lists use one relative path per line, at most 32 each. Native validation
+refuses malformed, duplicate and conflicting paths. A separate
+`{"action":"review","configuration": ...}` request validates an edited
+configuration and returns the same source tree, output tree, expanded folder
+keys and graph stage descriptions. The browser does not interpret source
+formats or generate graph syntax.
+
+The guided site starts with `index.md`, `about.md` and `guides/start.md` under
+`content/`, shared templates under `layouts/`, navigation data, CSS under
+`assets/css/` and an SVG under `static/`. Its saved graph builds complete HTML
+pages with relative navigation and asset links and publishes exact CSS/static
+bytes under the selected output folder. Pipeline starters pair XML source paths
+with HTML output paths in line order and use one shared native template. Simple
+conversion exposes one YAML/JSON input and one CEM-ML/JSON output. Validation
+accepts multiple XHTML samples and produces Results rather than target files.
+Custom projects start with editable file stubs or an empty file list; runnable
+configurations can be added later. Arbitrary stage editing and additional
+conversion pairs remain the existing project/graph authoring flow.
+
+Only **Create project** generates and decodes the reviewed archive through
+`parseCemStudioProjectBundle`, then publishes it with one validated repository
+import transaction. Target files are produced by **Build project**, not creation.
+Cancellation aborts pending work and rejects late results; failed generation,
+byte validation or repository publication leaves no partial project. Repeated
+Create cannot replay a completed import. The producer itself never publishes.
+
+VS Code/IntelliJ dialogs remain follow-up work. Their adapters must preserve
+exact bytes and immutable addresses when materializing the manifest and
+resources; saved native builds use `--resolver-project project.cem`. They share
+the plan/review/generate transport and must publish transactionally after review.

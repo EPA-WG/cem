@@ -149,14 +149,59 @@ for the current native work and the conditional diagnostic items on recurrence.
       below. Runtime/package/Studio builds, lint, Studio typecheck, UI
       classification and both packaged-output checks pass; existing lint
       warnings remain.
-  - [ ] Build the declarative Studio questionnaire and review step over this
+  - [x] Build the declarative Studio questionnaire and review step over this
         producer; connect **New project** and publish through the existing
         validated repository transaction only after review/current-state checks.
+    - [x] Add native planning fixtures for nested Markdown pages, shared layout,
+          navigation, CSS/static publication, paired pipeline source/target trees,
+          simple input/output and custom structures; verify builds and invalid
+          path/count/collision refusals before rebuilding browser artifacts.
+    - [x] Add Studio fixtures for choosing/editing structures, hierarchy/pipeline
+          review, cancellation, failed creation, independent identities and
+          production-control keyboard/theme behavior before commit and push.
+    - [x] Add a shared native-surface fixture for replacing a modal dialog's
+          focused step, preserving another focused control, the focus-target=none
+          policy and nonmodal focus behavior; repair focus in cem-elements.
+      Verified 2026-11-13: six producer, four planning and five native CLI
+      integration cases pass. Nested sites build complete HTML with relative
+      navigation, shared layouts and byte-exact CSS/static publication; paired
+      pipelines, simple YAML/JSON conversion and multiple XHTML inputs build.
+      All five new Studio browser cases and 59 navigation/recovery cases pass.
+      Creation reviews native source/output trees and graph stages, publishes
+      once, and refuses cancelled work, corrupt archives and failed storage.
+      Seven shared native-surface stories pass, including deferred/disabled
+      replacement controls without stealing surviving or nonmodal focus.
+      Six theme modes remain usable; the locally served production questionnaire
+      passes a forced-colors keyboard/modal check without browser errors.
+      WASM, CLI, Studio and Playground builds, lint, typecheck, UI classification
+      and packaged Studio output verification pass; existing lint warnings remain.
   - [ ] Add thin VS Code and IntelliJ creation adapters over the same native
         control transport, with review and cancellation-safe publication.
-  - [ ] Verify preset/questionnaire transitions, pipeline and path validation,
+  - [x] Verify native/Studio preset/questionnaire transitions, pipeline and path validation,
         generated hierarchy/build parity, cancellation and failed-generation
         atomicity, independent project identities, accessibility and themes.
+
+- [x] Add **Copy CLI** to the demo Playground, matching Studio's clipboard
+      feedback and inline command display. Reuse the shared command grammar
+      and literal shell serialization; verify that copied commands reproduce
+      the selected conversion without saving the authored source.
+  - [x] Add Playground fixtures for current source/format changes, literal Bash
+        quoting, clipboard failure, inline code and native execution parity.
+      Verified 2026-11-13: all 22 Playground/demo stories and 67 npm CLI tests
+      pass. Copied commands use the shared grammar/serializer, literal `printf`
+      input and `/dev/stdin` (Bash on Linux/macOS), with no saved source/output.
+      Native execution succeeds for YAML→JSON, JSON→CEM-ML, CEM-ML→HTML,
+      Markdown→HTML, CSS→CSS and JSON→YAML. The CEMT color profile is explicitly
+      disabled for plain exports. Executable Node/WASM fixtures also verify
+      piped YAML/JSON and raw CEM-ML HTML, exact shell bytes, Unicode, quotes,
+      CRLF, empty/tilde input and refusal of NUL. Browser fixtures verify current
+      format/source snapshots, safe code projection after the toolbar, retained
+      rendering controls, source preservation and clipboard-denial fallback.
+
+- [ ] Assess adding an **Open in separate window** icon button (arrow pointing
+      to the upper right) to Studio's **Output preview** heading. Determine
+      whether the existing preview artifact URL and resource lifecycle can be
+      reused, and record the effort and behavior for opening the current preview.
 
 ## Amsterdam presentation samples: active Studio priority
 

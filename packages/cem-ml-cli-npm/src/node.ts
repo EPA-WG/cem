@@ -40,6 +40,7 @@ export {
     serializeCemMlCommand,
     serializeCemMlCommandResource,
     serializeCemMlCommandText,
+    serializeCemMlCommandWithStdinText,
 } from './command.js';
 export type {
     CemMlCommandResourceV1,

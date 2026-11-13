@@ -69,6 +69,9 @@ class NativeSurface implements CemNativeSurfaceController {
     private phase = 'closed';
     private wasOpen = false;
     private focusWithin = false;
+    private focusedControl?: HTMLElement;
+    private focusRepair = false;
+    private readonly focusChanges: MutationObserver;
     private closeReason = 'native';
     private restore = false;
     private prepared = false;
@@ -94,7 +97,11 @@ class NativeSurface implements CemNativeSurfaceController {
         catch (error) { this.geometry.release(); throw error; }
         this.releaseReferences = observeInteractionReferences(host, () => { this.sync(); this.bindTooltipSources(); this.reposition(); });
         root.addEventListener('focusin', event => {
-            if (visible(owner)) this.focusWithin = event.target instanceof Node && owner.contains(event.target);
+            if (visible(owner)) {
+                this.focusWithin = event.target instanceof Node && owner.contains(event.target);
+                this.focusedControl = this.focusWithin && event.target instanceof HTMLElement ? event.target : undefined;
+                this.focusRepair = false;
+            }
         }, options);
         owner.addEventListener('command', e => this.command(e as CommandEvent), options);
         if (host !== owner) host.addEventListener('command', e => { if (e.target === host) this.command(e as CommandEvent); }, options);
@@ -182,6 +189,25 @@ class NativeSurface implements CemNativeSurfaceController {
         }, options);
         if (this.body.eager()) this.body.mount();
         this.bindTooltipSources(); this.sync();
+        const focused = owner.ownerDocument.activeElement;
+        if (focused instanceof HTMLElement && owner.contains(focused)) this.focusedControl = focused;
+        this.focusChanges = new MutationObserver(() => {
+            const previous = this.focusedControl;
+            if (previous && !owner.contains(previous)) { this.focusedControl = undefined; this.focusRepair = true; }
+            if (!this.focusRepair) return;
+            // A modal retains keyboard ownership when its focused step is
+            // replaced. Preserve an existing focused descendant, intentional
+            // external focus, nonmodal behavior and the authored focus policy.
+            const active = owner.ownerDocument.activeElement;
+            if (this.disposed || !owner.matches(':modal') || !visible(owner)
+                || (host.getAttribute('focus-target') === 'none' && !host.hasAttribute('data-cem-node-ref-focus-target'))
+                || (active !== owner.ownerDocument.body && active !== owner)) { this.focusRepair = false; return; }
+            // Replacements can publish their shared controls in later renders.
+            // Keep the repair pending until a native focus target is available.
+            focusSurface(host, owner);
+        });
+        this.focusChanges.observe(owner, { childList: true, subtree: true, attributes: true,
+            attributeFilter: ['disabled', 'hidden', 'inert', 'aria-disabled', 'tabindex'] });
     }
     private kind(): CemNativeSurfaceKind | undefined {
         return surfaceKind(this.owner, this.host);
@@ -406,6 +432,8 @@ class NativeSurface implements CemNativeSurfaceController {
             else this.describe(this.invocation?.source);
             this.emit('cem-open', false, 'activate');
         } else if (!open && this.wasOpen) {
+            this.focusedControl = undefined;
+            this.focusRepair = false;
             // A hidden top-layer surface no longer owns pointer interest, even
             // when the browser does not dispatch pointerleave during dismissal.
             this.tooltipPointer = false;
@@ -572,6 +600,7 @@ class NativeSurface implements CemNativeSurfaceController {
     disconnect(): void {
         if (this.disposed || this.disconnecting) return;
         this.disconnecting = true;
+        this.focusChanges.disconnect(); this.focusedControl = undefined; this.focusRepair = false;
         const active = this.owner.ownerDocument.activeElement;
         const returnTo = this.invocation?.returnDestination ?? this.invocation?.source;
         const returnOnRemoval = this.kind() === 'dialog' && this.wasOpen && this.focusWithin

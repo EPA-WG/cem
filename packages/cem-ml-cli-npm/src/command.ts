@@ -269,6 +269,15 @@ export function serializeCemMlCommandText(command: ParsedCemMlCommand): string {
         .join(' ');
 }
 
+/** Literal POSIX shell pipeline for an authored command that reads stdin.
+ * Shares Studio's command serialization and quoting; source text is data. */
+export function serializeCemMlCommandWithStdinText(command: ParsedCemMlCommand, source: string): string {
+    if (source.includes('\0')) {
+        throw new CemMlCommandError('cem.cli_command.stdin_nul', 'A shell command cannot contain NUL bytes. Save this source to a file instead.');
+    }
+    return `printf '%s' ${quoteCemMlCommandTextToken(source)} | ${serializeCemMlCommandText(command)}`;
+}
+
 /** Parse one portable authored command resource through the shared CLI grammar. */
 export function parseCemMlCommandResource(
     source: string | Uint8Array,
@@ -465,7 +474,7 @@ function tokenizeCemMlCommandText(source: string): readonly string[] {
 }
 
 function quoteCemMlCommandTextToken(token: string): string {
-    if (/^[A-Za-z0-9_@%+=:,./~-]+$/u.test(token)) return token;
+    if (/^[A-Za-z0-9_@%+=:,./~-]+$/u.test(token) && !token.startsWith('~')) return token;
     return `'${token.replaceAll("'", "'\\''")}'`;
 }
 

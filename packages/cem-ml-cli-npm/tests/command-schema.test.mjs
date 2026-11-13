@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, symlink, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import * as browserApi from '../dist/browser.js';
@@ -168,4 +173,42 @@ test('project bootstrap management uses native transport and the owned browser A
     for (const runtime of ['wasm-node', 'wasm-browser-worker']) {
         assert.throws(() => nodeApi.parseCemMlCommand(['project-bootstrap'], { runtime }), error => error.code === 'cem.command.unavailable');
     }
+});
+
+test('stdin shell serialization preserves literal source and command arguments', { skip: process.platform === 'win32' }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-cli-stdin-'));
+    try {
+        await writeFile(join(directory, 'cem-ml'), `#!${process.execPath}\nconst fs=require('node:fs');process.stdout.write(JSON.stringify({argv:process.argv.slice(2),source:fs.readFileSync(0,'utf8')}));\n`, { mode: 0o755 });
+        const parsed = nodeApi.parseCemMlCommand(['convert', '-', '--content-type', 'application/yaml', '--to-content-type', 'application/json']);
+        for (const source of ["message: '$(touch unexpected)' `touch also-unexpected`\nquote: \"Café 🧬\"\n", '~', '', '-n', 'a\r\nb\n']) {
+            const text = nodeApi.serializeCemMlCommandWithStdinText(parsed, source);
+            const result = spawnSync('bash', ['-c', text], { cwd: directory, env: { ...process.env, PATH: `${directory}:${process.env.PATH}` }, encoding: 'utf8' });
+            assert.equal(result.status, 0, result.stderr);
+            assert.deepEqual(JSON.parse(result.stdout), { argv: nodeApi.serializeCemMlCommand(parsed), source });
+        }
+        assert.throws(() => nodeApi.serializeCemMlCommandWithStdinText(parsed, 'a\0b'), error => error.code === 'cem.cli_command.stdin_nul');
+        await assert.rejects(readFile(join(directory, 'unexpected')));
+        await assert.rejects(readFile(join(directory, 'also-unexpected')));
+    } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('stdin shell commands execute conversions without saving source or output', { skip: process.platform === 'win32' }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-cli-pipe-'));
+    try {
+        await symlink(fileURLToPath(new URL('../dist/bin.js', import.meta.url)), join(directory, 'cem-ml'));
+        for (const [contentType, outputType, source, expected] of [
+            ['application/yaml', 'application/json', 'message: "Café $(touch unexpected)"\nenabled: true\n', { message: 'Café $(touch unexpected)', enabled: true }],
+            ['application/json', 'application/json', '{"message":"it\'s literal","count":3}', { message: "it's literal", count: 3 }],
+            ['application/cem', 'text/html', '{article | {strong | Hello}}', '<article><strong>Hello</strong></article>'],
+        ]) {
+            const parsed = nodeApi.parseCemMlCommand(['convert', '/dev/stdin', '--content-type', contentType, '--to-content-type', outputType, '--output-color-type', 'none', '--cemt-color-profile', 'none', '--cemt-formatter-profile', 'tabular']);
+            const result = spawnSync('bash', ['-c', nodeApi.serializeCemMlCommandWithStdinText(parsed, source)], {
+                cwd: directory, env: { ...process.env, PATH: `${directory}:${process.env.PATH}` }, encoding: 'utf8', timeout: 30_000,
+            });
+            assert.equal(result.status, 0, result.stderr);
+            assert.deepEqual(outputType === 'application/json' ? JSON.parse(result.stdout) : result.stdout.trim(), expected);
+            assert.equal(result.stdout.includes('\x1b'), false);
+        }
+        assert.deepEqual(await readdir(directory), ['cem-ml']);
+    } finally { await rm(directory, { recursive: true, force: true }); }
 });

@@ -2,11 +2,16 @@
  <template id="cem-studio-project-picker" type="text/cem-ml">
 {module |
  {slice @name=navigation}{slice @name=pending | false}
+ {template @name=bootstrap-node |{param @name=item}{body |{cem-tree-item @value={item.key} @label={item.name} @kind={if item.kind == "folder" { "folder" } else { "resource" }} |{cem:for-each @as=child @select=item.children |{call @template=bootstrap-node @with:item={child}}}}}}
  {body |
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; }
 [part~='listing'] { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 [part~='entry'] { display: grid; gap: var(--cem-gap-related); padding-block: var(--cem-control-padding-y); padding-inline: var(--cem-control-padding-x); border-block-end: var(--cem-stroke-boundary) solid currentColor; overflow-wrap: anywhere; }
+[part~='bootstrap-trees'] { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--cem-layout-stack-gap); }
+[part~='bootstrap-pipeline'] { overflow: auto; }
+[part~='bootstrap-pipeline'] table { inline-size: 100%; text-align: start; border-collapse: collapse; }
+[part~='bootstrap-pipeline'] :is(th, td) { padding: var(--cem-control-padding-y) var(--cem-control-padding-x); border-block-end: var(--cem-stroke-boundary) solid currentColor; }
 ```}
  {cem:if @test=datadom.slices.navigation |
   {cem:variable @name=nav @select=datadom.slices.navigation}
@@ -20,6 +25,7 @@
    }
   }
   {cem:if @test='nav.content == "folder" || nav.content == "output-folder"' |
+   {cem:if @test='nav.content == "folder"' |{cem-action @variant=contextual @host-command=new-project | New project}}
    {p | {$ | nav.selected.description}}
    {ul @part=listing @aria-label="Folder contents" |
     {cem:for-each @as=item @select=nav.children |
@@ -48,7 +54,60 @@
     {cem:otherwise | {cem-source-editor @content-type={nav.contentType} @source-id={nav.sourceId} @label="" @aria-label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true}}
    }
   }
-  {cem:if @test=nav.action |
+  {cem:if @test=nav.action.bootstrap |{cem:variable @name=flow @select=nav.action.bootstrap}{cem-dialog @label="New project" @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |{cem-stack |
+{cem:if @test=flow.busy |{p @role=status | Preparing project…}}
+{cem:if @test=flow.error |{cem-alert @tone=danger @label={flow.error.message}}}
+{cem:choose |
+{cem:when @test='flow.phase == "type"' |{form @host-command=bootstrap-type @host-command-event=submit |{cem-stack |
+{h2 | Choose a project structure}
+{cem-text-field @name=name @label="Project name" @value={flow.name} @required=true @maxlength=120 @disabled={if flow.busy { true } else { null }}}
+{cem-select @name=preset @label="Project type" @radio-threshold=7 @value={flow.preset} @required=true @disabled={if flow.busy { true } else { null }} |{cem:for-each @as=preset @select=flow.presets |{option @value={preset.id} |{$ | preset.name}}}}
+{p | Simple conversion uses one input and one output. A pipeline can transform several sources into separate target files. A site adds Markdown pages, shared layout, navigation, CSS and static artifacts.}
+{cem-action @type=submit @variant=primary @disabled={if flow.busy { true } else { null }} | Continue}
+}}}
+{cem:when @test='flow.phase == "structure"' |{form @host-command=bootstrap-review @host-command-event=submit |{cem-stack |
+{h2 | Configure sources and targets}
+{p | Use normalized relative paths without a leading or trailing slash. Enter one file per line; folders come from the paths.}
+{cem:if @test='flow.preset == "markdown-site"' |
+{cem-text-field @name=sourceFolder @label="Markdown source folder" @value={flow.answers.sourceFolder} @required=true @disabled={if flow.busy { true } else { null }}}
+{cem-text-field @name=outputFolder @label="Site output folder" @value={flow.answers.outputFolder} @required=true @disabled={if flow.busy { true } else { null }}}
+{cem-textarea @name=sourceFiles @label="Markdown page paths" @value={flow.answers.sourceFiles} @rows=5 @required=true @disabled={if flow.busy { true } else { null }}}
+{p | Paths are relative to the Markdown folder, for example index.md and guides/start.md. Matching HTML pages and navigation are generated in the output folder.}
+{cem-text-field @name=layoutFolder @label="Shared layout folder" @value={flow.answers.layoutFolder} @required=true @disabled={if flow.busy { true } else { null }}}
+{cem-text-field @name=cssFolder @label="CSS folder" @value={flow.answers.cssFolder} @required=true @disabled={if flow.busy { true } else { null }}}
+{cem-text-field @name=staticFolder @label="Static artifacts folder" @value={flow.answers.staticFolder} @required=true @disabled={if flow.busy { true } else { null }}}
+}
+{cem:if @test='flow.preset == "transformation-pipeline"' |
+{cem-textarea @name=sourceFiles @label="Pipeline source files" @value={flow.answers.sourceFiles} @rows=5 @required=true @disabled={if flow.busy { true } else { null }}}
+{cem-textarea @name=targetFiles @label="Pipeline target files" @value={flow.answers.targetFiles} @rows=5 @required=true @disabled={if flow.busy { true } else { null }}}
+{p | Pair XML sources and HTML targets in the same line order, for example sources/article.xml and output/article.html. Each source uses the shared template. Edit template and graph resources in the project after creation.}
+{cem-text-field @name=layoutFolder @label="Shared template folder" @value={flow.answers.layoutFolder} @required=true @disabled={if flow.busy { true } else { null }}}
+}
+{cem:if @test='flow.preset == "simple-conversion"' |
+{cem-text-field @name=sourceFiles @label="Input file" @value={flow.answers.sourceFiles} @required=true @disabled={if flow.busy { true } else { null }}}
+{cem-text-field @name=targetFiles @label="Output file" @value={flow.answers.targetFiles} @required=true @disabled={if flow.busy { true } else { null }}}
+{cem-select @name=inputFormat @label="Input format" @radio-threshold=7 @value={flow.answers.inputFormat} @disabled={if flow.busy { true } else { null }} |{option @value=yaml | YAML}{option @value=json | JSON}}
+{cem-select @name=outputFormat @label="Output format" @radio-threshold=7 @value={flow.answers.outputFormat} @disabled={if flow.busy { true } else { null }} |{option @value=cem | CEM-ML}{option @value=json | JSON}}
+}
+{cem:if @test='flow.preset == "schema-validation"' |{cem-textarea @name=sourceFiles @label="XHTML files to validate" @value={flow.answers.sourceFiles} @rows=4 @required=true @disabled={if flow.busy { true } else { null }}}{p | Each file starts as a complete XHTML document. Validation uses the built-in XHTML schema; reports appear in Results.}}
+{cem:if @test='flow.preset == "custom"' |{cem-textarea @name=sourceFiles @label="Initial project files" @value={flow.answers.sourceFiles} @rows=5 @disabled={if flow.busy { true } else { null }}}{p | Start with documentation, data, CSS or static artifacts. File extensions choose native starter content. Leave this empty for a minimal project; add runnable configurations after creation.}}
+{p | Updating the structure regenerates starter content. You can inspect the generated files on the next step and edit them in the project after creation.}
+{cem-action @type=submit @variant=primary @disabled={if flow.busy { true } else { null }} | Review project}
+{cem-action @type=button @variant=contextual @host-command=bootstrap-back-type @disabled={if flow.busy { true } else { null }} | Back to project type}
+}}}
+{cem:when @test='flow.phase == "review"' |{h2 | Review project hierarchy}{p |{$ | flow.configuration.name}}{div @part=bootstrap-trees |
+{section @aria-label="Source hierarchy" |{h3 | Source files}{cem-tree @label="Planned source files" @selection=none @expanded-values={str:concat(flow.review.sourceExpanded, " ")} |{call @template=bootstrap-node @with:item={flow.review.sources}}}}
+{section @aria-label="Target hierarchy" |{h3 | Target output files}{cem:choose |{cem:when @test='seq:count(flow.review.outputs.children.key) > 0' |{cem-tree @label="Planned target output files" @selection=none @expanded-values={str:concat(flow.review.outputExpanded, " ")} |{call @template=bootstrap-node @with:item={flow.review.outputs}}}}{cem:otherwise |{p | No target files yet. Validation reports appear in Results; custom projects can add builds later.}}}}}
+{cem:for-each @as=pipeline @select=flow.review.pipelines |{section @part=bootstrap-pipeline @aria-label="Pipeline stages" |{h3 |{$ | pipeline.path}}{table |{thead |{tr |{th @scope=col | Stage}{th @scope=col | Type}{th @scope=col | Source}{th @scope=col | Target}}}{tbody |{cem:for-each @as=stage @select=pipeline.nodes |{tr |{th @scope=row |{$ | stage.id}}{td |{$ | stage.kind}}{td |{$ | stage.sourcePath ?? ""}}{td |{$ | stage.targetPath ?? ""}}}}}}}}
+{cem:if @test='seq:count(flow.configuration.resources.id) > 0' |{cem-expansion @label="Inspect generated starter files" |{cem-stack |{cem-select @label="Starter file" @radio-threshold=7 @value={flow.resourceId} @host-command=bootstrap-inspect @host-command-event=change |{cem:for-each @as=resource @select=flow.configuration.resources |{option @value={resource.id} |{$ | resource.path}}}}{cem:variable @name=resource @select='seq:first(seq:where(flow.configuration.resources, fn(r) => r.id == flow.resourceId))'}{cem-source-editor @label="Generated starter content" @content-type={resource.contentType} @value={resource.text} @readonly=true}}}}
+{p | Creation saves the reviewed source files and build configurations. Target output files are produced when you build the project.}
+{cem-action @variant=primary @host-command=bootstrap-create @disabled={if flow.busy { true } else { null }} | Create project}
+{cem-action @variant=contextual @host-command=bootstrap-back-structure @disabled={if flow.busy { true } else { null }} | Edit structure}
+}
+}
+{cem-action @variant=contextual @host-command=cancel-action | Cancel}
+}}}
+  {cem:if @test='nav.action &amp;&amp; !nav.action.bootstrap' |
    {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.targetName), "")} @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |
     {cem:if @test=nav.error | {cem-alert @tone=danger @label={nav.error.message}}}
     {form @part=form @host-command=submit-action @host-command-event=submit |

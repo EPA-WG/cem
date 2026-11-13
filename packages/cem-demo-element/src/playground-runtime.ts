@@ -4,6 +4,7 @@ import {
     buildBrowserCommandInvocation,
     commandSchema,
     parseCemMlCommand,
+    serializeCemMlCommandWithStdinText,
 } from '@epa-wg/cem-ml-cli/browser';
 import type { CommandServiceResultV1 } from '@epa-wg/cem-ml/wasm';
 import { highlightCemSource, renderCemMlSource, type CemMlDiagnostic } from './cem-ml-runtime.js';
@@ -50,6 +51,21 @@ class PlaygroundConversionError extends Error {
     constructor(readonly diagnostics: CemMlDiagnostic[]) {
         super(diagnostics.map(({ message }) => message).join('\n') || 'CEM could not convert this document.');
     }
+}
+
+/** Capture the same native conversion as Render, with literal stdin source. */
+export function describePlaygroundCli(source: string, inputFormat = 'auto', outputFormat = 'html'): string {
+    const input = requireFormat(inputFormat === 'auto' ? detectPlaygroundFormat(source) : inputFormat);
+    const output = requireFormat(outputFormat);
+    return serializeCemMlCommandWithStdinText(conversionCommand(input, output, '/dev/stdin', false), source);
+}
+
+function conversionCommand(input: PlaygroundFormat, output: PlaygroundFormat, sourceUri: string, color: boolean) {
+    return parseCemMlCommand([
+        'convert', sourceUri, '--content-type', input.contentType,
+        '--to-content-type', output.contentType, '--cemt-formatter-profile', 'tabular',
+        ...(color ? ['--cemt-color-profile', 'html'] : ['--cemt-color-profile', 'none', '--output-color-type', 'none']),
+    ], { runtime: 'wasm-browser-worker' });
 }
 
 /** Discover the textual formats shared by the built native command grammar. */
@@ -188,13 +204,8 @@ async function convert(
     color: boolean,
 ): Promise<ConversionResult> {
     const sourceUri = `memory:playground.${input.id}`;
-    const argv = [
-        'convert', sourceUri, '--content-type', input.contentType,
-        '--to-content-type', output.contentType, '--cemt-formatter-profile', 'tabular',
-        ...(color ? ['--cemt-color-profile', 'html'] : []),
-    ];
     const invocation = await buildBrowserCommandInvocation(
-        parseCemMlCommand(argv, { runtime: 'wasm-browser-worker' }),
+        conversionCommand(input, output, sourceUri, color),
         async ({ uri }) => {
             if (uri !== sourceUri) throw new Error(`This editor has no resource at ${uri}.`);
             return [{ uri, bytes: new TextEncoder().encode(source) }];
