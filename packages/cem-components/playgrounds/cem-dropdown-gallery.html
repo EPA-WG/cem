@@ -70,7 +70,7 @@
             flex-wrap: nowrap;
             align-items: center;
             gap: 0;
-            padding-block-start: calc(4 * var(--cem-menu-row-height) + var(--cem-gap-group));
+            padding-block-start: calc(4 * (max(var(--cem-menu-row-height), var(--cem-control-height), var(--cem-coupling-zone-min)) + max(var(--cem-menu-item-gap), var(--cem-gap-related))) + var(--cem-gap-group));
             padding-block-end: var(--cem-gap-group);
         }
 

@@ -28,6 +28,14 @@
             box-shadow: var(--cem-elevation-3); overflow: auto;
         }
         :scope > :where([part~='popup'])[hidden] { display: none; }
+      @supports (anchor-name: --cem-probe) and (position-area: bottom span-right) and (position-try-fallbacks: top span-right) {
+        :scope > [part~='popup'] {
+          --_cem-surface-anchor-policy: area;
+          position: var(--_cem-surface-position-mode, absolute);
+          position-area: var(--_cem-surface-area, none);
+          position-try-fallbacks: var(--_cem-surface-tries, none);
+        }
+      }
         @media (forced-colors: active) {
             :scope > :where([part~='popup']) { background: Canvas; color: CanvasText; border: var(--cem-stroke-boundary) solid CanvasText; }
             :scope > :where([part~='base']) > :where(button,a,[tabindex]):focus-visible { outline-color: Highlight; }

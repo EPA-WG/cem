@@ -624,6 +624,45 @@ Wrapping and End alignment examples respectively. Customization now uses the
 consumed contextual action and inset tokens. No external menu assets are needed.
 
 
+### CSS anchor geometry
+
+`cem-menu` submenus, `cem-dropdown` panels and `cem-tooltip` surfaces declare a
+CSS anchor bridge under `@supports`. The shared browser geometry owner maps the
+logical `block/inline-start/end` placement and start/center/end alignment to
+physical `position-area` values using the anchor's direction and writing mode.
+It publishes ordered `position-try-fallbacks`, including opposite-side and
+cross-alignment alternatives. Center alignment spans the containing block's
+cross axis so a panel wider than its anchor can still fit.
+
+A reversible named-anchor claim preserves authored anchor names and supports
+several panels sharing one invoker. Closing, rebinding or disposing the geometry
+owner releases its name and restores owned styles. The binding changes no
+focus, visibility or ARIA ownership. Existing paint, stacking and token overrides
+remain declaration-owned. Native geometry observers settle without a recurring
+frame loop and still fence checkpoint freshness and anchor loss. The existing
+`anchor-lost="freeze"` policy releases the CSS dependency and retains the last
+fitted rectangle; ordinary loss follows the owner's existing close policy.
+
+The compatibility solver remains active for unsupported browsers, explicit
+boundaries, captured pointer/selection anchors, centered or nonparticipating
+surfaces, mixed-axis fallback policies, zoomed visual viewports and CSS results
+that cannot meet the requested geometry. It retains shift/resize/hide semantics.
+Native tooltip spacing remains four pixels; legacy menu/dropdown attachment has
+no added gap. No application code or component-local JavaScript supplies placement.
+
+The runtime probes exact CSS syntax and validates the resulting fit, rather
+than selecting a path by browser version. MDN's compatibility data lists
+`position-area` in Chromium 129, Firefox 147 and Safari 26, and
+`position-try-fallbacks` in Chromium 128, Firefox 147 and Safari 26; individual
+values have additional implementation notes. See the
+[position-area data](https://github.com/mdn/browser-compat-data/blob/main/css/properties/position-area.json),
+[fallback data](https://github.com/mdn/browser-compat-data/blob/main/css/properties/position-try-fallbacks.json)
+and [CSS anchor positioning specification](https://drafts.csswg.org/css-anchor-position-1/).
+Compiled geometry was verified in bundled Chromium 148 and Firefox 150.
+Installed WebKit could not launch because host libraries are missing; its engine
+integration remains an explicit verification limit, with runtime feature detection
+and the shared unsupported-browser path still in place.
+
 ### Dropdown and nested menu composition
 
 `cem-dropdown` loads from `components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown`.
@@ -642,11 +681,13 @@ exceeds that available height.
 The trigger toggles on native click/Enter/Space; ArrowDown opens and focuses the
 first enabled panel control. Escape restores trigger focus. Tab, focus leaving
 the component and outside activation dismiss without a trap. Geometry flips and
-clamps within the viewport when opened or resized. Like the legacy source, the
-dropdown uses a relative host and an absolute panel at `z-index: 1`, with square
-top corners. Initially open panels retain the CSS position below their triggers,
-including offscreen examples. Scrolling moves the panel
-with its trigger, including beyond the viewport edge. The declaration consumes existing action, control,
+clamps within the viewport when opened or resized. The dropdown retains its
+relative host, `z-index: 1` and square top corners. Supported viewport placements
+use a transient fixed CSS anchor; the compatibility path uses the declared
+absolute panel. Initially open offscreen examples keep their natural position
+below the trigger. CSS anchors follow scrolling and try alternate areas at the
+viewport edge; the compatibility solver handles remaining shifts and explicit
+boundaries. The declaration consumes existing action, control,
 bend, typography, focus and elevation tokens instead of defining
 component-specific shadow/height/width aliases.
 

@@ -29,6 +29,14 @@
         :scope > :where([part~='composite']) > :is(a, button):where([disabled], [aria-disabled='true']) { background: var(--cem-action-contextual-disabled-background); color: var(--cem-action-contextual-disabled-text); }
         :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline: var(--cem-stroke-focus) solid currentColor; outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
         :scope > :where([part~='composite']) > [hidden]:where(:not([hidden='until-found' i])) { display: none; }
+      @supports (anchor-name: --cem-probe) and (position-area: bottom span-right) and (position-try-fallbacks: top span-right) {
+        :scope[slot='submenu'] {
+          --_cem-surface-anchor-policy: area;
+          position: var(--_cem-surface-position-mode, fixed);
+          position-area: var(--_cem-surface-area, none);
+          position-try-fallbacks: var(--_cem-surface-tries, none);
+        }
+      }
         @media (forced-colors: active) {
             :scope[slot='submenu'] { background: Canvas; color: CanvasText; border-color: CanvasText; }
             :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline-color: Highlight; }

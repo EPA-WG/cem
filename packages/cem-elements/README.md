@@ -2116,3 +2116,27 @@ CSS/images, navigation, URL revocation, single-receiver/replay behavior,
 pre-commit cancellation, quota failures, malformed payloads and cleanup. A
 dedicated viewer page, popup-policy behavior, Studio selection capture and the
 Output preview heading action remain downstream integration work.
+
+
+## CSS anchor placement
+
+The shared popup/native-surface geometry layer supports native CSS anchor
+positioning for participating declarations. `cem-menu`, `cem-dropdown` and
+`cem-tooltip` own the declarative `@supports` rules for `position-area` and
+`position-try-fallbacks`; the geometry lease publishes private area/alternative
+values and a reversible unique `position-anchor` binding. The existing logical
+placement API and anchor direction/writing-mode semantics remain authoritative.
+
+One anchor can serve several surfaces. A lease preserves authored names, removes
+only its managed name and restores its panel styles on reset/release. Geometry
+observers continue to handle eligibility, boundary changes and checkpoint
+freshness, without re-opening a surface or replaying focus. CSS performs normal
+scroll attachment and alternative-area selection. A frozen lost anchor is
+converted to its last fitted rectangle before the CSS binding is released.
+
+Unsupported CSS, explicit boundaries, pointer/selection geometry, centered
+surfaces, nonparticipating declarations and policies whose fallback changes axes
+use the compatibility solver. Native candidates are checked against the existing
+fit contract before acceptance; remaining shifts/resizes and hide policy stay in
+the shared layer. See the [component contract](../cem-components/docs/component-reference.md#css-anchor-geometry)
+for browser verification and limits.

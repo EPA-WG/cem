@@ -13,6 +13,14 @@
         font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height);
         letter-spacing: var(--cem-typography-ui-letter-spacing); white-space: normal;
       }
+      @supports (anchor-name: --cem-probe) and (position-area: bottom span-right) and (position-try-fallbacks: top span-right) {
+        [part~='surface'] {
+          --_cem-surface-anchor-policy: area;
+          position: var(--_cem-surface-position-mode, fixed);
+          position-area: var(--_cem-surface-area, none);
+          position-try-fallbacks: var(--_cem-surface-tries, none);
+        }
+      }
       @media (forced-colors: active) {
         [part~='surface'] { background: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; }
       }

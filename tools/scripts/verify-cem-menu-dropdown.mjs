@@ -4,7 +4,7 @@ import { readFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve, join, extname } from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
 
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-menu-dropdown-'));
@@ -12,6 +12,7 @@ const mime = { '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': '
 const server = createServer(async (request, response) => {
     try {
         const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+        if (pathname === '/geometry-probe.html') { response.setHeader('Content-Type', 'text/html'); response.end('<!doctype html><title>Surface geometry probe</title>'); return; }
         const path = pathname.startsWith('/installed/') ? join(temporary, pathname) : join(root, pathname);
         response.setHeader('Content-Type', mime[extname(path)] ?? 'application/octet-stream');
         response.end(await readFile(path));
@@ -26,6 +27,11 @@ try {
         const target = join(temporary, 'installed/node_modules/@epa-wg', name);
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, packed[0].filename), '--strip-components=1', '-C', target]);
+    }
+    await verifyCompiledAnchors(browser, 'chromium');
+    if (process.env.CEM_SURFACE_FIREFOX === '1') {
+        const other = await firefox.launch({ headless: true });
+        try { await verifyCompiledAnchors(other, 'firefox'); } finally { await other.close(); }
     }
     for (const base of ['/packages/cem-components/playgrounds/', '/packages/cem-components/dist/', '/installed/node_modules/@epa-wg/cem-components/dist/']) {
         for (const tag of ['cem-menu', 'cem-dropdown']) {
@@ -64,11 +70,12 @@ try {
                     const region = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]');
                     const popupBox = panel.getBoundingClientRect(), triggerBox = trigger.getBoundingClientRect(), regionBox = region.getBoundingClientRect();
                     const style = getComputedStyle(panel);
-                    return { attached: Math.abs(popupBox.top - triggerBox.bottom) < 1, contained: popupBox.top >= regionBox.top - 1 && popupBox.bottom <= regionBox.bottom + 1, zIndex: style.zIndex, display: style.display, topCorners: [style.borderTopLeftRadius, style.borderTopRightRadius] };
+                    return { native: !!panel.style.getPropertyValue('position-anchor'), inViewport: popupBox.top >= 3 && popupBox.bottom <= innerHeight - 3, attached: Math.abs(popupBox.top - triggerBox.bottom) < 1, contained: popupBox.top >= regionBox.top - 1 && popupBox.bottom <= regionBox.bottom + 1, zIndex: style.zIndex, display: style.display, topCorners: [style.borderTopLeftRadius, style.borderTopRightRadius] };
                 }));
                 assert(initial.length > 0, 'initially open source examples exist');
                 for (const result of initial) {
-                    assert(result.attached, 'initial panel stays attached below its trigger without viewport clamping');
+                    if (result.native) assert(result.inViewport, 'initial CSS anchor alternatives fit the viewport');
+                    else assert(result.attached, 'offscreen natural panels retain their declared attachment');
                     assert(result.contained, 'initial panel remains inside its reserved demo region');
                     assert.equal(result.zIndex, '1'); assert.equal(result.display, 'flex');
                     assert.deepEqual(result.topCorners, ['0px', '0px']);
@@ -127,28 +134,34 @@ try {
                         const spacer = document.createElement('div');
                         spacer.style.height = `${innerHeight}px`;
                         document.body.append(spacer);
-                        const before = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top, scroll: window.scrollY };
+                        const before = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top, scroll: window.scrollY, native: !!panel.style.getPropertyValue('position-anchor') };
                         window.scrollBy(0, node.getBoundingClientRect().bottom + 100);
                         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-                        const after = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top };
+                        const after = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top, bottom: panel.getBoundingClientRect().bottom, height: innerHeight };
                         window.scrollTo(0, before.scroll);
                         spacer.remove();
                         return { before, after, position: getComputedStyle(panel).position };
                     });
-                    assert.equal(scroll.position, 'absolute');
+                    assert(['absolute', 'fixed'].includes(scroll.position));
                     assert.equal(await panel.evaluate(node => getComputedStyle(node).zIndex), '1', 'interactive opening retains declaration-owned stacking');
                     assert(scroll.after.trigger < 0, 'scroll fixture moves the trigger above the viewport');
-                    assert(Math.abs((scroll.after.panel - scroll.before.panel) - (scroll.after.trigger - scroll.before.trigger)) < 1, 'dropdown follows its trigger past the viewport edge: ' + JSON.stringify(scroll));
+                    if (scroll.before.native) {
+                        assert(scroll.after.panel >= 3 && scroll.after.bottom <= scroll.after.height - 3, 'CSS anchor fallback remains in the viewport: ' + JSON.stringify(scroll));
+                    } else assert(Math.abs((scroll.after.panel - scroll.before.panel) - (scroll.after.trigger - scroll.before.trigger)) < 1, 'compatibility dropdown follows its containing block: ' + JSON.stringify(scroll));
                     const nestedScroll = await control.evaluate(async node => {
                         const panel = document.getElementById(node.getAttribute('aria-controls'));
                         const region = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]');
                         const authoredStyle = region.getAttribute('style');
                         const host = node.closest('cem-dropdown');
                         const hostStyle = host.getAttribute('style');
-                        region.style.height = '100px'; region.style.minHeight = '0'; region.style.padding = '0'; region.style.overflow = 'auto';
-                        host.style.marginBlock = '200px'; host.style.flexShrink = '0';
+                        region.style.position = 'fixed'; region.style.top = '100px'; region.style.left = '100px'; region.style.width = '600px';
+                        region.style.height = '160px'; region.style.minHeight = '0'; region.style.padding = '0'; region.style.overflow = 'auto';
+                        region.style.justifyContent = 'flex-start';
+                        host.style.marginBlock = '80px'; host.style.flexShrink = '0';
+                        region.scrollTop = 1;
+                        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
                         const before = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top };
-                        region.scrollTop = 40;
+                        region.scrollTop = 41;
                         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
                         const after = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top, scroll: region.scrollTop };
                         region.scrollTop = 0;
@@ -157,7 +170,7 @@ try {
                         return { before, after };
                     });
                     assert(nestedScroll.after.scroll > 0, 'nested scroll fixture scrolls');
-                    assert(Math.abs((nestedScroll.after.panel - nestedScroll.before.panel) - (nestedScroll.after.trigger - nestedScroll.before.trigger)) < 1, 'dropdown follows its trigger inside a scrolling container');
+                    assert(Math.abs((nestedScroll.after.panel - nestedScroll.before.panel) - (nestedScroll.after.trigger - nestedScroll.before.trigger)) < 1, 'dropdown follows its trigger inside a scrolling container: ' + JSON.stringify(nestedScroll));
                 }
                 if (tag === 'cem-menu') assert.equal(await control.evaluate(node => getComputedStyle(node, '::after').content), '"▴"');
                 await page.keyboard.press('Escape');
@@ -212,6 +225,9 @@ async function verifyOpenSubmenuGallery(base) {
         const file = trigger('File'), more = trigger('More'), edit = trigger('Edit');
         await file.waitFor(); await file.focus(); await page.keyboard.press('ArrowDown');
         assert.equal(await contour(file), '""');
+        const panel = page.locator('#' + await file.getAttribute('aria-controls'));
+        assert.match(await panel.evaluate(node => node.style.getPropertyValue('position-anchor')), /^--cem-surface-/);
+        assert.equal(await panel.evaluate(node => node.style.left), 'auto');
         await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowRight');
         assert.equal(await contour(file), '""'); assert.equal(await contour(more), '""');
         assert.equal(await trigger('Deep command').evaluate(node => document.activeElement === node), true);
@@ -248,5 +264,42 @@ async function verifyOpenSubmenuGallery(base) {
         await page.keyboard.press('Escape'); assert.equal(await contour(file), 'none');
         assert.deepEqual(errors, []);
         console.log(`cem-menu-item: nested open styling, six themes and forced colors passed (${base}).`);
+    } finally { await page.close(); }
+}
+
+
+async function verifyCompiledAnchors(engine, name) {
+    const page = await engine.newPage({ viewport: { width: 800, height: 600 } });
+    try {
+        await page.goto(origin + '/geometry-probe.html');
+        const cases = await page.evaluate(async ({ origin, name }) => {
+            const { createCemSurfaceGeometryLease } = await import(origin + '/packages/cem-elements/dist/lib/popup-controller.js');
+            const { surfacePosition } = await import(origin + '/packages/cem-elements/dist/lib/surface-position.js');
+            document.body.innerHTML = '<section><button style="position:fixed;left:300px;top:180px;width:80px;height:40px;anchor-name:--authored">Invoker</button><div popover="manual" style="--_cem-surface-anchor-policy:area;position:fixed;inset:auto;margin:0;position-area:var(--_cem-surface-area,none);position-try-fallbacks:var(--_cem-surface-tries,none);width:120px;height:60px">Panel</div></section>';
+            const host = document.querySelector('section'), anchor = host.querySelector('button'), panel = host.querySelector('[popover]');
+            const lease = createCemSurfaceGeometryLease(host, panel, () => undefined), results = [];
+            const check = (value, label) => { if (!value) throw Error(`${name}: ${label}`); };
+            panel.showPopover();
+            try {
+                for (const writingMode of ['horizontal-tb', 'vertical-rl', 'vertical-lr', 'sideways-rl', 'sideways-lr']) for (const direction of ['ltr', 'rtl']) {
+                    anchor.style.writingMode = writingMode; anchor.style.direction = direction;
+                    check(lease.fit(anchor, undefined, 'block-end start'), 'fit');
+                    check(panel.style.getPropertyValue('position-anchor').startsWith('--cem-surface-'), `${writingMode}/${direction}: native anchor`);
+                    const box = panel.getBoundingClientRect(), expected = surfacePosition(anchor.getBoundingClientRect(), box.width, box.height,
+                        { left: 0, top: 0, right: innerWidth, bottom: innerHeight }, 'block-end start', direction === 'rtl', writingMode);
+                    check(Math.abs(box.left - expected.left) < 1 && Math.abs(box.top - expected.top) < 1, `${writingMode}/${direction}: coordinates`);
+                    check(panel.style.left === 'auto', 'pixel-free placement'); results.push(`${writingMode}/${direction}`);
+                }
+                anchor.style.writingMode = 'horizontal-tb'; anchor.style.direction = 'ltr'; anchor.style.top = '562px';
+                check(lease.fit(anchor, undefined, 'block-end start'), 'edge fit');
+                check(panel.getAttribute('data-placement') === 'block-start start', 'opposite-side fallback');
+                const supports = CSS.supports;
+                try { CSS.supports = () => false; check(lease.fit(anchor, undefined, 'block-end start'), 'unsupported fit'); check(!panel.style.getPropertyValue('position-anchor'), 'unsupported compatibility'); }
+                finally { CSS.supports = supports; }
+            } finally { lease.release(); panel.hidePopover(); }
+            check(anchor.style.getPropertyValue('anchor-name') === '--authored', 'name restoration');
+            return results;
+        }, { origin, name });
+        console.log(`${name} ${engine.version()}: compiled CSS anchors, ${cases.length} direction/writing combinations, fallback and cleanup passed.`);
     } finally { await page.close(); }
 }

@@ -109,6 +109,12 @@ window.cemPlaygroundRuntime = runtime;
 <cem-demo-element legend="Native editor and stable description" description="Focus shows help immediately; existing description tokens remain."><template slot="source"><p id="tooltip-permanent-help">Required account name.</p><cem-tooltip message="Use your public display name" placement="inline-end center"><input slot="trigger" aria-label="Account name" aria-describedby="tooltip-permanent-help"></cem-tooltip></template></cem-demo-element>
 <cem-demo-element legend="External scoped trigger" description="The existing compatibility name stays within its interaction scope."><template slot="source"><div interaction-scope><button type="button" interaction-name="help">External help</button><cem-tooltip message="Scoped help" trigger-for="@help"></cem-tooltip></div></template></cem-demo-element>
 <cem-demo-element legend="Native interest route" description="Native interestfor targets the exact produced native owner."><template slot="source"><button type="button" interestfor="native-tooltip-description">Native interest</button><cem-tooltip surface-id="native-tooltip-description" message="Native interest description"></cem-tooltip></template></cem-demo-element>
+<cem-demo-element legend="CSS anchor positioning" description="The tooltip follows its trigger when the containing region scrolls. Ordered same-axis alternatives keep its placement near viewport edges; the shared runtime supplies compatibility fitting when native CSS cannot satisfy the policy."><template slot="source">
+<div style="block-size:12rem;overflow:auto"><div style="min-block-size:24rem;padding:var(--cem-inset-container)">
+<cem-tooltip message="Help stays attached while this region scrolls" placement="block-start start" fallback="block-end start, block-start end, block-end end" show-delay="0" hide-delay="0"><button type="button" slot="trigger">Anchored help</button></cem-tooltip>
+<p>Focus or hover the button, then scroll this region. Escape dismisses the tooltip while its accessible description remains available.</p>
+</div></div>
+</template></cem-demo-element>
 </main></template>
 </cem-gallery-page>
 </body></html>

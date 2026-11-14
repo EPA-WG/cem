@@ -1,9 +1,9 @@
 import { popupPosition, popupLocalPosition, popupBounds } from './composite-navigation.js';
 import { interactionReference, reportInteractionReference } from './interaction-reference.js';
 import { snapshotGeometryRect, type CemInvocationGeometry } from './surface-invocation.js';
-import { surfacePosition, validSurfacePlacement } from './surface-position.js';
+import { surfaceAnchorOptions, surfacePosition, validSurfacePlacement } from './surface-position.js';
 import { checkpointSurfaceGeometryCurrent, claimSurfaceGeometry, ownsSurfaceGeometry, releaseSurfaceGeometryClaim, releaseSurfaceGeometry,
-    writeGeometryStyle, restoreGeometryStyle, writeGeometryPlacement, watchSurfaceGeometry, observePopupGeometry, queueSurfaceGeometry } from './surface-geometry.js';
+    bindCssSurfaceAnchor, clearCssSurfaceAnchor, rememberCssSurfaceAnchor, freezeCssSurfaceAnchor, writeGeometryStyle, restoreGeometryStyle, writeGeometryPlacement, watchSurfaceGeometry, observePopupGeometry, queueSurfaceGeometry } from './surface-geometry.js';
 export { observePopupGeometry } from './surface-geometry.js';
 
 function popupGeometryInputs(trigger: HTMLElement, panel: HTMLElement, host?: HTMLElement, boundaryHost = host) {
@@ -45,11 +45,52 @@ export function checkpointPopupGeometry(trigger: HTMLElement, panel: HTMLElement
         && saved.trigger === trigger && saved.column === column && saved.anchor === inputs.anchor && saved.boundary === inputs.boundary
         && saved.signature === popupGeometrySignature(trigger, panel, inputs);
 }
+/** Declarations opt into this bridge; unsupported profiles retain pixel fitting. */
+function cssAnchorPolicy(panel: HTMLElement): boolean {
+    return getComputedStyle(panel).getPropertyValue('--_cem-surface-anchor-policy').trim() === 'area'
+        && CSS.supports('anchor-name', '--cem-probe') && CSS.supports('position-area', 'bottom span-right')
+        && CSS.supports('position-try-fallbacks', 'top span-right');
+}
+function tryCssAnchor(host: HTMLElement | undefined, panel: HTMLElement, anchor: Element | undefined, bounds: { left: number; top: number; right: number; bottom: number },
+    placement: string, fallback: readonly string[], options: { flip: boolean; shift: boolean }, gap: number, boundary?: Element): string | undefined {
+    const viewport = panel.ownerDocument.defaultView?.visualViewport;
+    const style = getComputedStyle(anchor ?? panel), rtl = style.direction === 'rtl';
+    const policy = surfaceAnchorOptions(placement, rtl, style.writingMode, fallback, { flip: options.flip, crossAlign: options.shift });
+    const eligible = cssAnchorPolicy(panel) && anchor instanceof HTMLElement && !anchor.contains(panel) && !panel.contains(anchor)
+        && anchor.getRootNode() === panel.getRootNode() && !boundary && policy
+        && (!viewport || viewport.scale === 1 && viewport.offsetLeft === 0 && viewport.offsetTop === 0)
+        && (panel.matches(':popover-open,:modal') || !!(anchor.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING));
+    if (!eligible) { clearCssSurfaceAnchor(panel); return; }
+    const name = bindCssSurfaceAnchor(panel, anchor);
+    writeGeometryStyle(panel, 'position-anchor', name);
+    writeGeometryStyle(panel, '--_cem-surface-position-mode', 'fixed');
+    writeGeometryStyle(panel, '--_cem-surface-area', policy.area);
+    writeGeometryStyle(panel, '--_cem-surface-tries', policy.tries);
+    writeGeometryStyle(panel, 'inset', 'auto');
+    writeGeometryStyle(panel, 'margin', policy.gapAxis === 'y' ? `${gap}px 0px` : `0px ${gap}px`);
+    const box = panel.getBoundingClientRect(), origin = anchor.getBoundingClientRect();
+    const visible = box.left >= bounds.left + 3.5 && box.top >= bounds.top + 3.5
+        && box.right <= bounds.right - 3.5 && box.bottom <= bounds.bottom - 3.5;
+    for (const choice of policy.choices) {
+        const expected = surfacePosition(origin, box.width, box.height, bounds, choice, rtl, style.writingMode, [], { flip: false, shift: false, gap });
+        if ((!options.shift || visible) && Math.abs(box.left - expected.left) < 0.75 && Math.abs(box.top - expected.top) < 0.75) {
+            rememberCssSurfaceAnchor(panel, { left: box.left, top: box.top, placement: choice });
+            if (host) writeGeometryPlacement(panel, choice);
+            return choice;
+        }
+    }
+    // No CSS alternative can satisfy this boundary (or the anchor is outside
+    // its CSS scope). Release the bridge before the compatibility solver shifts.
+    clearCssSurfaceAnchor(panel);
+    return;
+}
+
 /** Shared browser popup geometry; declarations retain ownership of panel paint. */
 export function positionPopup(trigger: HTMLElement, panel: HTMLElement, column = false, host?: HTMLElement, boundaryHost = host): boolean {
     if (!ownsSurfaceGeometry(panel)) return false;
     const inputs = popupGeometryInputs(trigger, panel, host, boundaryHost);
     if (!inputs) {
+        if (host?.getAttribute('anchor-lost') === 'freeze') freezeCssSurfaceAnchor(panel);
         if (host) reportInteractionReference(host, 'interaction-anchor-unavailable', 'geometry');
         return false;
     }
@@ -60,8 +101,16 @@ export function positionPopup(trigger: HTMLElement, panel: HTMLElement, column =
     }
     writeGeometryStyle(panel, 'max-width', `${bounds.right - bounds.left - 8}px`);
     writeGeometryStyle(panel, 'max-height', `min(var(--_cem-popup-max-height, ${bounds.bottom - bounds.top - 8}px), ${bounds.bottom - bounds.top - 8}px)`);
+    const placement = column ? 'inline-end start' : 'block-end start';
+    if (tryCssAnchor(host, panel, anchor, bounds, placement, [], { flip: true, shift: true }, 0, boundary)) {
+        if (host) popupGeometrySnapshots.set(panel, { host, boundaryHost, trigger, column, anchor, boundary, signature: popupGeometrySignature(trigger, panel, inputs) });
+        return true;
+    }
     const rect = panel.getBoundingClientRect();
-    const { left, top } = popupPosition(anchor.getBoundingClientRect(), rect.width, rect.height, view.innerWidth, view.innerHeight, column, getComputedStyle(anchor).direction === 'rtl', bounds);
+    const anchorStyle = getComputedStyle(anchor);
+    const { left, top } = /^(vertical|sideways)/.test(anchorStyle.writingMode)
+        ? surfacePosition(anchor.getBoundingClientRect(), rect.width, rect.height, bounds, placement, anchorStyle.direction === 'rtl', anchorStyle.writingMode, [], { gap: 0 })
+        : popupPosition(anchor.getBoundingClientRect(), rect.width, rect.height, view.innerWidth, view.innerHeight, column, anchorStyle.direction === 'rtl', bounds);
     const parent = panel.offsetParent;
     const local = getComputedStyle(panel).position === 'absolute' && parent instanceof HTMLElement
         ? popupLocalPosition({ left, top }, parent.getBoundingClientRect(), parent.scrollLeft, parent.scrollTop, parent.clientLeft, parent.clientTop)
@@ -112,7 +161,7 @@ function fitSurface(host: HTMLElement, panel: HTMLElement, trigger: HTMLElement 
     geometry: CemInvocationGeometry | undefined, placement: string, token?: object, matchAnchorInlineSize = false): boolean {
     if (!ownsSurfaceGeometry(panel, token)) return false;
     const prepared = nativeSurfaceGeometry(host, panel, trigger, geometry, placement);
-    if (!prepared) return false;
+    if (!prepared) { if (host.getAttribute('anchor-lost') === 'freeze') freezeCssSurfaceAnchor(panel); return false; }
     const { bounds, rect, anchor, boundary, overflow } = prepared;
     watchSurfaceGeometry(host, panel, [panel, ...(anchor ? [anchor] : []), ...(boundary ? [boundary] : [])]);
     writeGeometryStyle(panel, 'box-sizing', 'border-box');
@@ -132,6 +181,9 @@ function fitSurface(host: HTMLElement, panel: HTMLElement, trigger: HTMLElement 
             vertical ? rect.bottom - rect.top : rect.right - rect.left,
             vertical ? bounds.bottom - bounds.top - 8 : bounds.right - bounds.left - 8))}px`);
     } else { restoreGeometryStyle(panel, 'min-width'); restoreGeometryStyle(panel, 'min-height'); }
+    if (tryCssAnchor(host, panel, anchor, bounds, placement, host.getAttribute('fallback')?.split(',').map(value => value.trim()) ?? [],
+        { flip: overflow.includes('flip'), shift: overflow.includes('shift') || overflow.includes('hide') }, 4, boundary)) return true;
+    writeGeometryStyle(panel, 'margin', '0'); writeGeometryStyle(panel, 'right', 'auto'); writeGeometryStyle(panel, 'bottom', 'auto');
     const size = panel.getBoundingClientRect();
     const point = surfacePosition(rect, size.width, size.height, bounds, placement, style.direction === 'rtl', style.writingMode,
         host.getAttribute('fallback')?.split(',').map(value => value.trim()), { flip: overflow.includes('flip'), shift: overflow.includes('shift') });
@@ -158,9 +210,12 @@ export function showPopup(trigger: HTMLElement, panel: HTMLElement, column = fal
     writeGeometryStyle(panel, 'max-width', 'calc(100vw - 8px)');
     writeGeometryStyle(panel, 'max-height', 'min(var(--_cem-popup-max-height, 100vh), calc(100vh - 8px))');
     writeGeometryStyle(panel, 'overflow', 'auto');
-    // CSS-anchored panels start at their declared position, even offscreen.
-    // Explicit activation and resize can request viewport collision handling.
-    if (host?.hasAttribute('anchor') || boundaryHost?.hasAttribute('boundary') || getComputedStyle(panel).position !== 'absolute') return positionPopup(trigger, panel, column, host, boundaryHost);
+    // Initially visible offscreen examples keep their natural containing-block
+    // position. Explicit activation still requests fitting, as before.
+    const natural = getComputedStyle(panel).position === 'absolute' && !host?.hasAttribute('anchor') && !boundaryHost?.hasAttribute('boundary');
+    const anchorBox = trigger.getBoundingClientRect(), view = trigger.ownerDocument.defaultView;
+    if (natural && view && (anchorBox.bottom <= 0 || anchorBox.top >= view.innerHeight || anchorBox.right <= 0 || anchorBox.left >= view.innerWidth)) return true;
+    if (host?.hasAttribute('anchor') || boundaryHost?.hasAttribute('boundary') || cssAnchorPolicy(panel) || getComputedStyle(panel).position !== 'absolute') return positionPopup(trigger, panel, column, host, boundaryHost);
     return true;
 }
 export function hidePopup(panel: HTMLElement): void {

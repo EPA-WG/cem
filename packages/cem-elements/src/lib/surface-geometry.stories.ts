@@ -128,3 +128,105 @@ export const NativeRegistrationRejectsAnotherProfile: Story = {
         } finally { controller.disconnect(); }
     },
 };
+
+const cssAnchorPolicy = '--_cem-surface-anchor-policy:area;position:fixed;inset:auto;margin:0;position-area:var(--_cem-surface-area,none);position-try-fallbacks:var(--_cem-surface-tries,none)';
+export const CssAnchorsFitAndRestoreSharedNames: Story = {
+    render: () => `<section><button style="position:fixed;left:120px;bottom:8px;width:70px;height:26px;anchor-name:--authored">Invoker</button><div popover="manual" style="${cssAnchorPolicy};width:110px;height:60px">First</div><div popover="manual" style="${cssAnchorPolicy};width:90px;height:50px">Second</div></section>`,
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'section'), anchor = required(host, 'button'), first = required(host, 'div'), second = required(host, 'div:nth-of-type(2)');
+        const original = anchor.style.getPropertyValue('anchor-name');
+        let updates = 0;
+        const one = createCemSurfaceGeometryLease(host, first, () => { updates++; one.fit(anchor, undefined, 'block-end start'); });
+        const two = createCemSurfaceGeometryLease(host, second, () => two.fit(anchor, undefined, 'block-end start'));
+        first.showPopover(); second.showPopover();
+        try {
+            expect(one.fit(anchor, undefined, 'block-end start')).toBe(true);
+            expect(two.fit(anchor, undefined, 'block-end start')).toBe(true); await frames();
+            expect(first.style.getPropertyValue('position-anchor')).toMatch(/^--cem-surface-/);
+            expect(second.style.getPropertyValue('position-anchor')).not.toBe(first.style.getPropertyValue('position-anchor'));
+            expect(first.style.left).toBe('auto'); expect(first.getAttribute('data-placement')).toBe('block-start start');
+            expect(first.getBoundingClientRect().bottom).toBeLessThanOrEqual(anchor.getBoundingClientRect().top - 3);
+            expect(anchor.style.getPropertyValue('anchor-name')).toContain('--authored');
+            const idle = updates; await frames(); expect(updates).toBe(idle);
+            const secondName = second.style.getPropertyValue('position-anchor');
+            one.release(); expect(anchor.style.getPropertyValue('anchor-name')).toContain(secondName);
+            expect(first.style.getPropertyValue('position-anchor')).toBe('');
+            two.release(); expect(anchor.style.getPropertyValue('anchor-name')).toBe(original);
+        } finally { one.release(); two.release(); first.hidePopover(); second.hidePopover(); }
+    },
+};
+
+export const CssAnchorsFollowAndRespectCompatibilityPolicies: Story = {
+    render: () => `<section><button style="position:fixed;left:80px;top:60px;width:60px;height:28px">Invoker</button><div popover="manual" style="${cssAnchorPolicy};width:100px;height:50px">Panel</div><aside style="position:fixed;inset:20px;width:300px;height:220px;pointer-events:none">Boundary</aside></section>`,
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'section'), anchor = required(host, 'button'), panel = required(host, 'div'), boundary = required(host, 'aside');
+        boundary.id = `anchor-boundary-${crypto.randomUUID()}`;
+        const lease = createCemSurfaceGeometryLease(host, panel, () => lease.fit(anchor, undefined, 'block-end start'));
+        panel.showPopover();
+        try {
+            expect(lease.fit(anchor, undefined, 'block-end start')).toBe(true); await frames();
+            anchor.style.left = '140px'; await frames();
+            expect(Math.abs(panel.getBoundingClientRect().left - anchor.getBoundingClientRect().left)).toBeLessThan(1);
+            expect(panel.style.left).toBe('auto');
+            host.setAttribute('boundary', `#${boundary.id}`); expect(lease.fit(anchor, undefined, 'block-end start')).toBe(true);
+            expect(panel.style.getPropertyValue('position-anchor')).toBe(''); expect(panel.style.left).not.toBe('auto');
+            host.removeAttribute('boundary'); expect(lease.fit(anchor, undefined, 'block-end start')).toBe(true);
+            expect(panel.style.getPropertyValue('position-anchor')).toMatch(/^--cem-surface-/);
+            anchor.style.setProperty('anchor-name', '--replacement', 'important'); lease.reset();
+            expect(anchor.style.getPropertyValue('anchor-name')).toBe('--replacement'); expect(anchor.style.getPropertyPriority('anchor-name')).toBe('important');
+            expect(panel.style.getPropertyValue('position-anchor')).toBe('');
+        } finally { lease.release(); panel.hidePopover(); }
+    },
+};
+
+export const CssAnchorsLogicalAxesAndUnavailableSupport: Story = {
+    render: () => `<section><button style="position:fixed;left:300px;top:180px;width:80px;height:40px">Invoker</button><div popover="manual" style="${cssAnchorPolicy};width:120px;height:60px">Panel</div></section>`,
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'section'), anchor = required(host, 'button'), panel = required(host, 'div');
+        const lease = createCemSurfaceGeometryLease(host, panel, () => undefined);
+        panel.showPopover();
+        try {
+            for (const writingMode of ['horizontal-tb', 'vertical-rl', 'vertical-lr', 'sideways-rl', 'sideways-lr']) for (const direction of ['ltr', 'rtl']) {
+                anchor.style.writingMode = writingMode; anchor.style.direction = direction;
+                expect(lease.fit(anchor, undefined, 'block-end start')).toBe(true);
+                expect(panel.style.getPropertyValue('position-anchor'), `${writingMode}/${direction}`).toMatch(/^--cem-surface-/);
+                const { surfacePosition } = await import('./surface-position.js');
+                const box = panel.getBoundingClientRect(), expected = surfacePosition(anchor.getBoundingClientRect(), box.width, box.height,
+                    { left: 0, top: 0, right: innerWidth, bottom: innerHeight }, 'block-end start', direction === 'rtl', writingMode);
+                expect(Math.abs(box.left - expected.left)).toBeLessThan(1); expect(Math.abs(box.top - expected.top)).toBeLessThan(1);
+            }
+            const supports = CSS.supports;
+            try {
+                CSS.supports = () => false;
+                expect(lease.fit(anchor, undefined, 'block-end start')).toBe(true);
+                expect(panel.style.getPropertyValue('position-anchor')).toBe(''); expect(panel.style.left).not.toBe('auto');
+            } finally { CSS.supports = supports; }
+            expect(lease.fit(anchor, undefined, 'block-end start')).toBe(true);
+            host.setAttribute('anchor-lost', 'freeze');
+            const frozen = panel.getBoundingClientRect();
+            anchor.remove(); expect(lease.fit(anchor, undefined, 'block-end start')).toBe(false);
+            expect(panel.getBoundingClientRect().left).toBeCloseTo(frozen.left, 1);
+            expect(panel.getBoundingClientRect().top).toBeCloseTo(frozen.top, 1);
+            lease.reset(); expect(panel.style.getPropertyValue('position-anchor')).toBe('');
+        } finally { lease.release(); panel.hidePopover(); }
+    },
+};
+
+export const CssAnchorsFollowNestedScrollWithoutPixelUpdates: Story = {
+    render: () => `<section><div style="position:fixed;left:40px;top:40px;width:320px;height:200px;overflow:auto"><div style="width:700px;height:800px;padding:90px 80px;box-sizing:border-box"><button>Invoker</button></div></div><div popover="manual" style="${cssAnchorPolicy};width:100px;height:40px">Panel</div></section>`,
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'section'), scroller = required(host, 'div'), anchor = required(host, 'button'), panel = required(host, '[popover]');
+        const lease = createCemSurfaceGeometryLease(host, panel, () => undefined);
+        panel.showPopover();
+        try {
+            expect(lease.fit(anchor, undefined, 'block-end start')).toBe(true); await frames();
+            const before = panel.getBoundingClientRect();
+            scroller.scrollTop = 30; scroller.scrollLeft = 20; await frames();
+            const after = panel.getBoundingClientRect();
+            expect(before.top - after.top).toBeCloseTo(30, 1); expect(before.left - after.left).toBeCloseTo(20, 1);
+            expect(panel.style.left).toBe('auto'); expect(panel.style.top).toBe('auto');
+            anchor.style.width = '120px'; await frames();
+            expect(Math.abs(panel.getBoundingClientRect().left - anchor.getBoundingClientRect().left)).toBeLessThan(1);
+        } finally { lease.release(); panel.hidePopover(); }
+    },
+};

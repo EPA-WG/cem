@@ -133,6 +133,9 @@ export const OpenSubmenuSelection = meta.story({
         expect(getComputedStyle(menuTrigger(canvasElement, 'Standalone'), '::before').content).toBe('none');
         file.focus(); await userEvent.keyboard('{ArrowDown}');
         expectSubmenuContour(file, true); expect(document.activeElement).toBe(menuTrigger(canvasElement, 'New'));
+        const panel = file.parentElement!.querySelector<HTMLElement>('cem-menu');
+        expect(panel?.style.getPropertyValue('position-anchor')).toMatch(/^--cem-surface-/);
+        expect(panel?.style.left).toBe('auto');
         await userEvent.keyboard('{ArrowDown}{ArrowRight}');
         expectSubmenuContour(file, true); expectSubmenuContour(more, true);
         expect(document.activeElement).toBe(menuTrigger(canvasElement, 'Deep command'));

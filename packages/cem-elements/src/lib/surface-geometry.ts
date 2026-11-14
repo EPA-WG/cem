@@ -1,6 +1,8 @@
 /** Transient DOM geometry ownership, independent of visibility and focus policy. */
 type StyleValue = { value: string; priority: string };
 type StyleClaim = { saved: StyleValue; applied: StyleValue };
+interface AnchorBinding { anchor: HTMLElement; name: string; point?: { left: number; top: number; placement: string } }
+interface AnchorNames { saved: StyleValue; applied: StyleValue; names: Set<string>; authored: string[] }
 interface GeometryObserver {
     host: HTMLElement;
     panel?: HTMLElement;
@@ -20,19 +22,24 @@ interface GeometryState {
     targets: WeakMap<HTMLElement, Map<HTMLElement, Element[]>>;
     observers: WeakMap<HTMLElement, Set<GeometryObserver>>;
     leases: WeakMap<HTMLElement, object>;
+    anchorBindings: WeakMap<HTMLElement, AnchorBinding>;
+    anchorNames: WeakMap<HTMLElement, AnchorNames>;
+
 }
 // Source and packaged runtimes share transient ownership in this realm only.
 const GEOMETRY = Symbol.for('cem.surface-geometry.v1');
 const environment = globalThis as typeof globalThis & { [GEOMETRY]?: GeometryState };
 const state = environment[GEOMETRY] ??= {
     styles: new WeakMap(), placements: new WeakMap(), owners: new WeakMap(),
-    targets: new WeakMap(), observers: new WeakMap(), leases: new WeakMap(),
+    targets: new WeakMap(), observers: new WeakMap(), leases: new WeakMap(), anchorBindings: new WeakMap(), anchorNames: new WeakMap(),
 };
+state.anchorBindings ??= new WeakMap(); state.anchorNames ??= new WeakMap();
 function readStyle(panel: HTMLElement, name: string): StyleValue {
     return { value: panel.style.getPropertyValue(name), priority: panel.style.getPropertyPriority(name) };
 }
 function same(a: StyleValue, b: StyleValue): boolean { return a.value === b.value && a.priority === b.priority; }
 function properties(name: string): string[] {
+    if (name === 'inset') return ['top', 'right', 'bottom', 'left'];
     if (name === 'margin') return ['margin-top', 'margin-right', 'margin-bottom', 'margin-left'];
     if (name === 'overflow') return ['overflow-x', 'overflow-y'];
     return [name];
@@ -122,10 +129,14 @@ function forgetTargets(host: HTMLElement, panel: HTMLElement): void {
 }
 export function releaseSurfaceGeometry(panel: HTMLElement, token?: object): void {
     if (!ownsSurfaceGeometry(panel, token)) return;
+    clearCssSurfaceAnchor(panel);
     const host = state.owners.get(panel);
     if (host) forgetTargets(host, panel);
     state.owners.delete(panel);
     for (const name of [...state.styles.get(panel)?.keys() ?? []]) restoreGeometryStyle(panel, name);
+    restoreGeometryPlacement(panel);
+}
+function restoreGeometryPlacement(panel: HTMLElement): void {
     const placement = state.placements.get(panel);
     if (placement && panel.getAttribute('data-placement') === placement.applied) {
         if (placement.saved === null) panel.removeAttribute('data-placement'); else panel.setAttribute('data-placement', placement.saved);
@@ -154,7 +165,78 @@ export function queueSurfaceGeometry(host: HTMLElement, panel: HTMLElement): voi
 /** Read-only checkpoint fence for the legacy popup owner's settled, unmodified claims. */
 export function checkpointSurfaceGeometryCurrent(host: HTMLElement, panel: HTMLElement): boolean {
     const claims = state.styles.get(panel);
-    return ownsSurfaceGeometry(panel) && state.owners.get(panel) === host && !!claims?.size
+    const binding = state.anchorBindings.get(panel), names = binding && state.anchorNames.get(binding.anchor);
+    return (!binding || !!names && same(readStyle(binding.anchor, 'anchor-name'), names.applied))
+        && ownsSurfaceGeometry(panel) && state.owners.get(panel) === host && !!claims?.size
         && [...claims].every(([name, claim]) => same(readStyle(panel, name), claim.applied))
         && ![...state.observers.get(host) ?? []].some(observer => observer.targets.has(panel) && observer.frame !== undefined);
+}
+
+
+const anchorProperties = ['position-anchor', '--_cem-surface-area', '--_cem-surface-tries', '--_cem-surface-position-mode', 'inset', 'margin'];
+/** Named anchors are shared by panels and never replace an author's names. */
+export function bindCssSurfaceAnchor(panel: HTMLElement, anchor: HTMLElement): string {
+    const previous = state.anchorBindings.get(panel);
+    if (previous?.anchor !== anchor) clearCssSurfaceAnchor(panel);
+    let binding = state.anchorBindings.get(panel);
+    let names = state.anchorNames.get(anchor);
+    const current = readStyle(anchor, 'anchor-name');
+    if (!names) {
+        names = { saved: current, applied: current, names: new Set(), authored: [] }; state.anchorNames.set(anchor, names);
+        names.authored = (current.value || getComputedStyle(anchor).getPropertyValue('anchor-name')).split(',').map(value => value.trim()).filter(value => value && value !== 'none');
+    } else if (!same(current, names.applied)) {
+        names.saved = current;
+        names.authored = (current.value || getComputedStyle(anchor).getPropertyValue('anchor-name')).split(',').map(value => value.trim()).filter(value => value && value !== 'none' && !names!.names.has(value));
+    }
+    if (!binding) {
+        binding = { anchor, name: `--cem-surface-${crypto.randomUUID()}` };
+        names.names.add(binding.name); state.anchorBindings.set(panel, binding);
+    }
+    const value = [...new Set([...names.authored, ...names.names])].join(', ');
+    if (current.value !== value || current.priority !== names.saved.priority) anchor.style.setProperty('anchor-name', value, names.saved.priority);
+    names.applied = readStyle(anchor, 'anchor-name');
+    return binding.name;
+}
+export function clearCssSurfaceAnchor(panel: HTMLElement): void {
+    const binding = state.anchorBindings.get(panel);
+    if (!binding) return;
+    const names = state.anchorNames.get(binding.anchor);
+    if (names) {
+        const current = readStyle(binding.anchor, 'anchor-name'), managed = new Set(names.names);
+        names.names.delete(binding.name);
+        if (!same(current, names.applied) && names.names.size) {
+            names.saved = current;
+            names.authored = (current.value || getComputedStyle(binding.anchor).getPropertyValue('anchor-name')).split(',').map(value => value.trim()).filter(value => value && value !== 'none' && !managed.has(value));
+            binding.anchor.style.setProperty('anchor-name', [...names.authored, ...names.names].join(', '), names.saved.priority);
+            names.applied = readStyle(binding.anchor, 'anchor-name');
+        } else if (same(current, names.applied)) {
+            if (!names.names.size) {
+                if (names.saved.value) binding.anchor.style.setProperty('anchor-name', names.saved.value, names.saved.priority);
+                else binding.anchor.style.removeProperty('anchor-name');
+            } else {
+                binding.anchor.style.setProperty('anchor-name', [...names.authored, ...names.names].join(', '), names.saved.priority);
+                names.applied = readStyle(binding.anchor, 'anchor-name');
+            }
+        }
+        if (!names.names.size) state.anchorNames.delete(binding.anchor);
+    }
+    state.anchorBindings.delete(panel);
+    for (const property of anchorProperties) restoreGeometryStyle(panel, property);
+    restoreGeometryPlacement(panel);
+}
+
+export function rememberCssSurfaceAnchor(panel: HTMLElement, point: { left: number; top: number; placement: string }): void {
+    const binding = state.anchorBindings.get(panel);
+    if (binding) binding.point = point;
+}
+/** A frozen surface must stop depending on an anchor that is no longer laid out. */
+export function freezeCssSurfaceAnchor(panel: HTMLElement): void {
+    const point = state.anchorBindings.get(panel)?.point;
+    if (!point) return;
+    clearCssSurfaceAnchor(panel);
+    writeGeometryStyle(panel, '--_cem-surface-position-mode', 'fixed');
+    writeGeometryStyle(panel, 'position', 'fixed'); writeGeometryStyle(panel, 'margin', '0');
+    writeGeometryStyle(panel, 'right', 'auto'); writeGeometryStyle(panel, 'bottom', 'auto');
+    writeGeometryStyle(panel, 'left', `${point.left}px`); writeGeometryStyle(panel, 'top', `${point.top}px`);
+    writeGeometryPlacement(panel, point.placement);
 }

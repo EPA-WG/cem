@@ -46,3 +46,21 @@ export const ScopedExternalAndProjectedDescription = meta.story({
         hosts[1].remove(); expect(sources[1].hasAttribute('aria-describedby')).toBe(false);
     },
 });
+
+export const CssAnchorFallbackAndLifetime = meta.story({
+    render: () => '<section class="cem-theme-light"><cem-tooltip message="Help at the viewport edge" show-delay="0" hide-delay="0" placement="block-start center"><button slot="trigger" type="button" style="position:fixed;top:4px;left:180px">Help</button></cem-tooltip></section>',
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'cem-tooltip'); await whenCemRendered(host);
+        const source = required<HTMLButtonElement>(host, 'button'), owner = required(host, '[part=surface]');
+        const originalNames = source.style.getPropertyValue('anchor-name');
+        source.focus(); await waitFor(() => expect(owner.matches(':popover-open')).toBe(true));
+        await waitFor(() => expect(owner.style.getPropertyValue('position-anchor')).toMatch(/^--cem-surface-/));
+        expect(owner.style.left).toBe('auto'); expect(owner.style.top).toBe('auto');
+        expect(owner.getAttribute('data-placement')).toBe('block-end center');
+        expect(owner.getBoundingClientRect().top).toBeGreaterThanOrEqual(source.getBoundingClientRect().bottom + 3);
+        expect(document.activeElement).toBe(source); expect(source.getAttribute('aria-describedby')).toContain(owner.id);
+        await userEvent.keyboard('{Escape}'); expect(owner.matches(':popover-open')).toBe(false);
+        expect(source.style.getPropertyValue('anchor-name')).toBe(originalNames);
+        expect(owner.style.getPropertyValue('position-anchor')).toBe('');
+    },
+});

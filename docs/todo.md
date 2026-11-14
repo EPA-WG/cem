@@ -338,14 +338,42 @@ for the current native work and the conditional diagnostic items on recurrence.
       requirements), catalog/build and package verification pass. Component lint
       passes with non-null-assertion warnings; the gallery verifier lint is clean.
 
-- [ ] Use CSS anchor positioning with `position-area` for menus, tooltips and
+- [x] Use CSS anchor positioning with `position-area` for menus, tooltips and
       popups, including `position-try-fallbacks` for alternate placements when
       the preferred area overflows. Map the shared placement/anchor contract to
       declarative CSS; assess overflow fallbacks, viewport boundaries and supported browsers;
       keep any required compatibility behavior in `cem-elements`.
-  - [ ] Verify nested surfaces, scrolling/resizing, RTL/writing modes, keyboard
+  - [x] Verify nested surfaces, scrolling/resizing, RTL/writing modes, keyboard
         focus, dismissal and anchor removal through shared fixtures and the
         production component galleries.
+  - [x] Add placement-to-area/fallback mapping and reversible named-anchor
+        ownership fixtures, including shared anchors, authored style restoration,
+        fallback when unsupported or outside the native CSS policy, and native
+        edge fitting, nested scrolling/resizing, RTL/vertical writing, dismissal
+        and anchor-loss behavior in shared and shipped component cases. Verify
+        that anchor style claims settle without a recurring geometry frame loop.
+  - [x] Exercise compiled geometry in Chromium and Firefox, and document
+        feature-detected browser support and any unavailable engine checks.
+  - Completed 2026-11-14: declarative menu, dropdown and tooltip rules consume
+    shared logical placement-to-area/fallback mappings. Reversible named-anchor
+    leases preserve authored names, concurrent panels and external style edits;
+    close/reset/disconnect restore their claims. CSS handles normal attachment
+    and alternate areas; explicit boundaries, captured anchors, unsupported CSS,
+    mixed-axis fallbacks and unsatisfied native fits retain shared compatibility
+    geometry. Freeze-on-anchor-loss retains the last fitted rectangle. Existing
+    paint, focus, ARIA, dismissal and theme token ownership are preserved.
+    Verification: five focused unit tests, 34 interaction stories and six existing
+    submenu/checkpoint cases pass. Compiled Chromium 148 and Firefox 150 pass ten
+    direction/writing-mode combinations, edge fallback, unsupported-path and
+    cleanup checks. Menu/dropdown/menu-item source, built and packed-package
+    galleries pass themes, forced colors, reserved overlay bounds and scrolling;
+    dialog/dialog-shell/tooltip source and packed galleries pass. Declarative,
+    style-contract, state-matrix (41 requirements), catalog/package, typecheck and
+    lint gates pass (existing non-null-assertion warnings; verifier lint clean).
+    Studio rebuild and output verification pass (238 declared assets, 358 files).
+    WebKit cannot launch because host libraries are missing; its engine check
+    remains a documented verification limit. Browser detection and compatibility
+    boundaries are recorded in the component reference.
 
 - [ ] Assess implementing dialogs through the popover mechanism, building on
       existing shared native-surface support. Define modal/nonmodal behavior,

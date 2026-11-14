@@ -28,6 +28,12 @@ activation and application-event ownership.
 | `placement` | Shared logical placement; defaults to `block-start center`. |
 | `anchor`, `boundary`, `fallback`, `overflow`, `anchor-lost` | Shared geometry and eligibility rules. |
 
+Viewport attachment uses the shared [CSS anchor geometry](./component-reference.md#css-anchor-geometry)
+bridge with `position-area` and ordered `position-try-fallbacks` when supported.
+Explicit boundaries and unsupported policies retain shared compatibility fitting.
+Anchor names and placement styles belong to the geometry lease and are released
+on close/disconnect; the persistent accessible description keeps its identity.
+
 Focus and hover are independent interest reasons. Pointer travel onto the
 surface retains presentation. Unrelated DOM updates do not restart interest delays. Escape cancels pending presentation and
 suppresses reopening until interest ends. Touch is never intercepted and does
