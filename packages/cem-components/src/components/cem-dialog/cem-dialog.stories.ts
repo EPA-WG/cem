@@ -38,6 +38,33 @@ export const ModalFormsAndCancel = meta.story({
     },
     parameters: { docs: { description: { story: 'Trusted native Escape is checked in the browser runner. Form validation and dialog return values stay browser-owned.' } } },
 });
+export const ClosePoliciesAndCompatibility = meta.story({
+    render: () => '<section><cem-dialog label="Close policy" trigger="Open" close-label="Done"><input autofocus aria-label="Entry"></cem-dialog></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: native } = await import('vitest/browser');
+        const host = required(canvasElement, 'cem-dialog'); await whenCemRendered(host);
+        const owner = required<HTMLDialogElement>(host, 'dialog'), source = required(host, '[part=trigger]');
+        let veto = false, requests = 0;
+        host.addEventListener('cem-before-close', event => { requests++; if (veto) event.preventDefault(); });
+        try {
+            for (const missingApi of [false, true]) for (const mode of ['nonmodal', 'modal']) for (const policy of ['none', 'closerequest', 'any']) {
+                if (missingApi) Object.defineProperty(owner, 'requestClose', { configurable: true, value: undefined }); else Reflect.deleteProperty(owner, 'requestClose');
+                host.setAttribute('mode', mode); host.setAttribute('closedby', policy); await whenCemRendered(host);
+                expect(required(host, 'dialog')).toBe(owner); expect(owner.getAttribute('closedby')).toBe(policy);
+                await userEvent.click(source); await waitFor(() => expect(owner.open).toBe(true));
+                await native.keyboard('{Escape}');
+                if (policy === 'none') expect(owner.open).toBe(true); else await waitFor(() => expect(owner.open).toBe(false));
+                if (!owner.open) await userEvent.click(source);
+                veto = true; const before = requests;
+                await userEvent.click(required(owner, '[part=close]')); expect(owner.open).toBe(true); expect(requests).toBe(before + 1);
+                veto = false; await userEvent.click(required(owner, '[part=close]'));
+                await waitFor(() => expect(owner.open).toBe(false)); expect(document.activeElement).toBe(source);
+            }
+        } finally { Reflect.deleteProperty(owner, 'requestClose'); host.remove(); }
+    },
+    parameters: { docs: { description: { story: 'Browser-runner-only: native policies, generated guarded close controls and missing requestClose compatibility in both modes.' } } },
+});
 export const SlotsRetentionAndDisposal = meta.story({
     render: () => '<section><cem-dialog label="Fallback" trigger="Replaced" close-label="Replaced" materialize="retain"><template><button slot="trigger" type="button">Custom launcher</button><strong slot="label">Projected task title</strong><template slot="body"><input autofocus aria-label="Draft"></template><button slot="close" type="button">Custom close</button></template></cem-dialog></section>',
     play: async ({ canvasElement }) => {

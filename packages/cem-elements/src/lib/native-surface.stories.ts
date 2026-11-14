@@ -149,6 +149,120 @@ export const NativeCommandsAndNonmodalPersistence: Story = {
         } finally { controller.disconnect(); }
     },
 };
+
+export const DialogClosePolicies: Story = {
+    render: () => '<section><button>Launcher</button><dialog aria-label="Close policy"><input autofocus></dialog></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: native } = await import('vitest/browser');
+        const root = required(canvasElement, 'section'), source = required(root, 'button'), owner = required<HTMLDialogElement>(root, 'dialog');
+        const controller = connectCemNativeSurface(owner);
+        let veto = false, requests = 0;
+        owner.addEventListener('cem-before-close', event => { requests++; if (veto) event.preventDefault(); });
+        try {
+            for (const modal of [false, true]) for (const policy of [undefined, 'none', 'NONE', 'closerequest', 'any', '', 'invalid', ' none ']) {
+                if (modal) owner.setAttribute('mode', 'modal'); else owner.removeAttribute('mode');
+                if (policy === undefined) owner.removeAttribute('closedby'); else owner.setAttribute('closedby', policy);
+                source.focus(); expect(controller.open({ source })).toBe(true);
+                const before = requests;
+                await native.keyboard('{Escape}');
+                if (policy?.toLowerCase() === 'none') {
+                    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+                    expect(owner.open).toBe(true); expect(requests).toBe(before);
+                } else await waitFor(() => expect(owner.open).toBe(false));
+                if (!owner.open) expect(controller.open({ source })).toBe(true);
+                veto = true; const guarded = requests;
+                expect(controller.requestClose()).toBe(false); expect(owner.open).toBe(true); expect(requests).toBe(guarded + 1);
+                veto = false; expect(controller.requestClose()).toBe(true); expect(document.activeElement).toBe(source);
+            }
+            owner.removeAttribute('mode'); owner.removeAttribute('closedby'); controller.open({ source });
+            owner.setAttribute('closedby', 'none'); await native.keyboard('{Escape}'); expect(owner.open).toBe(true);
+            owner.removeAttribute('closedby'); await native.keyboard('{Escape}'); await waitFor(() => expect(owner.open).toBe(false));
+            owner.setAttribute('closedby', 'none'); owner.setAttribute('popover', 'manual'); controller.open({ source });
+            await native.keyboard('{Escape}'); await waitFor(() => expect(owner.matches(':popover-open')).toBe(false));
+        } finally { controller.disconnect(); }
+    },
+    parameters: { docs: { description: { story: 'Browser-runner-only: trusted Escape across explicit native close policies and CEM default behavior.' } } },
+};
+
+export const PendingDialogClosePolicy: Story = {
+    render: () => '<section><button>Launcher</button><dialog aria-label="Pending task" closedby="none"><input autofocus></dialog></section>',
+    play: async ({ canvasElement }) => {
+        const root = required(canvasElement, 'section'), source = required(root, 'button'), owner = required<HTMLDialogElement>(root, 'dialog');
+        const pending: Array<() => void> = [];
+        const controller = connectCemNativeSurface(owner, { prepareBody: () => new Promise<void>(resolve => pending.push(resolve)) });
+        let requests = 0; owner.addEventListener('cem-before-close', () => requests++);
+        try {
+            source.focus(); expect(controller.open({ source })).toBe(true);
+            source.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+            expect(requests).toBe(0); pending[0](); await waitFor(() => expect(owner.open).toBe(true));
+            expect(controller.requestClose()).toBe(true); expect(requests).toBe(1);
+            owner.removeAttribute('closedby'); controller.open({ source });
+            source.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+            expect(requests).toBe(2); pending[1](); await Promise.resolve(); await Promise.resolve(); expect(owner.open).toBe(false);
+        } finally { controller.disconnect(); pending.forEach(resolve => resolve()); }
+    },
+};
+
+export const DialogCloseApiCompatibility: Story = {
+    render: () => '<section><button>Launcher</button><button command="request-close" value="accepted">Request result</button><dialog aria-label="Compatibility"><input autofocus></dialog></section>',
+    play: async ({ canvasElement }) => {
+        const root = required(canvasElement, 'section'), source = required(root, 'button'), command = required<HTMLButtonElement>(root, 'button:nth-child(2)'), owner = required<HTMLDialogElement>(root, 'dialog');
+        owner.id = `compat-dialog-${crypto.randomUUID()}`; command.setAttribute('commandfor', owner.id);
+        Object.defineProperty(owner, 'requestClose', { configurable: true, value: undefined });
+        const controller = connectCemNativeSurface(owner);
+        let requests = 0, cancels = 0, veto = false, nativeVeto = false, reenter = false, stale = false;
+        const errors: string[] = [];
+        owner.addEventListener('cem-interaction-error', event => errors.push((event as CustomEvent).detail.code));
+        owner.addEventListener('cancel', event => { cancels++; if (nativeVeto) event.preventDefault(); });
+        owner.addEventListener('cem-before-close', event => {
+            requests++;
+            if (reenter) expect(controller.requestClose()).toBe(false);
+            if (stale) { owner.close(); controller.open({ source }); }
+            if (veto) event.preventDefault();
+        });
+        try {
+            for (const modal of [false, true]) {
+                if (modal) owner.setAttribute('mode', 'modal'); else owner.removeAttribute('mode');
+                owner.setAttribute('closedby', 'none'); source.focus(); expect(controller.open({ source })).toBe(true);
+                owner.returnValue = 'retained'; nativeVeto = true;
+                const before = requests, nativeBefore = cancels;
+                expect(controller.requestClose()).toBe(false); expect(owner.open).toBe(true);
+                expect(owner.returnValue).toBe('retained'); expect(requests).toBe(before + 1); expect(cancels).toBe(nativeBefore + 1);
+                nativeVeto = false; veto = true;
+                expect(controller.requestClose()).toBe(false); expect(owner.open).toBe(true); expect(requests).toBe(before + 2);
+                veto = false; reenter = true; expect(controller.requestClose()).toBe(true); reenter = false;
+                expect(requests).toBe(before + 3); expect(cancels).toBe(nativeBefore + 3); expect(owner.returnValue).toBe('retained');
+                expect(controller.open({ source })).toBe(true);
+                owner.dispatchEvent(new CommandEvent('command', { source: command, command: 'request-close', cancelable: true }));
+                await waitFor(() => expect(owner.open).toBe(false)); expect(owner.returnValue).toBe('accepted');
+            }
+            owner.removeAttribute('mode'); controller.open({ source }); stale = true;
+            expect(controller.requestClose()).toBe(false); stale = false; expect(owner.open).toBe(true);
+            Object.defineProperty(owner, 'requestClose', { configurable: true, value: () => { throw Error('Unavailable request'); } });
+            expect(controller.requestClose()).toBe(false); expect(owner.open).toBe(true); expect(errors).toContain('interaction-close-request-failed');
+            Reflect.deleteProperty(owner, 'requestClose'); controller.requestClose();
+            Object.defineProperty(owner, 'closedBy', { configurable: true, value: undefined });
+            for (const mode of ['nonmodal', 'modal']) for (const policy of ['none', 'closerequest', 'any']) {
+                owner.setAttribute('mode', mode); owner.setAttribute('closedby', policy);
+                const allowed = mode === 'modal' ? policy === 'closerequest' : policy === 'none';
+                expect(controller.open({ source })).toBe(allowed); expect(owner.open).toBe(allowed);
+                if (allowed) expect(controller.requestClose()).toBe(true);
+            }
+            expect(errors).toContain('interaction-close-policy-unsupported');
+            owner.removeAttribute('mode'); owner.setAttribute('closedby', 'none');
+            expect(controller.open({ source, command: 'show-modal' })).toBe(false);
+            owner.setAttribute('closedby', 'closerequest');
+            expect(controller.open({ source, command: 'show-modal' })).toBe(true); expect(owner.matches(':modal')).toBe(true); controller.requestClose();
+            Reflect.deleteProperty(owner, 'closedBy'); owner.removeAttribute('closedby');
+            Object.defineProperty(owner, 'close', { configurable: true, value: undefined });
+            expect(controller.open({ source })).toBe(false); expect(errors).toContain('interaction-close-api-unavailable');
+        } finally {
+            for (const name of ['requestClose', 'closedBy', 'close']) Reflect.deleteProperty(owner, name);
+            controller.disconnect();
+        }
+    },
+};
 export const TooltipDescriptionInterestAndNoninteractiveValidation: Story = {
     render: () => '<section><button aria-describedby="existing">Interest</button><span id="existing">Existing help</span><div role="tooltip" popover="hint" show-delay="0" hide-delay="0" style="width:100px;height:35px">Stable description</div></section>',
     play: async ({ canvasElement }) => {

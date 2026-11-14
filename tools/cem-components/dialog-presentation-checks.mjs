@@ -78,7 +78,8 @@ export async function verifyDialogPresentations(browser, runtimeUrl, fixtureUrl)
             reports.push({ profile, ...initial, ...(outsideCloseFocus ? { outsideCloseFocus } : {}) });
             await page.evaluate(() => window.surfaceAssessment.controller.disconnect());
         }
-        // Observe policy gaps without turning current deviations into acceptance assertions.
+        // Explicit policy is a regression assertion; outside-focus differences
+        // remain observations until the separate restoration follow-up lands.
         const policy = {};
         for (const adapted of [false, true]) {
             await page.goto(fixtureUrl);
@@ -92,7 +93,7 @@ export async function verifyDialogPresentations(browser, runtimeUrl, fixtureUrl)
             }, { runtimeUrl, adapted });
             await page.keyboard.press('Escape');
             const outcome = await page.evaluate(() => { const s = window.surfaceAssessment; return { closedBySupported: 'closedBy' in s.owner, escapeClosed: !s.owner.open }; });
-            if (!adapted && outcome.closedBySupported) assert.equal(outcome.escapeClosed, false, 'Native closedby=none ignores Escape');
+            if (outcome.closedBySupported) assert.equal(outcome.escapeClosed, false, 'Native and adapted closedby=none ignore Escape');
             if (!adapted) outcome.outsideCloseDestination = await page.evaluate(() => {
                 const s = window.surfaceAssessment; s.outside.focus(); s.owner.requestClose();
                 return document.activeElement === s.outside ? 'outside' : document.activeElement === s.source ? 'launcher' : 'other';
@@ -100,6 +101,42 @@ export async function verifyDialogPresentations(browser, runtimeUrl, fixtureUrl)
             policy[adapted ? 'adapterNonmodalNone' : 'nativeNonmodalNone'] = outcome;
             await page.evaluate(() => { const s = window.surfaceAssessment; if (s.controller) s.controller.disconnect(); else s.owner.close(); });
         }
+        await page.goto(fixtureUrl);
+        await page.evaluate(async runtimeUrl => {
+            const { connectCemNativeSurface } = await import(runtimeUrl);
+            document.body.innerHTML = '<button>Launcher</button><dialog closedby="none" aria-label="Close API"><input autofocus></dialog>';
+            const source = document.querySelector('button'), owner = document.querySelector('dialog'), errors = [];
+            Object.defineProperty(owner, 'requestClose', { configurable: true, value: undefined });
+            const controller = connectCemNativeSurface(owner);
+            let veto = true, requests = 0, cancels = 0;
+            owner.addEventListener('cem-before-close', event => { requests++; if (veto) event.preventDefault(); });
+            owner.addEventListener('cancel', () => cancels++);
+            owner.addEventListener('cem-interaction-error', event => errors.push(event.detail.code));
+            const check = (value, label) => { if (!value) throw Error(label); };
+            try {
+                for (const mode of ['nonmodal', 'modal']) {
+                    owner.setAttribute('mode', mode); source.focus(); check(controller.open({ source }), 'Compatibility open');
+                    const before = requests;
+                    check(!controller.requestClose() && owner.open && requests === before + 1, 'Missing API must preserve veto');
+                    veto = false; check(controller.requestClose() && !owner.open && requests === before + 2 && cancels === requests, 'Accepted fallback closes once'); veto = true;
+                }
+                Object.defineProperty(owner, 'closedBy', { configurable: true, value: undefined });
+                for (const mode of ['nonmodal', 'modal']) for (const policy of ['none', 'closerequest', 'any']) {
+                    owner.setAttribute('mode', mode); owner.setAttribute('closedby', policy);
+                    const allowed = mode === 'modal' ? policy === 'closerequest' : policy === 'none';
+                    check(controller.open({ source }) === allowed && owner.open === allowed, 'Only equivalent native defaults can replace missing policy support');
+                    if (allowed) { veto = false; check(controller.requestClose(), 'Default-policy explicit close'); veto = true; }
+                }
+                check(errors.includes('interaction-close-policy-unsupported'), 'Unsupported policy diagnostic');
+                owner.removeAttribute('mode'); owner.setAttribute('closedby', 'none');
+                check(!controller.open({ source, command: 'show-modal' }), 'Modal command must preflight its actual policy');
+                Reflect.deleteProperty(owner, 'closedBy'); owner.removeAttribute('closedby');
+                check(controller.open({ source }), 'Capability recovery');
+                Object.defineProperty(owner, 'requestClose', { configurable: true, value: () => { throw Error('API failed'); } });
+                check(!controller.requestClose() && owner.open, 'Throwing API must not force close');
+                check(errors.includes('interaction-close-request-failed'), 'Request failure diagnostic');
+            } finally { Reflect.deleteProperty(owner, 'requestClose'); Reflect.deleteProperty(owner, 'closedBy'); controller.disconnect(); }
+        }, runtimeUrl);
         await page.goto(fixtureUrl);
         const lightDismissSupported = await page.evaluate(async runtimeUrl => {
             const { connectCemNativeSurface } = await import(runtimeUrl);

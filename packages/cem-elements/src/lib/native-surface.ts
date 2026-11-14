@@ -39,6 +39,10 @@ const controllers = new WeakMap<HTMLElement, { controller: NativeSurface; kind?:
 const defaultsInitialized = new WeakSet<HTMLElement>();
 let sessions = 0;
 function nativeDialog(node: HTMLElement): node is HTMLDialogElement { return node.localName === 'dialog'; }
+function dialogClosePolicy(owner: HTMLElement): 'none' | 'closerequest' | 'any' | undefined {
+    const value = owner.getAttribute('closedby')?.toLowerCase();
+    return value === 'none' || value === 'closerequest' || value === 'any' ? value : undefined;
+}
 function surfaceKind(owner: HTMLElement, host: HTMLElement): CemNativeSurfaceKind | undefined {
     const kind = host.getAttribute('kind');
     if (kind) return kind === 'dialog' || kind === 'tooltip' ? kind : undefined;
@@ -78,6 +82,7 @@ class NativeSurface implements CemNativeSurfaceController {
     private sessionId = '';
     private disposed = false;
     private disconnecting = false;
+    private requestingClose = false;
     private timer?: ReturnType<typeof setTimeout>;
     private readonly body: CemSurfaceBody;
     readonly controls: CemSurfaceControls;
@@ -152,8 +157,10 @@ class NativeSurface implements CemNativeSurfaceController {
         root.addEventListener('keydown', e => {
             const event = e as KeyboardEvent;
             if (event.defaultPrevented || isCemEditorCompositionKey(event)) return;
+            const noEscape = nativeDialog(owner) && !owner.hasAttribute('popover') && dialogClosePolicy(owner) === 'none';
             if (this.preparation && event.key === 'Escape' && event.target instanceof Node &&
                 (this.invocation?.source?.contains(event.target) || owner.contains(event.target))) {
+                if (noEscape) return;
                 event.preventDefault(); event.stopPropagation(); this.requestClose('escape'); return;
             }
             if (this.kind() === 'tooltip' && event.key === 'Escape' && (visible(owner) || this.timer !== undefined)) {
@@ -162,6 +169,7 @@ class NativeSurface implements CemNativeSurfaceController {
             if (!visible(owner)) return;
             if (event.key === 'Tab') this.noteDismissalReason('tab');
             if (event.key === 'Escape' && (owner.contains(owner.ownerDocument.activeElement) || this.kind() === 'tooltip')) {
+                if (noEscape) return;
                 this.closeReason = 'escape';
                 // Modal native cancellation remains browser-owned. Persistent
                 // nonmodal dialogs and manual popovers need an explicit adapter.
@@ -213,8 +221,18 @@ class NativeSurface implements CemNativeSurfaceController {
         return surfaceKind(this.owner, this.host);
     }
     private placement(): string { return this.host.getAttribute('placement') ?? (this.kind() === 'tooltip' ? 'block-start center' : 'center'); }
-    private profile(): boolean {
-        const kind = this.kind(), modal = this.host.getAttribute('mode') === 'modal' || this.owner.matches(':modal'), role = this.owner.getAttribute('role');
+    private closeCapabilities(modal: boolean): boolean {
+        let code: string | undefined;
+        if (nativeDialog(this.owner) && !this.owner.hasAttribute('popover')) {
+            const policy = dialogClosePolicy(this.owner), nativeDefault = modal ? 'closerequest' : 'none';
+            if (typeof this.owner.close !== 'function') code = 'interaction-close-api-unavailable';
+            else if (policy && policy !== nativeDefault && typeof (this.owner as HTMLElement & { closedBy?: unknown }).closedBy !== 'string') code = 'interaction-close-policy-unsupported';
+        }
+        reportInteractionReference(this.host, code, 'close-capabilities');
+        return !code;
+    }
+    private profile(command = this.invocation?.command): boolean {
+        const kind = this.kind(), modal = this.host.getAttribute('mode') === 'modal' || this.owner.matches(':modal') || command === 'show-modal', role = this.owner.getAttribute('role');
         const invalid = !kind || kind !== this.registeredKind || !this.owner.isConnected || !this.host.isConnected || this.owner.hidden
             || kind === 'dialog' && (!nativeDialog(this.owner) && !(role === 'dialog' && this.owner.hasAttribute('popover')) || role !== null && role !== 'dialog' && role !== 'alertdialog')
             || kind === 'tooltip' && (role !== 'tooltip' || !this.owner.hasAttribute('popover') || this.owner.querySelector('button,a[href],input,select,textarea,[contenteditable]:not([contenteditable="false"]),[tabindex]'))
@@ -224,7 +242,7 @@ class NativeSurface implements CemNativeSurfaceController {
                 && (this.host.getAttribute('mode') === 'modal') !== this.owner.matches(':modal')
             || this.host.getAttribute('overflow') === 'hide' && kind === 'dialog';
         reportInteractionReference(this.host, invalid ? 'interaction-profile-conflict' : undefined, 'profile');
-        return !invalid;
+        return !invalid && this.closeCapabilities(modal);
     }
     private fromSource(source?: HTMLElement): CemSurfaceInvocation {
         if (!source) return {};
@@ -236,7 +254,7 @@ class NativeSurface implements CemNativeSurfaceController {
     }
     private prepare(invocation: CemSurfaceInvocation): boolean {
         const relay = this.kind() === 'dialog' ? captureCemMenuTaskRelay(invocation.source) : undefined;
-        if (this.disposed || !this.profile() || !this.body.valid()) return false;
+        if (this.disposed || !this.profile(invocation.command) || !this.body.valid()) return false;
         if (visible(this.owner) && this.kind() === 'dialog' && (this.invocation?.contextKey ?? null) !== (invocation.contextKey ?? null)) {
             const policy = this.host.getAttribute('context-change') ?? 'reject';
             if (policy !== 'replace' && !(policy === 'request' && this.emit('cem-context-change', true, 'activate', invocation))) {
@@ -245,7 +263,7 @@ class NativeSurface implements CemNativeSurfaceController {
         }
         if (!nativeSurfaceGeometry(this.host, this.owner, invocation.source, invocation.geometry, this.placement())) return false;
         if (!visible(this.owner) && !this.emit('cem-before-open', true, 'activate', invocation)) return false;
-        if (this.disposed || !this.profile()) return false;
+        if (this.disposed || !this.profile(invocation.command)) return false;
         reportInteractionReference(this.host, undefined, 'context');
         this.invalidatePreparation();
         this.relay = relay;
@@ -335,10 +353,10 @@ class NativeSurface implements CemNativeSurfaceController {
         if (visible(this.owner)) return this.show();
         return this.prepareBody() ? this.show() : !!this.preparation;
     }
-    requestClose(reason = 'command'): boolean {
+    requestClose(reason = 'command', result?: string): boolean {
+        if (this.disposed || this.requestingClose) return false;
         this.cancelTimer();
         if (this.kind() === 'tooltip' && ['escape', 'command', 'close-control'].includes(reason)) this.tooltipDismissed = true;
-        if (this.disposed) return false;
         if (this.preparation) {
             if (!this.emit('cem-before-close', true, reason)) return false;
             this.cancelPreparation(); return true;
@@ -348,7 +366,27 @@ class NativeSurface implements CemNativeSurfaceController {
         if (this.owner.hasAttribute('popover')) {
             if (!this.emit('cem-before-close', true, reason)) { this.phase = 'open'; this.restore = false; this.reflect(); return false; }
             this.owner.hidePopover();
-        } else if (nativeDialog(this.owner)) this.owner.requestClose();
+        } else if (nativeDialog(this.owner)) {
+            const owner = this.owner, generation = this.generation, session = this.sessionId;
+            this.requestingClose = true;
+            try {
+                if (typeof owner.requestClose === 'function') {
+                    if (result === undefined) owner.requestClose(); else owner.requestClose(result);
+                } else if (typeof owner.close === 'function') {
+                    // Older dialog APIs still use the same cancel/CEM guard.
+                    // Only acceptance in this live session grants native close.
+                    const accepted = owner.dispatchEvent(new Event('cancel', { cancelable: true }));
+                    if (accepted && !this.disposed && generation === this.generation && session === this.sessionId
+                        && owner.isConnected && this.host.isConnected && owner.open && !owner.hasAttribute('popover')) {
+                        if (result === undefined) owner.close(); else owner.close(result);
+                    }
+                } else reportInteractionReference(this.host, 'interaction-close-api-unavailable', 'close-capabilities');
+                reportInteractionReference(this.host, undefined, 'close-request');
+            } catch {
+                reportInteractionReference(this.host, 'interaction-close-request-failed', 'close-request');
+            } finally { this.requestingClose = false; }
+            if (visible(owner)) { this.phase = 'open'; this.restore = false; }
+        }
         this.sync(); return !visible(this.owner);
     }
     private command(event: CommandEvent): void {
@@ -369,6 +407,9 @@ class NativeSurface implements CemNativeSurfaceController {
             event.preventDefault(); this.open(invocation); return;
         } else {
             const reason = this.controls.isClose(event.source) ? 'close-control' : 'command';
+            if (event.command === 'request-close' && nativeDialog(this.owner) && typeof this.owner.requestClose !== 'function') {
+                event.preventDefault(); this.requestClose(reason, event.source?.getAttribute('value') ?? undefined); return;
+            }
             if (event.command === '--cem-hide' || this.preparation) { event.preventDefault(); this.requestClose(reason); return; }
             this.closeReason = reason; this.captureReturn();
             if (this.owner.hasAttribute('popover') && !this.emit('cem-before-close', true, reason)) event.preventDefault();
@@ -387,7 +428,7 @@ class NativeSurface implements CemNativeSurfaceController {
     checkpoint(resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): { phase: 'open' | 'closed'; state: CheckpointSurface } | undefined {
         const body = this.body.checkpoint(resolve);
         if (body === undefined || this.disposed || !this.host.isConnected || !this.owner.isConnected || !['closed', 'open'].includes(this.phase)
-            || this.preparation || this.prepared || this.timer || this.activation || this.relay || this.releaseBusy
+            || this.preparation || this.prepared || this.timer || this.activation || this.relay || this.releaseBusy || this.requestingClose
             || this.restore || this.tooltipPointer || this.tooltipAutomatic || this.tooltipDismissed || this.describedSources.size
             || [...this.tooltipSources.values()].some(source => source.focused || source.pointer || source.touch)
             || this.host.hasAttribute('anchor') || this.host.hasAttribute('boundary')

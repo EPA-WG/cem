@@ -444,8 +444,8 @@ Dialog shown as popover is governed by popover visibility, not dialog.open. Do n
 
 The [2026-11-14 dialog/popover assessment](../packages/cem-components/docs/dialog-contract.md#dialogpopover-assessment--2026-11-14)
 retains this presentation matrix and records compiled-browser evidence, native
-focus-return differences, explicit close-policy gaps and the canonical scrim
-follow-up. It recommends shared policy and focus fixes before changing dialog
+focus-return differences, completed close-policy compatibility and the canonical
+scrim follow-up. It recommends shared focus fixes before changing dialog
 declarations; top-layer popovers do not replace native modal containment.
 
 A guarded task cannot promise veto of native auto/hint-popover hiding. Reject that combination; use a manual explicit-close surface or native dialog request lifecycle. Direct native forced close and dialog-method results are not retroactively vetoed. Manual-popover command-menu composition can request menu navigation/dismissal through the runtime, but is not a way to override browser auto-popover grouping rules.

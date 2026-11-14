@@ -398,21 +398,54 @@ for the current native work and the conditional diagnostic items on recurrence.
     isolated packed runtimes pass in Chromium 148.0.7778.96 and Firefox 150.0.2;
     source/packed galleries, bundle, themes and forced-color checks pass. The 29
     shared/production-dialog stories and three menu-to-task relay stories pass;
-    verifier lint is clean. Observation probes expose explicit nonmodal
+    verifier lint is clean. Observation probes exposed explicit nonmodal
     `closedby="none"` Escape bypass and Firefox's outside-focus restoration
-    difference, also reproduced without the adapter. These remain implementation
-    follow-ups rather than passing behavior assertions. Modal backdrop paint is
+    difference, also reproduced without the adapter. The close-policy repair is
+    completed below; outside-focus restoration remains an implementation
+    follow-up rather than a passing behavior assertion. Modal backdrop paint is
     currently user-agent-owned, without a canonical CEM scrim rule. WebKit lacks
     required host libraries; screen-reader, physical-device and native Back
     acceptance remain unverified. Standards and compatibility sources are linked
     in the assessment.
 
-- [ ] Honor explicit native dialog close policies in the shared nonmodal Escape
+- [x] Honor explicit native dialog close policies in the shared nonmodal Escape
       adapter while retaining CEM's default Escape behavior. Add capability
       handling for unavailable `requestClose`/close-policy support without
       bypassing vetoes via forced close. Convert assessment observations into
       regression assertions and add colocated dialog/shell cases for `none`,
       `closerequest`, `any`, guard veto and explicit close requests.
+  - [x] Add shared policy/native-keyboard and close-API compatibility fixtures,
+        including native/CEM vetoes, missing/throwing APIs, command results,
+        reentrant requests, stale sessions, pending-preparation policy and
+        unsupported-policy refusal.
+  - [x] Add colocated dialog and shell policy/fallback regressions and compiled
+        Chromium/Firefox checks; preserve popover, form and focus behavior.
+    Completed 2026-11-14: explicit native-dialog `none` suppresses shared Escape
+    during preparation and while open, including case-insensitive enum matching.
+    Default/invalid policies retain established Escape behavior; explicit close
+    requests remain cancelable and popover modes stay independent. Missing
+    `requestClose()` dispatches one cancelable owner event through the existing
+    CEM guard and closes only after acceptance in the same connected session.
+    Native/CEM vetoes, reentrancy and stale-session changes cannot authorize a
+    fallback close. Request failures diagnose without retrying forced close;
+    command results and retained return values survive. Missing `closedBy`
+    permits equivalent native defaults (nonmodal `none`, modal `closerequest`),
+    including Studio's modal policy; unsupported differences are refused before
+    opening, including native modal commands. The core native close API is
+    checked before admission. Shared policy changes are observed live.
+    Verification: the two initial shared regressions fail before the fix; 37
+    shared/component/relay stories and six existing submenu/checkpoint cases
+    pass. Dialog and shell each exercise both modes, all three policies and
+    present/missing request APIs. Compiled workspace/packed runtime probes pass
+    in Chromium 148 and Firefox 150 with masked missing/throwing APIs, vetoes,
+    default-policy compatibility and unsupported-policy refusal. Source/packed
+    galleries, bundle, themes and forced colors pass. Typecheck, runtime build,
+    declarative architecture and lint pass (existing non-null-assertion warnings;
+    verifier lint clean). Studio rebuild/output verification pass. WebKit remains
+    unavailable because host libraries are missing; no historical-browser or
+    physical-device acceptance is inferred from feature masking. The
+    [close-policy contract](../packages/cem-components/docs/dialog-contract.md#close-policy-and-request-compatibility)
+    records the compatibility boundary and keeps outside-focus repair separate.
 - [ ] Preserve the outside focus destination when a persistent nonmodal dialog
       closes in Firefox. Use the unadapted/native comparison to bound the repair;
       preserve native modal restoration, explicit return references, Tab/outside

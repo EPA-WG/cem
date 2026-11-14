@@ -24,7 +24,7 @@ persistent nonmodal task. `mode="modal"` explicitly requests browser modality.
 | `popover` | Optional `manual` or `auto` top-layer nonmodal presentation. Modal plus popover is rejected. |
 | `default-open` | Presence requests the initial opening once per produced instance. It is not live open state. |
 | `surface-id` | Optional ID on the native owner for native `commandfor` relationships. |
-| `closedby` | Forwarded native close policy. |
+| `closedby` | Forwarded native close policy. Explicit `none` suppresses shared Escape; explicit close controls still request cancelable closure. Policies differing from the native presentation default require `closedBy` support. |
 | `focus-target`, `return-focus` | Shared typed reference or scoped string; `auto` uses native entry and the actual invoker; `none` suppresses shared focus work. Native browser focus behavior still applies. |
 | `anchor`, `boundary`, `placement`, `fallback`, `overflow`, `anchor-lost` | Shared surface geometry. Dialogs default to centered placement and freeze established geometry on anchor loss. |
 | `context-change` | `reject` (default), `replace`, or cancelable `request` for an already-open task invoked with different context. |
@@ -50,6 +50,43 @@ remains available. Focus moved elsewhere, an unavailable destination, and
 `return-focus="none"` suppress shared restoration. The
 [project navigation workflow](project-navigation-contract.md) demonstrates delayed
 Save, failed Save, Discard and Cancel with declarative state and shared controls.
+
+## Close-policy and request compatibility
+
+For a native dialog without popover presentation, explicit `closedby="none"`
+suppresses the shared Escape handler during preparation and while open. Native
+enum matching is case-insensitive; surrounding whitespace is not stripped.
+Absent, empty and invalid values retain CEM's established nonmodal Escape
+behavior. Modal Escape remains browser-owned. `closedby` does not govern popover
+visibility: a manual popover task retains its shared Escape behavior.
+
+Explicit CEM close controls/commands and shared `requestClose()` calls remain
+cancelable requests even with `closedby="none"`. If the native method exists,
+the adapter uses it. If it is unavailable, the adapter dispatches one cancelable
+native-owner `cancel` event through the existing CEM guard bridge and calls
+native `close()` only after acceptance in the same connected session. Either a
+native cancel listener or `cem-before-close` may veto. Reentrant shared requests
+are refused; reopening, replacing context or disconnecting during cancellation
+cannot authorize closure of a newer session. Vetoes preserve `returnValue`;
+fallback `request-close` commands retain an authored button value. A throwing
+request API reports `interaction-close-request-failed` and leaves the task open,
+without retrying through forced close.
+
+The core native `close()` method is required before opening. Its absence reports
+`interaction-close-api-unavailable`. Without a string-valued native `closedBy`
+capability, nonmodal `none` and modal `closerequest` still work because they match
+the presentation's native default. Other recognized explicit policies report
+`interaction-close-policy-unsupported` and refuse opening before visibility or
+focus entry, including modal commands without an authored mode. This avoids
+pretending that keyboard handling alone implements all native dismissal channels.
+Omit an unsupported policy to use CEM's default task behavior; popover tasks keep
+their independent native mode. Feature
+masking in modern Chromium/Firefox verifies these paths; it does not certify all
+historical browser versions or polyfill command/popover APIs.
+
+Native forced `close()` and successful `form method="dialog"` remain separate
+completion paths. This compatibility change preserves native modality, the
+stable owner, focus references, form validation and popover presentation.
 
 ## Migration from legacy dialogs
 
@@ -161,10 +198,10 @@ Chromium 148.0.7778.96 and Firefox 150.0.2 agree on that core presentation matri
 Both expose `requestClose` and `closedBy`. Their observations also identify work
 that must precede a broader dialog change:
 
-1. The shared nonmodal Escape adapter requests closure even with explicit
-   `closedby="none"`. The unadapted native probe stays open in both engines.
-   Make the adapter honor explicit close policy while preserving the established
-   CEM default Escape behavior and explicit cancelable close requests.
+1. The assessment found shared nonmodal Escape bypassing explicit
+   `closedby="none"`. Fixed on 2026-11-14 by the
+   [close-policy compatibility contract](#close-policy-and-request-compatibility).
+   The compiled observation is now a regression assertion in both engines.
 2. Closing a persistent nonmodal task after outside focus leaves focus outside
    in Chromium but returns it to the launcher in Firefox. The probe intercepts
    the launcher's JavaScript `focus()` method and confirms zero shared return
@@ -172,16 +209,17 @@ that must precede a broader dialog change:
    difference. Preserve the current outside destination without adding a second
    general focus owner.
 3. Native close-policy support and request APIs have independent compatibility
-   histories. The adapter currently calls `requestClose()` directly. Add bounded
-   capability handling without bypassing a close veto through forced `close()`.
-   Do not claim `closedby` behavior based only on dialog/popover availability.
+   histories. Fixed on 2026-11-14 with cancelable request fallback and explicit
+   unsupported-policy refusal, verified against masked capabilities in both
+   compiled engines. `closedby` behavior is not inferred from dialog/popover
+   availability.
 4. An auto/hint hide cannot promise veto. Keep guarded tasks on modal/native
    request or manual-popover paths; any future declarative guard configuration
    must reject an incompatible auto/hint guarantee before opening.
 
-The observation probes log policy deviations instead of accepting them as
-contract assertions. Convert them to regression assertions when the shared fixes
-land. The [dialog compatibility data](https://github.com/mdn/browser-compat-data/blob/main/html/elements/dialog.json)
+Outside-focus differences remain observation probes until the separate shared
+restoration fix lands. Close-policy and API compatibility are regression
+assertions. The [dialog compatibility data](https://github.com/mdn/browser-compat-data/blob/main/html/elements/dialog.json)
 and [API compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/HTMLDialogElement.json)
 were checked during this assessment. Installed WebKit cannot launch because host
 libraries are missing; Safari, assistive technology and physical Back/dismiss
@@ -191,6 +229,6 @@ gestures are unverified. No modal emulation fallback is recommended.
 CEM_SURFACE_FIREFOX=1 yarn nx run @epa-wg/cem-components:verify-surfaces --excludeTaskDependencies --skipNxCache
 ```
 
-Implement shared close-policy/capability handling first, outside-focus recovery
-second and canonical scrim styling third. Add colocated production-dialog cases
+Shared close-policy/capability handling is complete. Continue with outside-focus
+recovery and then canonical scrim styling. Add colocated production-dialog cases
 for each change; retain browser-owned modality and the existing default API.

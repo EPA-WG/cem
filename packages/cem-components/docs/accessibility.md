@@ -192,7 +192,7 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   a focus-neutral region with controls in normal document order.
   Explicit dialog popovers remain nonmodal. The
   [dialog/popover assessment](./dialog-contract.md#dialogpopover-assessment--2026-11-14)
-  records current close-policy and browser-restoration gaps; shared return-focus
+  records close-policy fixes and the remaining browser-restoration gap; shared return-focus
   suppression alone does not guarantee suppression of native restoration.
 - Composite components decide tabindex per the WAI-ARIA Authoring Practices for
   their composite pattern (e.g. menubar = one tabstop, internal arrow keys). Per
