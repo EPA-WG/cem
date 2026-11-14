@@ -979,6 +979,13 @@
             "path": "./assets/@epa-wg/cem-studio/project-bootstrap.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-studio/preview-window": {
+            "path": "./assets/@epa-wg/cem-studio/preview-window.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
+            }
+        },
         "@epa-wg/cem-studio/preview-viewer": {
             "path": "./assets/@epa-wg/cem-studio/preview-viewer.js",
             "contentType": "text/javascript",

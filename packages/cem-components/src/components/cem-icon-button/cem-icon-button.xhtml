@@ -4,14 +4,9 @@
        content; aria-label names the glyph and control. href and interaction
        states remain owned by cem-icon-button. Action variants and bend classes
        apply to both modes; buttons also reuse native action form attributes. -->
+  <!-- Adjacent instructions avoid formatting-only nodes in retained checkpoints. -->
   <template id="cem-icon-button" type="text/cem-ml">
-    {cem-element @tag=cem-icon @src="../cem-icon/cem-icon.xhtml#cem-icon"}
-    {cem:variable @name=imageValue @select='if seq:count(datadom.attributes.image) > 0 { datadom.attributes.image } else { if seq:count(datadom.attributes.href) > 0 { "" } else { "circle" } }'}
-    {attribute @name=variant | primary}
-    {attribute @name=type | button}
-    {attribute @name=direction | row}
-    {attribute @name=align | center}
-    {style @type="text/css" |```
+    {cem-element @tag=cem-icon @src="../cem-icon/cem-icon.xhtml#cem-icon"}{cem:variable @name=imageValue @select='if seq:count(datadom.attributes.image) > 0 { datadom.attributes.image } else { if seq:count(datadom.attributes.href) > 0 { "" } else { "circle" } }'}{attribute @name=variant | primary}{attribute @name=type | button}{attribute @name=direction | row}{attribute @name=align | center}{style @type="text/css" |```
 
         :scope[hidden]:where(:not([hidden="until-found" i])) {
             display: none;
@@ -36,6 +31,7 @@
             --cem-control-height: var(--cem-control-height-xx-large);
         }
         :scope > :is(button, a)[part~='control'] {
+            font: inherit;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -323,27 +319,6 @@
                 &amp;:where(:focus-visible) { outline-color: CanvasText; }
             }
         }
-        ```}
-    {cem:choose |
-      {cem:when @test="seq:count(datadom.attributes.href) > 0" |
-        {a @class="cem-icon-button cem-icon-link cem-icon-button--{$variant}" @part=control @role={if seq:count(datadom.attributes.disabled) > 0 { "link" } else { null }} @aria-disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @tabindex={if seq:count(datadom.attributes.disabled) > 0 { -1 } else { null }} @aria-label={datadom.attributes.aria-label ?? datadom.attributes.label} @aria-busy={datadom.attributes.pending} @aria-current={datadom.attributes.aria-current ?? (if seq:count(datadom.attributes.selected) > 0 { "true" } else { null })} @slice={if seq:count(datadom.attributes.disabled) > 0 { null } else { "pressed" }} @slice-event=click @slice-value="$event.type" |
-          {cem:if @test="seq:count(datadom.attributes.disabled) == 0" | {cem:attribute @name=href @value={datadom.attributes.href}}}
-          {cem-icon @size={datadom.attributes.size} @direction="{$direction}" @align="{$align}" @label={datadom.attributes.label} @aria-label={datadom.attributes.aria-label} @class={datadom.attributes.class} |
-            {cem:attribute @name=image @value={$imageValue}}
-            {cem:if @test="seq:count(datadom.attributes.hidden) > 0" | {cem:attribute @name=hidden @value={datadom.attributes.hidden}}}
-            {slot}
-          }
-        }
-      }
-      {cem:otherwise |
-        {button @aria-expanded={datadom.attributes.aria-expanded} @aria-controls={datadom.attributes.aria-controls} @role={datadom.attributes.control-role} @aria-checked={if (datadom.attributes.control-role ?? "") == "menuitemradio" { if seq:count(datadom.attributes.selected) > 0 { "true" } else { "false" } } else { null }} @type="{$type}" @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @class="cem-icon-button cem-icon-button--{$variant}" @aria-label={datadom.attributes.aria-label ?? datadom.attributes.label ?? "Icon action"} @part=control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-busy={datadom.attributes.pending} @aria-pressed={if (datadom.attributes.control-role ?? "") == "menuitemradio" { null } else { if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } } }} @slice=pressed @slice-event=click @slice-value="$event.type" |
-          {cem-icon @size={datadom.attributes.size} @direction="{$direction}" @align="{$align}" @label={datadom.attributes.label} @aria-label={datadom.attributes.aria-label} @class={datadom.attributes.class} |
-            {cem:attribute @name=image @value={$imageValue}}
-            {cem:if @test="seq:count(datadom.attributes.hidden) > 0" | {cem:attribute @name=hidden @value={datadom.attributes.hidden}}}
-            {slot}
-          }
-        }
-      }
-    }
+        ```}{cem:choose |{cem:when @test="seq:count(datadom.attributes.href) > 0" |{a @class="cem-icon-button cem-icon-link cem-icon-button--{$variant}" @part=control @role={if seq:count(datadom.attributes.disabled) > 0 { "link" } else { null }} @aria-disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @tabindex={if seq:count(datadom.attributes.disabled) > 0 { -1 } else { null }} @aria-label={datadom.attributes.aria-label ?? datadom.attributes.label} @aria-busy={datadom.attributes.pending} @aria-current={datadom.attributes.aria-current ?? (if seq:count(datadom.attributes.selected) > 0 { "true" } else { null })} @slice={if seq:count(datadom.attributes.disabled) > 0 { null } else { "pressed" }} @slice-event=click @slice-value="$event.type" |{cem:if @test="seq:count(datadom.attributes.disabled) == 0" | {cem:attribute @name=href @value={datadom.attributes.href}}}{cem-icon @size={datadom.attributes.size} @direction="{$direction}" @align="{$align}" @label={datadom.attributes.label} @aria-label={datadom.attributes.aria-label} @class={datadom.attributes.class} |{cem:attribute @name=image @value={$imageValue}}{cem:if @test="seq:count(datadom.attributes.hidden) > 0" | {cem:attribute @name=hidden @value={datadom.attributes.hidden}}}{slot}}}}{cem:otherwise |{button @aria-expanded={datadom.attributes.aria-expanded} @aria-controls={datadom.attributes.aria-controls} @role={datadom.attributes.control-role} @aria-checked={if (datadom.attributes.control-role ?? "") == "menuitemradio" { if seq:count(datadom.attributes.selected) > 0 { "true" } else { "false" } } else { null }} @type="{$type}" @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @class="cem-icon-button cem-icon-button--{$variant}" @aria-label={datadom.attributes.aria-label ?? datadom.attributes.label ?? "Icon action"} @part=control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-busy={datadom.attributes.pending} @aria-pressed={if (datadom.attributes.control-role ?? "") == "menuitemradio" { null } else { if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } } }} @slice=pressed @slice-event=click @slice-value="$event.type" |{cem-icon @size={datadom.attributes.size} @direction="{$direction}" @align="{$align}" @label={datadom.attributes.label} @aria-label={datadom.attributes.aria-label} @class={datadom.attributes.class} |{cem:attribute @name=image @value={$imageValue}}{cem:if @test="seq:count(datadom.attributes.hidden) > 0" | {cem:attribute @name=hidden @value={datadom.attributes.hidden}}}{slot}}}}}
   </template>
 </cem-element>

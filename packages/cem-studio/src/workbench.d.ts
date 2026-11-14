@@ -311,6 +311,7 @@ export declare function mountCemStudioWorkbench(options: {
     root: Element;
     workbench: CemStudioFeatureTourWorkbench;
     clipboard?: Pick<Clipboard, 'writeText'>;
+    previewWindowOptions?: { openWindow?: (url: string, target: string, features: string) => Window | null | undefined; timeoutMs?: number };
     download?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>;
 }): Promise<
     Readonly<{

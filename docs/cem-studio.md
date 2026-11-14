@@ -1673,14 +1673,14 @@ exercises these contracts after single-output and Supplier multi-output previews
 Assessed 2026-11-13. An **Open in separate window** action is feasible, but the
 current preview is not a navigable page URL. The heading control is a small
 change; preserving the same content, isolation and resource lifetime is a
-medium-sized shared-runtime/viewer change. This assessment does not add the
-button or a detached viewer.
+medium-sized shared-runtime/viewer change. The implementation below delivers
+the passive snapshot scope.
 
 The existing paths establish these boundaries:
 
 | Surface | Existing representation | Reuse for a separate viewer |
 | --- | --- | --- |
-| Heading | `cem-workspace` owns Output preview; it exposes `preview-heading`, but only Navigation has an actions slot. | Add a general `preview-actions` slot, then compose a small contextual `cem-icon-button` with the `north_east` glyph and matching title/accessible name. |
+| Heading | `cem-workspace` owns Output preview and exposes `preview-heading` and `preview-actions`. | Compose a small contextual `cem-icon-button` with the `north_east` glyph and matching title/accessible name. |
 | HTML site/artifact | `registerCemArtifactTree` returns a realm-local handle; `mountCemArtifactPreview` fills a sandboxed `srcdoc` frame and creates temporary CSS/image blobs. | Reuse artifact admission, native CSS remapping and navigation in a new viewer-owned registration. The handle and frame URL cannot be used as a standalone page link. |
 | Single HTML/SVG document | `cem-media-preview mode=document` uses a fixed deny-all `srcdoc` sandbox. | Keep that document policy inside the viewer's frame. Opening raw output in a top-level page would omit this iframe boundary. |
 | Text and JSON/CSV table | Studio selects literal bounded text or the shared `cem-data-view` projection. | Reuse the same shared controls, text/row limits and truncation indicators; do not substitute an unbounded download. |
@@ -4263,3 +4263,30 @@ VS Code/IntelliJ dialogs remain follow-up work. Their adapters must preserve
 exact bytes and immutable addresses when materializing the manifest and
 resources; saved native builds use `--resolver-project project.cem`. They share
 the plan/review/generate transport and must publish transactionally after review.
+
+The Output preview header now provides **Open in separate window** (`north_east`,
+↗), a small contextual icon button with a matching title and accessible name.
+Unavailable/live/download-only previews show their reason beside the disabled
+control. Pending capture publication is fenced by the same settled-selection
+check used by `capturePreview`. The compact override uses the control's inert
+instance stylesheet; projected content stays within its documented CSS boundary.
+
+A trusted activation opens `preview.html#viewer=<temporary-session>` with
+`noopener`. A bounded same-origin channel handshake distinguishes a responding
+viewer from a blocked popup; a null window handle alone does not. Failure is
+reported beside the action without changing the pane, selection or build. The
+button remains focusable during transfer, while the controller rejects duplicate
+requests. Browsers may choose a tab and may ignore a request to focus an existing
+viewer.
+
+One workbench manages one viewer session. Explicit later clicks replace its
+snapshot without opening more windows, rebuilding or saving. Replacement keeps
+the previous snapshot until receipt and declarative publication succeed. During
+replacement only, the viewer may retain two separately bounded 16 MiB stores;
+a failed candidate is released, and successful publication releases the old
+store. The sender releases its copy after receipt. Viewer closure releases its
+stores and cancels pending work; source closure cancels pending transfers but
+leaves an already transferred snapshot usable. Reloading the token-free viewer
+cannot repeat the transfer. Sessions have no durable storage or opener reference;
+a disappeared/nonresponsive window times out and a subsequent click opens a new
+session. Live/application detachment remains deferred.

@@ -8,8 +8,10 @@ import { createCemStudioPreviewHandler } from './serve-preview.mjs';
 const projectRoot = resolve(import.meta.dirname, '..');
 const security = JSON.parse(await readFile(resolve(projectRoot, 'dist/static/security-headers.json'), 'utf8'));
 const staticHandler = createCemStudioPreviewHandler({ versionedAssets: false });
+const versionedHandler = createCemStudioPreviewHandler();
 const server = createServer((request, response) => {
     if (request.url === '/sender.html') response.writeHead(200, { ...security.headers, 'content-type': 'text/html' }).end('<!doctype html><title>Snapshot transport fixture</title>');
+    else if (new URL(request.url, 'http://localhost').searchParams.has('sample')) void versionedHandler(request, response);
     else void staticHandler(request, response);
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -103,6 +105,101 @@ try {
         await viewer.close();
     }
     await context.close();
+    // The native header command must use trusted activation and a noopener
+    // browsing context; service-only fixtures cannot prove popup policy.
+    const studioContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const studio = await studioContext.newPage(); studio.setDefaultTimeout(30000);
+    await studio.goto(`${origin}/?sample=markdown-site&build=build-site`);
+    await studio.waitForFunction(() => globalThis.__cemStudioApplication);
+    const settle = () => studio.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+    await studio.getByRole('button', { name: 'Clone selected', exact: true }).click();
+    const clone = studio.getByRole('dialog');
+    await clone.getByRole('textbox').fill('Detached preview lifecycle fixture');
+    await clone.getByRole('button', { name: 'Clone', exact: true }).click(); await settle();
+    await studio.evaluate(() => globalThis.__cemStudioApplication.workbench.buildProjectPreview()); await settle();
+    const captured = await studio.evaluate(async () => {
+        const { createCemPreviewSnapshotStore } = await import(new URL('./assets/@epa-wg/cem-elements/dist/index.js', document.baseURI).href);
+        const store = createCemPreviewSnapshotStore();
+        try {
+            const snapshot = globalThis.__cemStudioApplication.workbenchView.capturePreview(store);
+            return { identity: snapshot.identity, mode: snapshot.preview.mode, path: snapshot.preview.artifactPath };
+        } finally { store.dispose(); }
+    });
+    assert.equal(captured.mode, 'artifact-tree');
+    const sourceRoute = studio.url();
+    const action = studio.getByRole('button', { name: 'Open in separate window', exact: true });
+    const opened = studioContext.waitForEvent('page'); await action.focus(); await action.press('Enter');
+    let detached = await opened; detached.setDefaultTimeout(30000);
+    await settle();
+    await detached.getByRole('heading', { level: 1, name: captured.identity.label, exact: true }).waitFor();
+    assert.equal(await detached.evaluate(() => window.opener), null);
+    assert.equal(await detached.evaluate(() => location.hash), '');
+    assert.equal(studio.url(), sourceRoute);
+    const viewerUrl = await studio.evaluate(() => new URL('preview.html', document.baseURI).href);
+    assert.equal(detached.url(), viewerUrl);
+    assert.ok(new URL(viewerUrl).pathname.startsWith('/__cem_preview__/'));
+    assert.equal(await action.evaluate(button => document.activeElement === button), true);
+    const originalRun = captured.identity.runId;
+    const nextPath = await studio.evaluate(async initial => {
+        const workbench = globalThis.__cemStudioApplication.workbench;
+        const path = workbench.snapshot().projectPreview.projection.buildRun.artifacts.find(item => item.path !== initial && item.contentType === 'text/html')?.path;
+        if (!path) throw Error('Markdown fixture needs a second HTML artifact');
+        await workbench.selectPreviewArtifact(path); return path;
+    }, captured.path);
+    await settle();
+    await action.click(); await settle();
+    assert.equal(studioContext.pages().length, 2, 'Repeated opening reuses the existing viewer');
+    await detached.waitForFunction(path => document.querySelector('cem-media-preview')?.getAttribute('artifact-path') === path, nextPath);
+
+    assert.equal(await studio.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectPreview.projection.buildRun.id), originalRun, 'Opening never rebuilds');
+    const pin = await studio.evaluate(async () => {
+        const workbench = globalThis.__cemStudioApplication.workbench;
+        await workbench.pinProjectBuild();
+        const state = workbench.snapshot().projectPreview;
+        if (state.pinError) throw Error(state.pinError.message);
+        return state.pins[0].key;
+    });
+    await studio.evaluate(() => globalThis.__cemStudioApplication.workbench.buildProjectPreview()); await settle();
+    const newRun = await studio.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectPreview.projection.buildRun.id);
+    assert.notEqual(newRun, originalRun);
+    await detached.getByText(`Captured run: ${originalRun}`, { exact: true }).waitFor();
+    await action.click(); await settle();
+    await detached.getByText(`Captured run: ${newRun}`, { exact: true }).waitFor();
+    await studio.evaluate(pin => globalThis.__cemStudioApplication.workbench.selectPinnedBuild(pin), pin); await settle();
+    await action.click(); await settle();
+    await detached.getByText('Pinned build snapshot', { exact: true }).waitFor();
+    await detached.getByText(`Captured run: ${originalRun}`, { exact: true }).waitFor();
+    await studio.evaluate(async () => {
+        const workbench = globalThis.__cemStudioApplication.workbench;
+        await workbench.selectPinnedBuild('');
+        const { project } = workbench.snapshot().navigation.selection;
+        const build = workbench.snapshot().projectPreview.configurationId;
+        await workbench.openEntity(new URLSearchParams({ project, build, file: 'content-articles-first-build-md' }).toString());
+        await workbench.selectPreviewArtifact('generated/articles/first-build.html');
+        workbench.updateDraft('# A changed draft awaiting rebuild');
+    }); await settle();
+    const retainedPath = await studio.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectPreview.preview.artifactPath);
+    await action.click(); await settle();
+    await detached.getByText('Stale output retained from the captured preview', { exact: true }).waitFor();
+    await detached.getByText(`Captured run: ${newRun}`, { exact: true }).waitFor();
+    assert.equal(studioContext.pages().length, 2);
+    await studio.emulateMedia({ forcedColors: 'active' });
+    await action.hover();
+    assert.equal(await action.evaluate(button => getComputedStyle(button, '::before').display), 'none');
+    await detached.emulateMedia({ forcedColors: 'active' });
+    assert.equal(await detached.evaluate(() => matchMedia('(forced-colors: active)').matches), true);
+    await detached.close();
+    // Wait for the close notification rather than adding a scheduler sleep.
+    await studio.waitForFunction(() => !document.querySelector('[part=preview-actions]')?.textContent.includes('Separate preview is open.'));
+    await studio.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration(document.baseURI))?.active));
+    await studioContext.setOffline(true);
+    const reopened = studioContext.waitForEvent('page'); await action.click(); detached = await reopened; await settle();
+    await detached.locator('cem-media-preview[mode=artifact-tree]').waitFor();
+    await studio.close();
+    assert.equal(await detached.locator('cem-media-preview').getAttribute('artifact-path'), retainedPath);
+    await detached.locator('iframe').waitFor();
+    results.push({ mode: 'header-launcher', keyboard: true, noopener: true, reuse: true, reopen: true, offline: true, sourceIndependent: true, selectionPreserved: true, scopedBase: true, runReplacement: true, pinned: true, stale: true });
+    await studioContext.close();
     const reportRoot = resolve(projectRoot, '../../dist/reports/cem-studio');
     await mkdir(reportRoot, { recursive: true });
     await writeFile(resolve(reportRoot, 'preview-viewer.json'), `${JSON.stringify({ cases: results }, null, 2)}\n`);

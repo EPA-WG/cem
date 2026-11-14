@@ -37,6 +37,20 @@ export const Dimensions = meta.story({
     },
 });
 
+export const InheritedTypography = meta.story({
+    render: () => '<section style="font: 19px/1.5 serif"><cem-icon-button image="↗" aria-label="Open"></cem-icon-button><cem-icon-button href="#destination" image="↗" aria-label="Navigate"></cem-icon-button></section>',
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            await whenIconButtonRendered(host);
+            const control = host.querySelector<HTMLElement>('[part=control]')!;
+            const inherited = getComputedStyle(host);
+            expect(getComputedStyle(control).fontSize).toBe(inherited.fontSize);
+            expect(getComputedStyle(control).lineHeight).toBe(inherited.lineHeight);
+            expect(getComputedStyle(control).fontFamily).toBe(inherited.fontFamily);
+        }
+    },
+});
+
 export const AllAttributes = meta.story({
     render: () => '<section class="cem-theme-light"><cem-icon-button></cem-icon-button></section>',
     play: async ({ canvasElement }) => {

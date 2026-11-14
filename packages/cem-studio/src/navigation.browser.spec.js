@@ -1,6 +1,7 @@
-import { createCemPreviewSnapshotStore, mountCemArtifactPreview } from '@epa-wg/cem-elements';
+import { createCemPreviewSnapshotStore, mountCemArtifactPreview, receiveCemPreviewSnapshot } from '@epa-wg/cem-elements';
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createCemStudioNavigation, createCemStudioProjectPreview, createCemStudioSourcePreview, describeCemStudioProjectBuildCli } from './navigation.js';
+import { connectCemStudioPreviewWindow } from './preview-window.js';
 import { commandSchema, parseCemMlCommandText, serializeCemMlCommand } from '@epa-wg/cem-ml-cli/browser-commands';
 import { mountCemStudioFeatureTourWorkbench } from './workbench.js';
 import { installCemStudioShellComponents, mountCemStudioApplicationShell } from './shell.js';
@@ -1120,4 +1121,73 @@ it('captures only the settled displayed preview and preserves stale build owners
         expect(stale.identity.sourceRevision).toBe(1); stale.dispose();
         view.dispose(); expect(() => view.capturePreview(store)).toThrow('changing');
     } finally { view.dispose(); store.dispose(); root.remove(); }
+}, 60_000);
+
+it('opens the settled preview from its compact heading by keyboard and reports popup failure without building', async () => {
+    const { userEvent } = await import('vitest/browser');
+    const { service } = await fixture();
+    await service.buildProjectPreview();
+    const root = document.createElement('main'); document.body.append(root);
+    const colors = document.createElement('style'); colors.textContent = themeCss; document.head.append(colors);
+    const openWindow = vi.fn(() => null);
+    const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service, previewWindowOptions: { openWindow, timeoutMs: 30 } });
+    try {
+        await view.whenSettled();
+        const button = root.querySelector('[host-command=open-preview-window] button');
+        const icon = button.closest('cem-icon-button');
+        expect(button.closest('[part~=preview] > [part=heading]')).not.toBeNull();
+        expect(icon.getAttribute('title')).toBe('Open in separate window');
+        expect(button.getAttribute('aria-label')).toBe('Open in separate window');
+        expect(icon.getAttribute('image')).toBe('north_east');
+        expect(icon.getAttribute('size')).toBe('small');
+        const before = service.snapshot().projectPreview.projection;
+        for (const theme of ['cem-theme-light', 'cem-theme-dark', 'cem-theme-projector', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native']) {
+            root.className = theme;
+            expect(button.disabled).toBe(false); button.focus();
+            await userEvent.keyboard('{Enter}'); await view.whenSettled();
+            expect(root.textContent).toContain('Allow popups and try again');
+            expect(document.activeElement).toBe(button);
+            expect(service.snapshot().projectPreview.projection).toBe(before);
+            expect(getComputedStyle(button).visibility).toBe('visible');
+            expect(getComputedStyle(icon).getPropertyValue('--cem-control-height-small').trim()).toBe('1lh');
+        }
+        const navigationButton = root.querySelector('[host-command=create-selected] button');
+        expect(button.getBoundingClientRect().height).toBe(navigationButton.getBoundingClientRect().height);
+        root.style.setProperty('--cem-typography-ui-font-size', '19px');
+        expect(getComputedStyle(button).fontSize).toBe('19px');
+        await userEvent.hover(button);
+        expect(getComputedStyle(icon).getPropertyValue('--cem-action-outline-display').trim()).toBe('block');
+        expect(openWindow).toHaveBeenCalledTimes(6);
+        expect(openWindow.mock.calls[0][2]).toBe('popup,noopener');
+        await service.openEntity(''); await view.whenSettled();
+        expect(button.disabled).toBe(true);
+        expect(root.textContent).toContain('No displayed output');
+    } finally { view.dispose(); root.remove(); colors.remove(); }
+}, 60_000);
+
+
+it('shows the unavailable reason when a separate snapshot remains open after leaving its source', async () => {
+    const { userEvent } = await import('vitest/browser');
+    const { service } = await fixture(); await service.buildProjectPreview();
+    const target = createCemPreviewSnapshotStore();
+    const root = document.createElement('main'); document.body.append(root);
+    let connection, held;
+    const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service, previewWindowOptions: {
+        openWindow(url) {
+            const id = new URLSearchParams(new URL(url).hash.slice(1)).get('viewer');
+            connection = connectCemStudioPreviewWindow({ id, focus: () => undefined,
+                receive: async token => { held = await receiveCemPreviewSnapshot(target, token); } });
+            return null;
+        },
+    } });
+    try {
+        await view.whenSettled();
+        const button = root.querySelector('[host-command=open-preview-window] button');
+        await userEvent.click(button); await view.whenSettled();
+        expect(root.textContent).toContain('Separate preview is open.');
+        await service.openEntity(''); await view.whenSettled();
+        expect(button.disabled).toBe(true); expect(root.textContent).toContain('No displayed output');
+        expect(target.usage().snapshots).toBe(1); expect(held.preview.mode).toBe('artifact-tree');
+        view.dispose(); expect(target.usage().snapshots).toBe(1);
+    } finally { connection?.dispose(); target.dispose(); view.dispose(); root.remove(); }
 }, 60_000);

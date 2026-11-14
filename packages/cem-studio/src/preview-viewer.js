@@ -22,14 +22,15 @@ async function installViewer() {
 /** Browser transport and lifetime only; the XHTML view owns all visible UI. */
 export async function mountCemStudioPreviewViewer({ root, token, signal, timeoutMs, store = createCemPreviewSnapshotStore(), themeMode }) {
     signal?.throwIfAborted();
-    let disposed = false, view, retained;
+    let disposed = false, view, retained, replacing;
+    let currentStore = store;
     const lifetime = new AbortController();
     const initialTheme = CEM_STUDIO_THEME_MODES.includes(themeMode) ? themeMode : createCemStudioThemeController().mode;
     let state = { phase: 'waiting', theme: initialTheme };
     const publish = () => { if (!disposed) view?.update({ state }); };
     function dispose() {
         if (disposed) return;
-        disposed = true; signal?.removeEventListener('abort', dispose); lifetime.abort(); view?.dispose(); view = undefined; store.dispose(); retained = undefined;
+        disposed = true; signal?.removeEventListener('abort', dispose); lifetime.abort(); view?.dispose(); view = undefined; replacing?.abort(); currentStore.dispose(); retained = undefined;
         state = { phase: 'closed', theme: state.theme };
     }
     signal?.addEventListener('abort', dispose, { once: true });
@@ -53,6 +54,33 @@ export async function mountCemStudioPreviewViewer({ root, token, signal, timeout
         } });
         const ready = received.then(async () => { if (!disposed) { publish(); await view?.whenSettled(); } });
         return Object.freeze({ ready, dispose, snapshot: () => Object.freeze({ ...state }),
+            async replace(nextToken, options = {}) {
+                await ready;
+                if (disposed || replacing) throw new DOMException('Preview viewer unavailable', 'AbortError');
+                const controller = new AbortController(); replacing = controller;
+                const abort = () => controller.abort(); options.signal?.addEventListener('abort', abort, { once: true });
+                if (options.signal?.aborted) abort();
+                // The current lease remains intact until the candidate has been
+                // received and published. Each store has its own 16 MiB bound.
+                const candidateStore = createCemPreviewSnapshotStore();
+                let previous, adopted = false;
+                try {
+                    const candidate = await receiveCemPreviewSnapshot(candidateStore, nextToken, { signal: controller.signal, timeoutMs });
+                    controller.signal.throwIfAborted(); lifetime.signal.throwIfAborted();
+                    previous = state;
+                    state = { ...state, phase: 'ready', identity: candidate.identity, preview: candidate.preview }; publish();
+                    await view?.whenSettled();
+                    controller.signal.throwIfAborted(); lifetime.signal.throwIfAborted();
+                    const oldStore = currentStore;
+                    retained = candidate; currentStore = candidateStore; adopted = true; oldStore.dispose();
+                } catch (error) {
+                    if (!disposed && previous) { state = previous; publish(); await view?.whenSettled(); }
+                    throw error;
+                } finally {
+                    if (!adopted) candidateStore.dispose();
+                    options.signal?.removeEventListener('abort', abort); replacing = undefined;
+                }
+            },
             async whenSettled() { await ready; await view?.whenSettled(); },
             setTheme(theme) { if (!disposed && CEM_STUDIO_THEME_MODES.includes(theme)) { state = { ...state, theme }; publish(); } },
         });

@@ -1,3 +1,4 @@
+import { createCemStudioPreviewWindow } from './preview-window.js';
 import { projectResourceUri } from './resource-reference.js';
 import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
@@ -1834,6 +1835,7 @@ export async function mountCemStudioWorkbench({
     workbench,
     clipboard = navigator.clipboard,
     download = browserDownload,
+    previewWindowOptions,
 }) {
     if (!(root instanceof Element)) throw new TypeError('Feature Tour workbench root must be an Element');
     const components = await installCemStudioShellComponents();
@@ -1843,7 +1845,8 @@ export async function mountCemStudioWorkbench({
     const mount = authoredLayout?.parentElement ?? document.createElement('div');
     if (!authoredLayout) root.append(mount);
     const layout = mountCemView(components.runtime, { root: mount, element: authoredLayout ?? undefined, tag: 'cem-studio-workbench-layout',
-        state: { navigation: workbenchLayoutNavigation(workbench.snapshot().navigation) } });
+        state: { navigation: workbenchLayoutNavigation(workbench.snapshot().navigation), previewWindow: { enabled: false } },
+        commands: { 'open-preview-window': () => { windowPromise = previewWindow.open(); return windowPromise; } } });
     await layout.whenSettled();
     const host = layout.element;
     const center = mountCemView(components.runtime, {
@@ -2072,8 +2075,30 @@ export async function mountCemStudioWorkbench({
         },
     });
     let latestSnapshot, displayedSnapshot;
+    let windowPromise = Promise.resolve();
+    let windowState = { busy: false, message: '' };
+    function publishPreviewAction() {
+        if (!active) return;
+        let enabled = false, reason = 'The displayed preview is changing. Wait for it to settle.';
+        if (displayedSnapshot && displayedSnapshot === latestSnapshot) {
+            try { describeDisplayedPreview(displayedSnapshot); enabled = true; reason = ''; }
+            catch (error) { reason = error.message; }
+        }
+        layout.update({ previewWindow: { enabled, busy: windowState.busy, message: windowState.message || (windowState.busy ? 'Opening preview window…' : reason || (windowState.open ? 'Separate preview is open.' : '')) } });
+    }
+    const previewWindow = createCemStudioPreviewWindow({
+        ...previewWindowOptions,
+        url: new URL('preview.html', document.baseURI),
+        capture(store) {
+            if (!active || !displayedSnapshot || displayedSnapshot !== latestSnapshot) throw new Error('The displayed preview is changing. Wait for it to settle.');
+            return captureCemStudioDisplayedPreview(displayedSnapshot, store);
+        },
+        onState(state) { windowState = state; publishPreviewAction(); },
+    });
     const render = (snapshot) => {
         latestSnapshot = snapshot;
+        windowState = { ...windowState, message: '' };
+        publishPreviewAction();
         renderPromise = renderPromise.then(async () => {
             if (!active) return;
             const current = latestSnapshot;
@@ -2091,7 +2116,7 @@ export async function mountCemStudioWorkbench({
             layout.update({ navigation: workbenchLayoutNavigation(current.navigation) });
             center.update({ navigation: workbenchLayoutNavigation(current.navigation) });
             await Promise.all([layout.whenSettled(), center.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), buildView.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
-            if (active && latestSnapshot === current) displayedSnapshot = current;
+            if (active && latestSnapshot === current) { displayedSnapshot = current; publishPreviewAction(); await layout.whenSettled(); }
         });
     };
     const unsubscribe = workbench.subscribe(render);
@@ -2106,6 +2131,8 @@ export async function mountCemStudioWorkbench({
         },
         async whenSettled() {
             while (true) {
+                const windowAction = windowPromise;
+                await windowAction;
                 const controlAction = controlPromise;
                 const edits = editPromise;
                 const build = buildPromise;
@@ -2115,11 +2142,12 @@ export async function mountCemStudioWorkbench({
                 const renders = renderPromise;
                 await renders;
                 await Promise.all([layout.whenSettled(), center.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), buildView.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
-                if (controlAction === controlPromise && edits === editPromise && build === buildPromise && renders === renderPromise) return;
+                if (windowAction === windowPromise && controlAction === controlPromise && edits === editPromise && build === buildPromise && renders === renderPromise) return;
             }
         },
         dispose() {
             active = false;
+            previewWindow.dispose();
             unsubscribe();
             navigation.dispose();
             navigationActions.dispose();
@@ -3022,6 +3050,10 @@ function resolveWorkbenchPreview(state, includePreview = true) {
 /** Capture the same admitted values selected for the pane, never the pane DOM.
  * The mounted view's capturePreview additionally fences pending publication. */
 export function captureCemStudioDisplayedPreview(state, store) {
+    return store.capture(describeDisplayedPreview(state));
+}
+
+function describeDisplayedPreview(state) {
     const { view, identity } = resolveWorkbenchPreview(state);
     const unavailable = message => { throw Object.assign(new Error(message), { code: 'cem.studio.preview.snapshot_unavailable' }); };
     if (view.projectPreview?.missingArtifact) unavailable('The selected preview is unavailable.');
@@ -3038,7 +3070,7 @@ export function captureCemStudioDisplayedPreview(state, store) {
         else if (value.kind === 'text') preview = { mode: 'text', value: value.text, truncated: Boolean(value.truncated) };
         else unavailable(value.reason ?? 'This preview is unavailable for a separate viewer.');
     }
-    return store.capture({ identity, preview });
+    return { identity, preview };
 }
 
 function workbenchResultState(state) {

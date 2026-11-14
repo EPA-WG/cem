@@ -21,6 +21,24 @@ export const FlushRegions = meta.story({
     },
 });
 
+export const PreviewHeadingActions = meta.story({
+    render: () => '<cem-workspace appearance="flush" layout="project"><span slot="preview-actions"><button type="button" title="Open in separate window">↗</button></span><p slot="editor">Source stays here</p><p slot="preview">Captured output</p></cem-workspace>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-workspace')!;
+        await whenCemRendered(host);
+        const button = host.querySelector<HTMLButtonElement>('button')!;
+        expect(button.closest('[part~=preview]')?.querySelector('[part=title]')?.textContent).toBe('Preview');
+        expect(button.closest('[part=heading]')).not.toBeNull();
+        button.focus(); host.setAttribute('preview-label', 'Output preview'); await whenCemRendered(host);
+        expect(host.querySelector('button')).toBe(button); expect(document.activeElement).toBe(button);
+        expect(host.querySelector('[part~=preview] [part=heading]')?.textContent).toContain('Output preview');
+        for (const theme of ['light', 'dark', 'projector', 'contrast-light', 'contrast-dark', 'native']) {
+            host.className = `cem-theme-${theme}`;
+            expect(getComputedStyle(button).visibility).toBe('visible');
+        }
+    },
+});
+
 export const WorkerRetention = meta.story({
     render: () => '<div></div>',
     play: async ({ canvasElement }) => {

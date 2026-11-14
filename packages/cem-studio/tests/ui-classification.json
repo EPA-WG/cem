@@ -242,11 +242,11 @@
             "requirement": "Render bounded output in an isolated, non-scriptable preview while retaining metadata and safe text/download fallbacks.",
             "disposition": "application-orchestration",
             "compositionGate": "open",
-            "generalComponents": ["cem-media-preview", "cem-data-view", "cem-stack", "cem-card", "cem-alert", "cem-action", "cem-progress-spinner"],
+            "generalComponents": ["cem-media-preview", "cem-data-view", "cem-stack", "cem-card", "cem-alert", "cem-action", "cem-icon-button", "cem-workspace", "cem-progress-spinner"],
             "studioComponents": [],
             "materialReferences": ["card", "button", "progress-spinner"],
             "contractBounds": ["Shared CEM controls own literal/data projection, sandboxed frames and artifact resource admission. Studio composes the read-only viewer and owns captured selection metadata and the one-use handoff lifecycle."],
-            "applicationOwns": ["displayed preview selection", "snapshot identity and lifetime", "viewer route and handoff", "download lifecycle"],
+            "applicationOwns": ["displayed preview selection", "snapshot identity and lifetime", "viewer route and handoff", "popup session and page-exit lifetime", "download lifecycle"],
             "evidence": ["docs/cem-studio.md#preview-rules", "docs/cem-studio.md#security-and-privacy", "docs/cem-studio.md#separate-preview-window-assessment"]
         },
         {

@@ -210,7 +210,7 @@ for the current native work and the conditional diagnostic items on recurrence.
       scope. Interactive live/application detachment is a separate larger task.
       See [the assessment](cem-studio.md#separate-preview-window-assessment).
 
-- [ ] Implement **Open in separate window** for the current passive Output preview
+- [x] Implement **Open in separate window** for the current passive Output preview
       using the assessed snapshot contract, without rerunning or saving a build.
   - [x] Add shared bounded snapshot ownership and a one-use viewer handoff before
         Studio UI work; preserve exact output resources and existing isolation,
@@ -257,14 +257,50 @@ for the current native work and the conditional diagnostic items on recurrence.
       inherited typography, forced colors and receiver disposal are exercised.
       Build, lint, typecheck, UI classification and packaged-output checks pass;
       the viewer import map has a verified exact CSP hash. The launcher is next.
-  - [ ] Add a general `cem-workspace` preview-actions slot and the small contextual
+  - [x] Add a general `cem-workspace` preview-actions slot and the small contextual
         `cem-icon-button` with `north_east`, matching title/accessibility label and
         an explicit unavailable reason for unsupported or missing previews.
-    - [ ] Verify popup/handshake failure, offline use, preserved Studio selection,
+    - [x] Add shared workspace preview-actions retention/gallery fixtures before
+          app adoption, then launcher/controller and real-window fixtures for
+          blocked/no-response popups, repeated replacement, failed replacement,
+          close-before/after-receipt, selection guards and snapshot cleanup, including rejected captures and a
+          fresh smaller-output retry. Preserve viewer navigation during a pending
+          failed replacement and show unavailable reasons while an older detached
+          snapshot remains open.
+    - [x] Verify compact shared icon-button/workspace declarations through their
+          stories, add inherited native-control typography coverage and retain Login
+          recovery within the original node limit.
+    - [x] Verify popup/handshake failure, offline use, preserved Studio selection,
           keyboard/focus, six themes, inherited overrides and forced colors.
-    - [ ] Complete source/pinned/current selection, stale success, run replacement,
+    - [x] Complete source/pinned/current selection, stale success, run replacement,
           repeated opening, parent/viewer close and resource-accounting fixtures
           through the actual header launcher and window lifecycle.
+
+      Completed 2026-11-14: the shared workspace exposes `preview-actions` and
+      Studio composes the compact contextual `north_east` icon button with its
+      matching title/name. Disabled previews retain an explicit reason even when
+      a previous detached snapshot stays open. Browser services own trusted
+      `noopener` opening, a bounded readiness handshake, replacement and page-exit
+      cleanup; all visible controls, status and bindings remain declarative.
+      Repeated activation updates one viewer without building or saving. Failed
+      replacement retains the prior snapshot and navigation; rejected captures
+      release their leases and allow a fresh smaller-output retry. Parent closure
+      after completed receipt preserves the independent viewer.
+      Verification: 29 shared workspace/icon-button stories and 67 Studio browser
+      cases pass across regression/focused runs. Six other recovery cases passed
+      during the full recovery run; both complete Login worker/fallback cases
+      pass in isolation within the unchanged 32,768-node/4 MiB limits and existing
+      deadlines. Concurrent browser suites hit recovery deadlines; no deadline or
+      limit was increased. Formatting-only icon-button/workspace nodes were
+      removed, and native icon controls now inherit typography consistently.
+      The packaged verifier passes all four passive modes offline and the actual
+      header lifecycle under the local server's versioned base: keyboard/focus,
+      preserved route/run, fresh build replacement, pinned/stale output, viewer
+      reuse/close/reopen, forced colors, offline reopening and source closure.
+      Build, typecheck, UI classification, catalog, declarative architecture and
+      packaged asset/CSP checks pass. Studio lint is clean; shared-component lint
+      passes with non-null-assertion warnings. Live/application detachment remains
+      deferred as assessed.
 
 - [ ] Give `cem-menu-item` selected styling while its submenu is open. Derive
       the appearance from the shared submenu's actual expanded state, using

@@ -390,8 +390,8 @@ This first delivery implements action-side wiring and native targets. Shared pop
 | `cem-workspace` | Persistent authoring workspace. | Named `navigation`, `editor`, `preview`, `tools` slots; matching `-heading` slots override visible labels. `label`/`aria-label`, four `*-label` attributes, optional `fit="fill"`. `appearance="flush"` removes pane gaps/content insets while retaining compact region headings and contextual navigation actions. `layout="browser"` shows navigation and editor/content in two regions, stacking below 840px; `layout="project"` keeps navigation, editor and preview, with no tools region; the default `workbench` retains four regions. Container queries at 840/1200px arrange one/two/three columns. | gap, inset, palette, stroke, bend, typography, responsive, control, coupling | Named regions retain their authored DOM, selection and focus; layout adds no selection or resizing behavior. |
 | `cem-divider` | Visible sibling-separation track. | `orientation="horizontal\|vertical"`; `spacing="related\|group\|block\|section"`; presence-only `inset` and `decorative`. It owns no content, state, focus, or events. | separator, stroke, gap, inset, coupling | Semantic form exposes a non-focusable separator with exact orientation. Decorative form removes the role/orientation and sets `aria-hidden="true"`. |
 
-`cem-workspace` accepts `slot="navigation-actions"` for controls beside its
-navigation heading. The wrapping header owns spacing; the heading remains a
+`cem-workspace` accepts `slot="navigation-actions"` and `slot="preview-actions"`
+for controls beside the corresponding heading. The wrapping header owns spacing; the heading remains a
 separate `h2`, so interactive controls do not become part of its accessible name.
 
 These six layout/content owners use canonical XHTML, declaration-scoped token CSS

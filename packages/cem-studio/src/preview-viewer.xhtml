@@ -8,7 +8,7 @@
 [part~='preview'] { min-inline-size: 0; }
 @media (forced-colors: active) { [part~='root'] { background: Canvas; color: CanvasText; forced-color-adjust: auto; } }
 ```}{cem:variable @name=s @select=datadom.slices.state}{section @part=root @data-theme={s.theme} @aria-label="Read-only output preview" |{cem-stack |
-{header |{h1 @part=title |{$ | s.identity.label ?? "Output preview"}}{p | Read-only snapshot. Later Studio edits and builds do not update this view.}{cem:if @test=s.identity.runId |{p @part=identity | Captured run: {$ | s.identity.runId}}}{cem:if @test=s.identity.draft |{p @role=status | Draft source snapshot}}{cem:if @test=s.identity.stale |{p @role=status | Stale output retained from the captured preview}}{cem:if @test=s.identity.pinned |{p @role=status | Pinned build snapshot}}}
+{header |{h1 @part=title |{$ | s.identity.label ?? "Output preview"}}{p | Read-only snapshot. Use Open in separate window in Studio again to update it.}{cem:if @test=s.identity.runId |{p @part=identity | Captured run: {$ | s.identity.runId}}}{cem:if @test=s.identity.draft |{p @role=status | Draft source snapshot}}{cem:if @test=s.identity.stale |{p @role=status | Stale output retained from the captured preview}}{cem:if @test=s.identity.pinned |{p @role=status | Pinned build snapshot}}}
 {cem:choose |
 {cem:when @test='s.phase == "waiting"' |{p @role=status | Waiting for the captured preview…}}
 {cem:when @test='s.phase == "error"' |{cem-alert @tone=danger @role=alert @label={s.error}}}

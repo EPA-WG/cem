@@ -103,3 +103,33 @@ it('shows expired/invalid transfer errors and releases a cancelled receiver with
     abort.abort(); await pending.ready;
     expect(target.usage().snapshots).toBe(0); expect(root.querySelector('iframe, pre, table')).toBeNull();
 }, 60_000);
+
+it('replaces a detached snapshot only after successful receipt and keeps it after a failed replacement', async () => {
+    const { view } = await viewer({ identity: { label: 'First snapshot' }, preview: { mode: 'text', value: 'First' } });
+    const sender = store();
+    const candidate = sender.capture({ identity: { label: 'Second snapshot' }, preview: { mode: 'text', value: 'Second' } });
+    const offer = offerCemPreviewSnapshot(candidate); candidate.dispose(); cleanup.push(offer.cancel);
+    await view.replace(offer.token); await offer.completed;
+    expect(view.snapshot().preview.value).toBe('Second');
+    const abort = new AbortController(); abort.abort();
+    await expect(view.replace(crypto.randomUUID(), { signal: abort.signal })).rejects.toThrow();
+    expect(view.snapshot().preview.value).toBe('Second');
+    expect(view.snapshot().identity.label).toBe('Second snapshot');
+});
+
+it('preserves artifact navigation performed while a failed replacement is waiting', async () => {
+    const { view, root } = await viewer({ identity: { label: 'Site' }, preview: { mode: 'artifact-tree', artifactPath: 'index.html', artifacts: [
+        { path: 'index.html', contentType: 'text/html', bytes: encode('<a href="next.html">Next</a>') },
+        { path: 'next.html', contentType: 'text/html', bytes: encode('<h1>Still available</h1>') },
+    ] } });
+    const abort = new AbortController();
+    const replacing = view.replace(crypto.randomUUID(), { signal: abort.signal });
+    // Attach the failure observer before cancellation can reject the handoff.
+    const failed = expect(replacing).rejects.toThrow();
+    await Promise.resolve();
+    root.querySelector('iframe').contentDocument.querySelector('a').click(); await view.whenSettled();
+    expect(view.snapshot().preview.artifactPath).toBe('next.html');
+    abort.abort(); await failed;
+    expect(view.snapshot().preview.artifactPath).toBe('next.html');
+    expect(root.querySelector('iframe').contentDocument.body.textContent).toContain('Still available');
+});
