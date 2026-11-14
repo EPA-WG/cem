@@ -77,7 +77,8 @@
         #playground-theme cem-demo-element > [slot="demo"] hr {
             align-self: stretch;
             inline-size: 100%;
-            margin-block: calc(var(--cem-menu-row-height) / 2);
+            /* Reserve both themed row/hit-area height and the inter-item gap. */
+            margin-block: calc((max(var(--cem-menu-row-height), var(--cem-control-height), var(--cem-coupling-zone-min)) + max(var(--cem-menu-item-gap), var(--cem-gap-related))) / 2);
         }
 
         #playground-theme cem-demo-element > [slot="demo"] > :is(div, cem-element) {

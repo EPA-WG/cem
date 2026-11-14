@@ -302,14 +302,41 @@ for the current native work and the conditional diagnostic items on recurrence.
       passes with non-null-assertion warnings. Live/application detachment remains
       deferred as assessed.
 
-- [ ] Give `cem-menu-item` selected styling while its submenu is open. Derive
+- [x] Give `cem-menu-item` selected styling while its submenu is open. Derive
       the appearance from the shared submenu's actual expanded state, using
       existing CEM state tokens; clear it when the submenu closes or switches.
       Preserve menu roles and `aria-expanded` rather than adding `aria-selected`
       solely for styling.
-  - [ ] Add colocated stories/gallery coverage for nested submenu switching,
+  - [x] Add colocated stories/gallery coverage for nested submenu switching,
         keyboard and pointer opening, dismissal, disabled items, themes,
         inherited token overrides and forced colors.
+  - [x] Verify that standalone expanded attributes do not imply an open submenu,
+        that open ancestors retain their contour while focus enters descendants,
+        and that pointer press, Escape/Tab/outside dismissal and disabling an open
+        trigger clear only the appropriate state. Exercise the actual gallery.
+  - [x] Keep the dropdown gallery’s filler clearance large enough for themed
+        control/hit-area geometry, then verify menu, dropdown and menu-item source,
+        built and packed-package galleries without relaxing their bounds checks.
+
+      Completed 2026-11-14: enabled menu owners derive a persistent inset zebra
+      contour from the managed `aria-haspopup="menu"`/`aria-expanded="true"`
+      relationship. Open ancestors stay marked while focus moves into descendants;
+      closing, switching or disabling an owner clears the contour. The outer
+      keyboard-focus treatment stays independent, contextual hover/press colors
+      remain, and no ARIA selection or pressed state is introduced. Forced colors
+      use a `SelectedItem` boundary with canonical selected stroke/offset tokens.
+      The declaration stays within the public selector-specificity ceiling.
+      Thirteen colocated menu-item/menu/dropdown stories pass, including six
+      themes, nested keyboard/pointer operation, held activation, disabled owners,
+      owner color overrides and inherited geometry. The actual source, built and
+      packed-package galleries pass for all three components; menu-item examples
+      include projector and live submenu owners in all six theme rows. Visual
+      inspection confirms open ancestors and the focused leaf remain distinct.
+      Dropdown example filler spacing now reserves themed row/hit-area size plus
+      inter-item gaps; narrow overlay bounds checks pass after layout settles.
+      Declarative architecture, native style contract, state matrix (41 covered
+      requirements), catalog/build and package verification pass. Component lint
+      passes with non-null-assertion warnings; the gallery verifier lint is clean.
 
 - [ ] Use CSS anchor positioning with `position-area` for menus, tooltips and
       popups, including `position-try-fallbacks` for alternate placements when

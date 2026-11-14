@@ -19,7 +19,7 @@
         :scope > a[part~='control']:where([href]:active) { background-color: var(--cem-action-contextual-active-background); color: var(--cem-action-contextual-active-text); }
         :scope { display: inline-flex; position: relative; }
         :scope > :is(button, a)[part~='control'] {
-            display: flex; flex: 1; align-items: center; gap: var(--cem-gap-related);
+            position: relative; display: flex; flex: 1; align-items: center; gap: var(--cem-gap-related);
             min-block-size: var(--cem-menu-row-height);
             padding: var(--cem-inset-control);
             border: 0; text-decoration: none;
@@ -28,11 +28,24 @@
             line-height: var(--cem-typography-ui-line-height);
             font-weight: var(--cem-typography-ui-font-weight);
         }
+        /* The menu owns expanded state. Its contour stays inside the row,
+           independently of the native control's outer keyboard-focus ring. */
+        :scope > [part~='control']:where([aria-haspopup='menu'][aria-expanded='true']:enabled:not([aria-disabled='true']))::before {
+            content: ''; position: absolute; pointer-events: none;
+            inset: calc(3 * var(--cem-zebra-strip-size));
+            box-shadow: 0 0 0 var(--cem-zebra-strip-size) var(--cem-zebra-color-1),
+                0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),
+                0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
+        }
         :scope > [part~='control']:where(:focus-visible) { outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1); outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
         :scope > [part~='control']:where(:disabled, [aria-disabled='true']) { background: var(--cem-action-contextual-disabled-background); color: var(--cem-action-contextual-disabled-text); }
         :scope > [part~='control']:where([aria-haspopup='menu'])::after { content: '▾'; }
         :scope > [part~='control']:where([aria-expanded='true'])::after { content: '▴'; }
         @media (forced-colors: active) {
+            :scope > [part~='control']:where([aria-haspopup='menu'][aria-expanded='true']:enabled:not([aria-disabled='true']))::before {
+                box-shadow: none; inset: var(--cem-stroke-indicator-offset);
+                border: var(--cem-stroke-selected) solid SelectedItem;
+            }
             :scope > [part~='control']:where(:focus-visible) { outline-color: Highlight; }
             :scope > [part~='control']:where(:disabled, [aria-disabled='true']) { color: GrayText; }
         }

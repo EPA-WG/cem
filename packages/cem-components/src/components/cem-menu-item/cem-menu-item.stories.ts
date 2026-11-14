@@ -5,7 +5,12 @@ import declarationSource from './cem-menu-item.xhtml?raw';
 const meta = preview.meta({
     component: 'cem-menu-item',
     title: 'CEM Components/cem-menu-item',
-    loaders: [async () => { await loadCemDeclaration('cem-menu-item', declarationSource); return {}; }],
+    loaders: [async () => {
+        await loadCemDeclaration('cem-menu-item', declarationSource);
+        const menuDeclarationSource = await (await fetch(new URL('../cem-menu/cem-menu.xhtml', import.meta.url))).text();
+        await loadCemDeclaration('cem-menu', menuDeclarationSource.replace('tag="cem-menu"', 'tag="cem-menu" xml:base="/packages/cem-components/src/components/cem-menu/cem-menu.xhtml"'));
+        return {};
+    }],
 });
 
 export const AllAttributes = meta.story({
@@ -82,6 +87,114 @@ export const NativeActivation = meta.story({
         button.click();
         expect(clicks).toHaveLength(3);
         expect(host.querySelector('button')).toBe(button);
+    },
+});
+
+const submenuExample = `<cem-menu keyboard="menu" aria-label="Commands">
+    <cem-menu-item label="File"><cem-menu slot="submenu">
+        <cem-menu-item label="New"></cem-menu-item>
+        <cem-menu-item label="More"><cem-menu slot="submenu"><cem-menu-item label="Deep command"></cem-menu-item></cem-menu></cem-menu-item>
+    </cem-menu></cem-menu-item>
+    <cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item>
+    <cem-menu-item label="Unavailable" disabled><cem-menu slot="submenu"><cem-menu-item label="Blocked command"></cem-menu-item></cem-menu></cem-menu-item>
+</cem-menu>`;
+
+async function settleSubmenus(root: HTMLElement) {
+    for (let pass = 0; pass < 4; pass++) {
+        await Promise.all(Array.from(root.querySelectorAll<HTMLElement>('cem-menu,cem-menu-item'), whenCemRendered));
+        await new Promise(resolve => setTimeout(resolve, 20));
+    }
+}
+function menuTrigger(root: ParentNode, label: string): HTMLButtonElement {
+    const control = root.querySelector<HTMLButtonElement>(`cem-menu-item[label="${label}"] > button`);
+    if (!control) throw new Error(`Missing ${label} menu trigger`);
+    return control;
+}
+function expectSubmenuContour(control: HTMLButtonElement, open: boolean) {
+    expect(control.getAttribute('aria-expanded')).toBe(String(open));
+    expect(control.hasAttribute('aria-selected')).toBe(false);
+    expect(control.hasAttribute('aria-pressed')).toBe(false);
+    const contour = getComputedStyle(control, '::before');
+    expect(contour.content).toBe(open ? '""' : 'none');
+    if (open) {
+        expect(contour.boxShadow).not.toBe('none');
+        expect(contour.pointerEvents).toBe('none');
+    }
+}
+
+export const OpenSubmenuSelection = meta.story({
+    render: () => `<section class="cem-theme-light"><p>Trusted nested-menu checks run in the browser test runner.</p>${submenuExample}<button style="margin-block-start:20rem">Outside</button><cem-menu-item expanded="true" label="Standalone"></cem-menu-item></section>`,
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        await settleSubmenus(canvasElement);
+        const file = menuTrigger(canvasElement, 'File'), more = menuTrigger(canvasElement, 'More'), edit = menuTrigger(canvasElement, 'Edit');
+        expectSubmenuContour(file, false);
+        expect(getComputedStyle(menuTrigger(canvasElement, 'Standalone'), '::before').content).toBe('none');
+        file.focus(); await userEvent.keyboard('{ArrowDown}');
+        expectSubmenuContour(file, true); expect(document.activeElement).toBe(menuTrigger(canvasElement, 'New'));
+        await userEvent.keyboard('{ArrowDown}{ArrowRight}');
+        expectSubmenuContour(file, true); expectSubmenuContour(more, true);
+        expect(document.activeElement).toBe(menuTrigger(canvasElement, 'Deep command'));
+        await userEvent.keyboard('{Escape}'); expectSubmenuContour(more, false); expectSubmenuContour(file, true);
+        await userEvent.keyboard('{Escape}'); expectSubmenuContour(file, false);
+        await userEvent.click(file); expectSubmenuContour(file, true);
+        await userEvent.click(edit); expectSubmenuContour(file, false); expectSubmenuContour(edit, true);
+        await userEvent.keyboard('{Enter}'); expectSubmenuContour(edit, false);
+        await userEvent.click(file); await userEvent.click(canvasElement.querySelector('section > button')!);
+        expectSubmenuContour(file, false);
+        file.focus(); await userEvent.keyboard('{ArrowDown}{Tab}'); expectSubmenuContour(file, false);
+        const unavailable = menuTrigger(canvasElement, 'Unavailable');
+        unavailable.click(); expectSubmenuContour(unavailable, false);
+        await userEvent.click(file);
+        file.parentElement!.setAttribute('disabled', ''); await whenCemRendered(file.parentElement!);
+        expectSubmenuContour(file, false); expect(file.disabled).toBe(true);
+    },
+});
+
+export const OpenSubmenuThemes = meta.story({
+    render: () => `<section class="cem-theme-light"><p>Trusted six-theme and forced-color checks run in the browser test runner.</p>${submenuExample}</section>`,
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent, cdp } = await import('vitest/browser');
+        await settleSubmenus(canvasElement);
+        const container = canvasElement.querySelector('section')!;
+        const file = menuTrigger(canvasElement, 'File');
+        for (const theme of ['light', 'dark', 'projector', 'contrast-light', 'contrast-dark', 'native']) {
+            container.className = `cem-theme-${theme}`;
+            file.focus(); await userEvent.keyboard('{ArrowDown}'); expectSubmenuContour(file, true);
+            const shadow = splitTopLevel(getComputedStyle(file, '::before').boxShadow)[0];
+            expect(paintedColor(shadow.slice(0, shadow.indexOf(')') + 1))).toBe(resolveTokenColor(file, '--cem-zebra-color-1'));
+            const bounds = file.getBoundingClientRect();
+            await userEvent.hover(file); expectSubmenuContour(file, true);
+            expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(file).backgroundColor), file, '--cem-action-contextual-hover-background');
+            const down = nextTrustedPointerDown(file), click = userEvent.click(file, { delay: 200 });
+            await eventBeforeInteractionCompletes(down, click, 'pointerdown');
+            expectSubmenuContour(file, true);
+            expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(file).backgroundColor), file, '--cem-action-contextual-active-background');
+            await click; expectSubmenuContour(file, false);
+            expect(file.getBoundingClientRect().height).toBe(bounds.height);
+        }
+        // Theme focus-within rules own their state colors on the item host.
+        // An owner override is inherited by its native control and contour.
+        file.parentElement!.style.setProperty('--cem-zebra-color-1', 'rgb(12, 34, 56)');
+        container.style.setProperty('--cem-zebra-strip-size', '3px');
+        container.style.setProperty('--cem-stroke-selected', '4px');
+        container.style.setProperty('--cem-stroke-indicator-offset', '2px');
+        file.focus(); await userEvent.keyboard('{ArrowDown}'); expectSubmenuContour(file, true);
+        expect(getComputedStyle(file, '::before').boxShadow).toContain('rgb(12, 34, 56) 0px 0px 0px 3px');
+        expect(getComputedStyle(file, '::before').top).toBe('9px');
+        await userEvent.keyboard('{Escape}');
+        await cdp().send('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
+        try {
+            file.focus(); await userEvent.keyboard('{ArrowDown}');
+            const contour = getComputedStyle(file, '::before');
+            expect(contour.content).toBe('""'); expect(contour.boxShadow).toBe('none');
+            expect(contour.borderTopStyle).toBe('solid'); expect(contour.borderTopWidth).toBe('4px');
+            expect(contour.forcedColorAdjust).toBe('auto');
+            expect(contour.borderTopColor).not.toBe('rgba(0, 0, 0, 0)');
+            await userEvent.keyboard('{Escape}'); expect(getComputedStyle(file, '::before').content).toBe('none');
+        } finally { await cdp().send('Emulation.setEmulatedMedia', { features: [] }); }
     },
 });
 

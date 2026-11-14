@@ -176,12 +176,13 @@ try {
                     const trigger = host.locator(':scope > [part="base"] > button').first();
                     await trigger.scrollIntoViewIfNeeded();
                     await trigger.focus(); await page.keyboard.press('ArrowDown');
+                    await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
                     const clearance = await host.evaluate(node => {
                         const panel = node.querySelector(':scope > [part="popup"]').getBoundingClientRect();
                         const demo = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]').getBoundingClientRect();
-                        return panel.top >= demo.top - 1 && panel.bottom <= demo.bottom + 1;
+                        return { fits: panel.top >= demo.top - 1 && panel.bottom <= demo.bottom + 1, label: node.getAttribute('label'), panel: panel.toJSON(), demo: demo.toJSON() };
                     });
-                    assert(clearance, 'narrow dropdown overlay stays in reserved demo space');
+                    assert(clearance.fits, 'narrow dropdown overlay stays in reserved demo space: ' + JSON.stringify(clearance));
                     await page.keyboard.press('Escape');
                 }
             }
@@ -189,9 +190,63 @@ try {
             await page.close();
             console.log(`${tag}: source/package gallery, five themes and forced colors passed (${base}).`);
         }
+        await verifyOpenSubmenuGallery(base);
     }
 } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
     await rm(temporary, { recursive: true, force: true });
+}
+
+
+async function verifyOpenSubmenuGallery(base) {
+    const page = await browser.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(origin + base + 'cem-menu-item-gallery.html');
+        await page.waitForFunction(() => [...document.querySelectorAll('cem-demo-element')].every(demo => demo.getAttribute('data-state') === 'ready'));
+        await page.waitForFunction(() => document.querySelectorAll('cem-menu-item').length > 0 && [...document.querySelectorAll('cem-menu-item')].every(item => item.querySelector(':scope > [part~="control"]')) && [...document.querySelectorAll('cem-menu')].every(menu => menu.querySelector(':scope > [part~="composite"]')));
+        const example = page.locator('cem-demo-element[legend="Open submenu selection"] > [slot="demo"]');
+        const trigger = label => example.locator(`cem-menu-item[label="${label}"] > button`);
+        const contour = control => control.evaluate(node => getComputedStyle(node, '::before').content);
+        const file = trigger('File'), more = trigger('More'), edit = trigger('Edit');
+        await file.waitFor(); await file.focus(); await page.keyboard.press('ArrowDown');
+        assert.equal(await contour(file), '""');
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowRight');
+        assert.equal(await contour(file), '""'); assert.equal(await contour(more), '""');
+        assert.equal(await trigger('Deep command').evaluate(node => document.activeElement === node), true);
+        if (base === '/packages/cem-components/playgrounds/') {
+            await mkdir(join(root, 'dist/reports/cem-components'), { recursive: true });
+            await example.screenshot({ path: join(root, 'dist/reports/cem-components/open-submenu.png') });
+        }
+        await page.keyboard.press('Escape'); assert.equal(await contour(more), 'none'); assert.equal(await contour(file), '""');
+        await edit.click(); assert.equal(await contour(file), 'none'); assert.equal(await contour(edit), '""');
+        await page.keyboard.press('Enter'); assert.equal(await contour(edit), 'none');
+        await file.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Tab');
+        assert.equal(await contour(file), 'none');
+        await file.click(); await page.locator('header .component-description').click(); assert.equal(await contour(file), 'none');
+        for (const mode of ['light', 'dark', 'projector', 'contrast-light', 'contrast-dark', 'native']) {
+            const owner = page.locator(`[data-gallery-theme="${mode}"] [data-variation="Submenu owner"] cem-menu-item[label="Open submenu"] > button`);
+            await owner.focus(); await page.keyboard.press('ArrowDown');
+            assert.equal(await contour(owner), '""');
+            assert.notEqual(await owner.evaluate(node => getComputedStyle(node, '::before').boxShadow), 'none');
+            assert.equal(await owner.getAttribute('role'), 'menuitem'); assert.equal(await owner.getAttribute('aria-selected'), null);
+            await page.keyboard.press('Escape'); assert.equal(await contour(owner), 'none');
+        }
+        await page.emulateMedia({ forcedColors: 'active' });
+        await file.focus(); await page.keyboard.press('ArrowDown');
+        const selected = await file.evaluate(node => {
+            const style = getComputedStyle(node, '::before');
+            const probe = document.createElement('span'); probe.style.color = 'SelectedItem'; node.append(probe);
+            const expected = getComputedStyle(probe).color; probe.remove();
+            return { content: style.content, border: style.borderTopStyle, color: style.borderTopColor, expected, shadow: style.boxShadow, adjust: style.forcedColorAdjust };
+        });
+        assert.equal(selected.content, '""'); assert.equal(selected.border, 'solid'); assert.equal(selected.color, selected.expected);
+        assert.equal(selected.shadow, 'none'); assert.equal(selected.adjust, 'auto');
+        await file.focus(); assert.equal(await file.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+        assert.equal(await contour(file), '""', 'Selection remains while the owner receives keyboard focus');
+        await page.keyboard.press('Escape'); assert.equal(await contour(file), 'none');
+        assert.deepEqual(errors, []);
+        console.log(`cem-menu-item: nested open styling, six themes and forced colors passed (${base}).`);
+    } finally { await page.close(); }
 }

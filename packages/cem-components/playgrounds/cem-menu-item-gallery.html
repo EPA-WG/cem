@@ -104,6 +104,7 @@
 
 
 
+{cem-element @tag=cem-menu @capability=composite-menu @src="@epa-wg/cem-components/components/cem-menu/cem-menu.xhtml#cem-menu"}
 {cem-element @tag=cem-menu-item @capability=action-control @src="@epa-wg/cem-components/components/cem-menu-item/cem-menu-item.xhtml#cem-menu-item"}
 </template>
 </cem-element>
@@ -114,8 +115,8 @@
 <header>
 <p class="component-description">A command with the menuitem role, disabled state, and disclosure-state reporting. It complements <a href="./cem-action-gallery.html"><code>cem-action</code></a> and <a href="./cem-icon-button-gallery.html"><code>cem-icon-button</code></a>; the containing menu owns navigation, focus, and any expanded content.</p>
 <p><a href="./cem-menu-item.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts">Automated stories</a></p></header><main>
-<style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
-<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="href"><code>href</code></li><li data-gallery-attribute="aria-label"><code>aria-label</code></li></ul><p><code>href</code> creates a leaf navigation anchor. <code>aria-label</code> names the control separately. The <code>submenu</code> slot accepts a nested <a href="./cem-menu-gallery.html">cem-menu</a>; owners remain buttons. Use root <code>keyboard="menu"</code> to enable popup interaction. A <a href="./cem-dropdown-gallery.html">cem-dropdown</a> can wrap a full menu.</p><cem-demo-element legend="Leaf navigation" description="Leaf href creates a native link; disabled links cannot activate."><template slot="source"><cem-menu-item href="#help" label="Help"></cem-menu-item><cem-menu-item href="#blocked" disabled label="Unavailable"></cem-menu-item></template></cem-demo-element><ul><li data-gallery-attribute="label"><code>label</code></li>
+<style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The six theme rows stay fixed so you can compare the same states side by side.</p>
+<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. An open submenu owner keeps a selected-style contour while focus moves into its panel; closing the panel clears it. Clicks record activation without toggling ARIA selection. Standalone expanded values only report disclosure state.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="href"><code>href</code></li><li data-gallery-attribute="aria-label"><code>aria-label</code></li></ul><p><code>href</code> creates a leaf navigation anchor. <code>aria-label</code> names the control separately. The <code>submenu</code> slot accepts a nested <a href="./cem-menu-gallery.html">cem-menu</a>; owners remain buttons. Use root <code>keyboard="menu"</code> to enable popup interaction. A <a href="./cem-dropdown-gallery.html">cem-dropdown</a> can wrap a full menu.</p><cem-demo-element legend="Leaf navigation" description="Leaf href creates a native link; disabled links cannot activate."><template slot="source"><cem-menu-item href="#help" label="Help"></cem-menu-item><cem-menu-item href="#blocked" disabled label="Unavailable"></cem-menu-item></template></cem-demo-element><ul><li data-gallery-attribute="label"><code>label</code></li>
 <li data-gallery-attribute="disabled"><code>disabled</code></li>
 <li data-gallery-attribute="expanded"><code>expanded</code></li>
 <li data-gallery-attribute="hidden"><code>hidden</code></li>
@@ -129,33 +130,49 @@
 <cem-menu-item label="Hidden by presence" hidden="false"></cem-menu-item>
 <cem-menu-item label="Projected command"><span>Projected content</span></cem-menu-item>
 </template></cem-demo-element>
+<cem-demo-element legend="Open submenu selection" description="Open File with a click or Arrow Down, enter More with Arrow Right, and switch to Edit. Open ancestors keep their contour while focus moves into their submenu. Escape, Tab, outside activation or a leaf command dismisses the corresponding panels; disabled owners cannot open."><template slot="source">
+<cem-menu keyboard="menu" aria-label="Document commands">
+    <cem-menu-item label="File"><cem-menu slot="submenu">
+        <cem-menu-item label="New"></cem-menu-item>
+        <cem-menu-item label="More"><cem-menu slot="submenu"><cem-menu-item label="Deep command"></cem-menu-item></cem-menu></cem-menu-item>
+    </cem-menu></cem-menu-item>
+    <cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item>
+    <cem-menu-item disabled label="Unavailable"><cem-menu slot="submenu"><cem-menu-item label="Blocked command"></cem-menu-item></cem-menu></cem-menu-item>
+</cem-menu>
+<button type="button" style="margin-block-start:20rem">Outside the menu</button>
+</template></cem-demo-element>
 </main>
 <section aria-label="Theme and state variation matrix">
 <h2>Theme and state variation matrix</h2>
 <section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article><article data-variation="Submenu owner"><h3>Open submenu</h3><cem-menu keyboard="menu" aria-label="Submenu state"><cem-menu-item label="Open submenu"><cem-menu slot="submenu"><cem-menu-item label="Child command"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></article></div></section>
+
+<section data-gallery-theme="projector" class="cem-theme-projector"><h2>projector</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article><article data-variation="Submenu owner"><h3>Open submenu</h3><cem-menu keyboard="menu" aria-label="Submenu state"><cem-menu-item label="Open submenu"><cem-menu slot="submenu"><cem-menu-item label="Child command"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></article></div></section>
 
 <section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article><article data-variation="Submenu owner"><h3>Open submenu</h3><cem-menu keyboard="menu" aria-label="Submenu state"><cem-menu-item label="Open submenu"><cem-menu slot="submenu"><cem-menu-item label="Child command"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></article></div></section>
 
 <section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article><article data-variation="Submenu owner"><h3>Open submenu</h3><cem-menu keyboard="menu" aria-label="Submenu state"><cem-menu-item label="Open submenu"><cem-menu slot="submenu"><cem-menu-item label="Child command"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></article></div></section>
 
 <section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article><article data-variation="Submenu owner"><h3>Open submenu</h3><cem-menu keyboard="menu" aria-label="Submenu state"><cem-menu-item label="Open submenu"><cem-menu slot="submenu"><cem-menu-item label="Child command"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></article></div></section>
 
 <section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article><article data-variation="Submenu owner"><h3>Open submenu</h3><cem-menu keyboard="menu" aria-label="Submenu state"><cem-menu-item label="Open submenu"><cem-menu slot="submenu"><cem-menu-item label="Child command"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></article></div></section>
 
 </section>
 </template>

@@ -601,6 +601,16 @@ Opening focuses the panel's first enabled item. Escape closes the nearest panel
 and restores the trigger. Tab, outside activation and leaf activation dismiss
 open chains without a focus trap; only one sibling panel remains open. Runtime
 IDs link controls, trigger names and panels. Roots remain persistent.
+An enabled submenu owner's managed `aria-haspopup="menu"` and
+`aria-expanded="true"` keep a selected-style inset zebra contour visible while
+focus moves into descendants. Nested open ancestors retain that contour; closing,
+switching or disabling an owner clears it. The contour uses existing zebra/stroke
+endpoints, retains contextual hover/press colors and leaves the outer focus ring
+independent. Forced colors use an inset `SelectedItem` boundary. No
+`aria-selected`, `aria-pressed` or persisted selection is inferred from expansion;
+a standalone `expanded` attribute without a managed menu relationship does not
+activate this styling.
+
 
 Shared `composite-menu` and `action-control` capabilities own browser behavior
 in cem-elements. Dropdown composition supplies separately triggered root popups;
