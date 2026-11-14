@@ -442,6 +442,12 @@ Here the browser command names the produced native dialog; the CEM host is not t
 
 Dialog shown as popover is governed by popover visibility, not dialog.open. Do not close it through dialog.close or assume method=dialog hides popover-only presentation. Modal profile cannot also declare popover or disable modal containment. Nonmodal Escape is supplied explicitly through supported closedby=closerequest on the native owner or a shared adapter; native show alone is not assumed to provide Escape cancellation.
 
+The [2026-11-14 dialog/popover assessment](../packages/cem-components/docs/dialog-contract.md#dialogpopover-assessment--2026-11-14)
+retains this presentation matrix and records compiled-browser evidence, native
+focus-return differences, explicit close-policy gaps and the canonical scrim
+follow-up. It recommends shared policy and focus fixes before changing dialog
+declarations; top-layer popovers do not replace native modal containment.
+
 A guarded task cannot promise veto of native auto/hint-popover hiding. Reject that combination; use a manual explicit-close surface or native dialog request lifecycle. Direct native forced close and dialog-method results are not retroactively vetoed. Manual-popover command-menu composition can request menu navigation/dismissal through the runtime, but is not a way to override browser auto-popover grouping rules.
 
 Name precedence: compatible aria-labelledby, compatible aria-label, designated heading, label. Conflicting declarations diagnose rather than overwrite. Generated trigger text may name a menu but never silently becomes a task title. Tooltips preserve existing aria-describedby tokens and keep description content stable independently of visual materialization. Interactive tooltip content is invalid; use a task/preview profile.

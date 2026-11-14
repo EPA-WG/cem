@@ -375,12 +375,54 @@ for the current native work and the conditional diagnostic items on recurrence.
     remains a documented verification limit. Browser detection and compatibility
     boundaries are recorded in the component reference.
 
-- [ ] Assess implementing dialogs through the popover mechanism, building on
+- [x] Assess implementing dialogs through the popover mechanism, building on
       existing shared native-surface support. Define modal/nonmodal behavior,
       top-layer/backdrop handling, focus entry/return, background inertness,
       Escape/light dismissal and nested menu/tooltip interaction. Record the
       recommended design, accessibility implications and compatibility limits
       before changing `cem-dialog`.
+  - [x] Add repeatable browser assessment checks for native modal versus
+        popover inertness, outside activation, backdrop, focus return and
+        cancelable versus forced dismissal; exercise nested surfaces and record
+        Chromium/Firefox results and unavailable engine limits.
+  - [x] Record the recommended presentation matrix, accessibility constraints,
+        current implementation gaps and a bounded follow-up sequence in the
+        dialog contract before changing production behavior.
+    Completed 2026-11-14: the [dialog/popover assessment](../packages/cem-components/docs/dialog-contract.md#dialogpopover-assessment--2026-11-14)
+    recommends retaining native modal `showModal()`, persistent nonmodal `show()`
+    and explicit nonmodal popover presentations. No production dialog behavior
+    or declarations changed. Browser probes verify focus/pointer inertness,
+    distinct visibility, outside persistence, cancelable close requests,
+    noncancelable auto hiding, `closedby="any"` light-dismiss veto, forced-close
+    distinction, child/tooltip Escape and parent cleanup. Compiled workspace and
+    isolated packed runtimes pass in Chromium 148.0.7778.96 and Firefox 150.0.2;
+    source/packed galleries, bundle, themes and forced-color checks pass. The 29
+    shared/production-dialog stories and three menu-to-task relay stories pass;
+    verifier lint is clean. Observation probes expose explicit nonmodal
+    `closedby="none"` Escape bypass and Firefox's outside-focus restoration
+    difference, also reproduced without the adapter. These remain implementation
+    follow-ups rather than passing behavior assertions. Modal backdrop paint is
+    currently user-agent-owned, without a canonical CEM scrim rule. WebKit lacks
+    required host libraries; screen-reader, physical-device and native Back
+    acceptance remain unverified. Standards and compatibility sources are linked
+    in the assessment.
+
+- [ ] Honor explicit native dialog close policies in the shared nonmodal Escape
+      adapter while retaining CEM's default Escape behavior. Add capability
+      handling for unavailable `requestClose`/close-policy support without
+      bypassing vetoes via forced close. Convert assessment observations into
+      regression assertions and add colocated dialog/shell cases for `none`,
+      `closerequest`, `any`, guard veto and explicit close requests.
+- [ ] Preserve the outside focus destination when a persistent nonmodal dialog
+      closes in Firefox. Use the unadapted/native comparison to bound the repair;
+      preserve native modal restoration, explicit return references, Tab/outside
+      navigation, removal and menu-to-task handoff. Add shared and colocated
+      production regressions; convert the assessment observation to an assertion.
+- [ ] Give modal dialog backdrops a canonical theme-owned scrim definition and
+      declarative consumption after auditing existing theme endpoints. Verify
+      six themes, inherited overrides, forced colors and nested modal/overlay
+      paint; keep nonmodal popovers nonblocking. Follow the source-table,
+      generator/manifest and public CSS ownership contracts.
 
 ## Amsterdam presentation samples: active Studio priority
 

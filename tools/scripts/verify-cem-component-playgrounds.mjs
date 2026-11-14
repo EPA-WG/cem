@@ -7,6 +7,7 @@ import { tmpdir, release } from 'node:os';
 import { chromium, firefox, webkit } from 'playwright';
 import { canonicalSourcesInPage, verifyCanonicalSources } from '../cem-components/canonical-source-checks.mjs';
 import { verifyFieldsetPage } from '../cem-components/fieldset-page-checks.mjs';
+import { verifyDialogPresentations } from '../cem-components/dialog-presentation-checks.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
@@ -49,6 +50,7 @@ const verifiedLocations = installedOnly ? 'isolated package archives' : 'source 
 let browser;
 const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
+    if (pathname === '/surface-assessment.html') { response.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>Dialog presentation assessment</title>'); return; }
     const base = pathname.startsWith('/installed/') ? temporary : root;
     const file = resolve(base, '.' + pathname);
     if (!file.startsWith(base + '/')) { response.writeHead(403).end(); return; }
@@ -1978,6 +1980,13 @@ async function verifySheet(baseUrl) {
 }
 
 async function verifySurfaces(baseUrl) {
+    const runtimeUrl = new URL(baseUrl.includes('/installed/') ? '../../cem-elements/dist/lib/native-surface.js' : '/packages/cem-elements/dist/lib/native-surface.js', baseUrl).href;
+    const fixtureUrl = new URL('/surface-assessment.html', baseUrl).href;
+    await verifyDialogPresentations(browser, runtimeUrl, fixtureUrl);
+    if (process.env.CEM_SURFACE_FIREFOX === '1') {
+        const secondary = await firefox.launch({ headless: true });
+        try { await verifyDialogPresentations(secondary, runtimeUrl, fixtureUrl); } finally { await secondary.close(); }
+    }
     const tags = ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'];
     await verifyGalleries(baseUrl, tags);
     for (const tag of tags) {
