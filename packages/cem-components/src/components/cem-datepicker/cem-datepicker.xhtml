@@ -177,6 +177,13 @@ button[slot=toggle]:where(:focus-visible),
     outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
     outline-offset: var(--cem-stroke-indicator-offset);
 }
+[part~=dialog]:modal { overscroll-behavior: contain; }
+[part~=dialog]:modal::backdrop {
+    background-color: var(--cem-scrim-color);
+    opacity: var(--cem-scrim-opacity);
+    overflow: hidden;
+    overscroll-behavior: contain;
+}
 [part~=dialog] {
     background-color: var(--cem-select-popup-background);
     border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);

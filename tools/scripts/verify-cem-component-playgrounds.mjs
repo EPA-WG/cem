@@ -8,6 +8,7 @@ import { chromium, firefox, webkit } from 'playwright';
 import { canonicalSourcesInPage, verifyCanonicalSources } from '../cem-components/canonical-source-checks.mjs';
 import { verifyFieldsetPage } from '../cem-components/fieldset-page-checks.mjs';
 import { verifyDialogPresentations } from '../cem-components/dialog-presentation-checks.mjs';
+import { verifyModalBackdrops } from '../cem-components/modal-backdrop-checks.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
@@ -1980,12 +1981,13 @@ async function verifySheet(baseUrl) {
 }
 
 async function verifySurfaces(baseUrl) {
+    await verifyModalBackdrops(browser, baseUrl);
     const runtimeUrl = new URL(baseUrl.includes('/installed/') ? '../../cem-elements/dist/lib/native-surface.js' : '/packages/cem-elements/dist/lib/native-surface.js', baseUrl).href;
     const fixtureUrl = new URL('/surface-assessment.html', baseUrl).href;
     await verifyDialogPresentations(browser, runtimeUrl, fixtureUrl);
     if (process.env.CEM_SURFACE_FIREFOX === '1') {
         const secondary = await firefox.launch({ headless: true });
-        try { await verifyDialogPresentations(secondary, runtimeUrl, fixtureUrl); } finally { await secondary.close(); }
+        try { await verifyDialogPresentations(secondary, runtimeUrl, fixtureUrl); await verifyModalBackdrops(secondary, baseUrl); } finally { await secondary.close(); }
     }
     const tags = ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'];
     await verifyGalleries(baseUrl, tags);

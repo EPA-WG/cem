@@ -25,6 +25,8 @@ persistent nonmodal task. `mode="modal"` explicitly requests browser modality.
 | `default-open` | Presence requests the initial opening once per produced instance. It is not live open state. |
 | `surface-id` | Optional ID on the native owner for native `commandfor` relationships. |
 | `closedby` | Forwarded native close policy. Explicit `none` suppresses shared Escape; explicit close controls still request cancelable closure. Policies differing from the native presentation default require `closedBy` support. |
+| `--cem-scrim-color` | Inherited D0 modal veil color: black in branded themes, system `CanvasText` in native/forced colors. |
+| `--cem-scrim-opacity` | Inherited D4 modal veil opacity, default `0.32`; applies only to the native modal backdrop. |
 | `focus-target`, `return-focus` | Shared typed reference or scoped string; `auto` uses native entry and the actual invoker; `none` suppresses shared focus work. Native browser focus behavior still applies. |
 | `anchor`, `boundary`, `placement`, `fallback`, `overflow`, `anchor-lost` | Shared surface geometry. Dialogs default to centered placement and freeze established geometry on anchor loss. |
 | `context-change` | `reject` (default), `replace`, or cancelable `request` for an already-open task invoked with different context. |
@@ -199,17 +201,42 @@ Overlay is physically above it. A top-layer `::backdrop` is a paint surface, not
 an inertness or focus mechanism; see the [CSS top-layer model](https://drafts.csswg.org/css-position-4/#backdrop).
 Its presence must not be used to infer modal semantics.
 
-Neither dialog declaration currently authors a `::backdrop` rule. In the tested
-engines, modal backdrop color is the user-agent `rgba(0, 0, 0, 0.1)` and popover
-backdrop color is transparent. A computed pseudo-element color on a local
-nonmodal dialog does not establish that a backdrop is painted. Current modal
-scrim paint is therefore browser-owned, rather than a verified CEM theme rule.
-Before styling it, select or add a canonical theme-owned scrim definition through
-the source-table/manifest process. Consume it from declarative modal-only CSS;
-do not introduce component-local public defaults or reuse elevation as z-index.
-Verify six themes, inherited overrides, nested backdrops and forced colors before
-claiming a theme-consistent scrim. Nonmodal popovers should stay undimmed unless
-an independently specified use case requires otherwise.
+Both dialog declarations consume canonical `--cem-scrim-color` (D0) and
+`--cem-scrim-opacity` (D4) directly in `[part~='surface']:modal::backdrop`.
+The datepicker's native modal calendar uses the same endpoints through
+`[part~='dialog']:modal::backdrop`; it also remains a native modal owner.
+The source tables, generator previews, manifest coverage and public exports own
+the defaults; neither component defines an equivalent local alias or fallback.
+The veil is black at 32% opacity in branded light/dark, contrast and projector
+themes. Native and forced-color themes use system `CanvasText` at the same
+opacity, with automatic forced-color adjustment and the modal's system contour.
+The veil is supplemental to native inertness and focus containment.
+
+The pseudo-element inherits the originating dialog's custom properties; a
+container can override either endpoint without changing the dialog's own opacity.
+Each nested native modal paints its own veil in native top-layer order, so their
+translucency composites. A child nonmodal overlay adds no veil. Nonmodal local,
+manual and auto presentations stay undimmed; a computed local-dialog pseudo
+color alone does not imply a painted backdrop.
+
+Native modal surfaces use `overscroll-behavior: contain`; their backdrops use
+`overflow: hidden` and the same containment. This is progressive enhancement:
+unsupported scroll containment does not change native modality. The component
+does not lock `html`/`body` scrolling or synthesize a focus trap. See the
+[browser inheritance guidance](https://developer.chrome.com/blog/css-backdrop-inheritance)
+for backdrop inheritance and the native profile limits below.
+
+Compiled source/bundle and isolated package fixtures verify all three declarations
+in Chromium and Firefox: six themes, native light/dark system schemes, forced
+colors, inherited overrides, nested modal pixel composition, transparent child
+overlays, nonmodal pixels and nested theme re-entry. Colocated plays also verify
+inherited paint and native focus return. See
+[`modal-backdrop-checks.mjs`](../../../tools/cem-components/modal-backdrop-checks.mjs).
+Wheel probes compare against an unadapted native reference with the same CSS.
+Chromium 148 contains the page's scroll over both backdrop and non-scrollable
+dialog content. Firefox 150 scrolls in both routes, matching that native
+reference. This engine limit remains progressive enhancement; the scrim,
+native modality and foreground contour are still verified in both engines.
 
 ### Evidence and implementation gaps
 
@@ -258,5 +285,5 @@ CEM_SURFACE_FIREFOX=1 yarn nx run @epa-wg/cem-components:verify-surfaces --exclu
 ```
 
 Shared close-policy/capability handling and outside-focus recovery are complete.
-Continue with canonical scrim styling. Add colocated production-dialog cases
-for each change; retain browser-owned modality and the existing default API.
+Canonical scrim styling is also complete. Continue with the component-wide
+modern-web-guidance audit; retain browser-owned modality and the default API.

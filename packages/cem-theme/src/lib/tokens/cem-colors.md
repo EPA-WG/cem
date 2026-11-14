@@ -930,6 +930,21 @@ and forced-color themes use system text and retain icon/label meaning.
 | `--cem-resource-file-color` | `<color>` | `var(--cem-palette-trust-x)` | `CanvasText` | Editable source identity in heading and navigation | required |
 | `--cem-resource-output-color` | `<color>` | `var(--cem-palette-comfort-text)` | `CanvasText` | Generated artifact identity in heading and navigation | required |
 
+### 7.16 Modal scrim color
+
+The modal Command layer uses a neutral veil to de-emphasize the unavailable
+page. D0 owns its color; D4 owns its translucency through
+`--cem-scrim-opacity`. This is neither a surface fill nor a separator or shadow.
+Branded light/dark, contrast and projector themes use black. Native and
+forced-color themes use system `CanvasText`; no component disables forced-color
+adjustment to preserve the veil. The modal's system contour, native inertness
+and focus containment remain independent signals.
+
+###### cem-modal-scrim-colors
+| Token | value-type | default-formula | forced-colors | notes | tier |
+|---|---|---|---|---|---|
+| `--cem-scrim-color` | `<color>` | `#000000` | `CanvasText` | Neutral modal veil; native and forced colors use system ink | required |
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -1301,6 +1316,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-input-indicator-colors`                           | `--cem-input-background-color` + `--cem-input-indicator-*` (10 tokens) | one token per row             |
 | `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |
 | `cem-slider-colors`                                    | `--cem-slider-*` (8 tokens) | one token per row                     |
+| `cem-modal-scrim-colors` | `--cem-scrim-color` (1 token); native/forced-color system ink | one token per row |
 | `cem-resource-kind-colors` | `--cem-resource-{project,file,output}-color` (3 tokens) | one token per row; native/forced-color column overrides |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |

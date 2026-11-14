@@ -23,7 +23,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-layering-template"
           data-token-url="../../../dist/lib/tokens/cem-layering.xhtml"
-          data-slices="rungs=cem-layering-rungs semantic=cem-layering-semantic optional=cem-layering-semantic-optional forced=cem-layering-rungs-forced stacking=cem-layering-popup-stacking">
+          data-slices="rungs=cem-layering-rungs semantic=cem-layering-semantic optional=cem-layering-semantic-optional forced=cem-layering-rungs-forced scrim=cem-layering-scrim stacking=cem-layering-popup-stacking">
 {module @version="1.0.0" |
 {import @as=docs @src="./cem-token-docs.cemt"}
 {body |
@@ -45,6 +45,11 @@
     @with:href="../../../dist/lib/tokens/cem-layering.xhtml#15-1-1-public-choice-popup-stacking"
     @with:link_label=cem-layering-popup-stacking @with:caption=" — physical choice-popup stacking"}
 {hr | }
+{call @from=docs @template=standard-token-table
+    @with:rows={datadom.slices.scrim} @with:id=cem-layering-scrim
+    @with:href="../../../dist/lib/tokens/cem-layering.xhtml#10-3-canonical-scrim-opacity"
+    @with:link_label=cem-layering-scrim @with:caption=" — modal scrim opacity"}
+{hr | }
 {table @id=cem-layering-rungs-forced |
     {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#13-2-forced-colors" | cem-layering-rungs-forced} — forced-colors fallback}
     {thead | {tr | {th | Token}{th | Forced-colors value}}}
@@ -64,6 +69,9 @@
 
   /* region physical choice-popup stacking — independent of semantic elevation */```{call @from=docs @template=css-properties @with:rows={datadom.slices.stacking} @with:indent="  "}```
   /* endregion physical choice-popup stacking */
+
+  /* region modal scrim opacity — D0 owns the color */```{call @from=docs @template=css-properties @with:rows={datadom.slices.scrim} @with:indent="  "}```
+  /* endregion modal scrim opacity */
 }
 
 /* region forced-colors fallback — collapse rungs; tier signal carried by D5 contour and spatial isolation */

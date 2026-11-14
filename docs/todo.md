@@ -497,11 +497,36 @@ for the current native work and the conditional diagnostic items on recurrence.
     component paint and public token ownership are preserved. Studio build,
     typecheck, UI classification, output verification and lint pass. Shared
     native modality remains available; the component/browser limits above apply.
-- [ ] Give modal dialog backdrops a canonical theme-owned scrim definition and
+- [x] Give modal dialog backdrops a canonical theme-owned scrim definition and
       declarative consumption after auditing existing theme endpoints. Verify
       six themes, inherited overrides, forced colors and nested modal/overlay
       paint; keep nonmodal popovers nonblocking. Follow the source-table,
       generator/manifest and public CSS ownership contracts.
+  - [x] Add canonical D0 scrim-color and D4 scrim-opacity source tables, generator
+        previews/CSS, manifest coverage and correctly typed public token exports.
+  - [x] Add colocated dialog/shell/datepicker regressions and compiled
+        source/bundle/packed backdrop fixtures for six themes, inherited overrides,
+        native/system colors, forced colors, nested modals and overlays, actual pixel paint,
+        scroll containment and transparent nonmodal presentations; preserve
+        native focus/dismissal.
+    Verified 2026-11-14: all three native modal declarations consume D0
+    `--cem-scrim-color` and D4 `--cem-scrim-opacity`, with no component defaults.
+    Canonical source tables, generator previews/CSS and 530/530 manifest coverage
+    pass; public DTCG color/number values, native system-color metadata and
+    TypeScript exports are verified. All 24 colocated dialog/shell/datepicker
+    stories pass. Chromium 148 and Firefox 150 pass workspace and isolated packed
+    pixel checks across six themes, native light/dark and forced colors, inherited
+    overrides, nested modal composition, overlays and undimmed nonmodal surfaces.
+    Galleries, bundle, focus/dismissal regressions, style/declarative contracts,
+    package checks, projector checks and lint pass (existing component non-null
+    assertion warnings). Studio rebuild/output verification pass. An earlier
+    tooltip surface-readiness timeout did not recur in isolated full gates;
+    no timeout or worker-budget changes were made and no cause is attributed.
+    Wheel probes match an unadapted native reference: Chromium contains both
+    routes, while Firefox scrolls over backdrop and non-scrollable dialog content.
+    Containment remains progressive enhancement without root scroll locks.
+    WebKit and physical assistive technology remain unverified. See the
+    [backdrop contract](../packages/cem-components/docs/dialog-contract.md#backdrop-and-theme-ownership).
 
 - [ ] Verify all CEM components using
       [`modern-web-guidance`](/home/suns/cem/.agents/skills/modern-web-guidance/SKILL.md).

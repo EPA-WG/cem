@@ -73,6 +73,7 @@ function deriveColorTokens(xhtml) {
     addTableTokens(xhtml, "cem-progress-indicator-colors", spec, "d0-progress", tokens, warnings);
     addTableTokens(xhtml, "cem-workflow-step-colors", spec, "d0-workflow", tokens, warnings);
     addTableTokens(xhtml, "cem-slider-colors", spec, "d0-slider", tokens, warnings);
+    addTableTokens(xhtml, "cem-modal-scrim-colors", spec, "d0-scrim", tokens, warnings);
     addTableTokens(xhtml, "cem-resource-kind-colors", spec, "d0-resource", tokens, warnings);
 
     // Action tokens: cross-product of intent × state
@@ -206,6 +207,7 @@ function deriveLayeringTokens(xhtml) {
         "cem-layering-semantic",
         "cem-layering-semantic-optional",
         "cem-layering-popup-stacking",
+        "cem-layering-scrim",
     ]) {
         addTableTokens(xhtml, tableId, spec, spec, tokens, warnings);
     }

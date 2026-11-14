@@ -153,3 +153,23 @@ export const TypedReferencesWorkerAndFallback = meta.story({
         }
     },
 });
+
+export const ModalBackdropInheritance = meta.story({
+    render: () => '<section style="--cem-scrim-color: rgb(8, 16, 24); --cem-scrim-opacity: 0.6"><cem-dialog label="Modal paint" mode="modal" trigger="Open veil" close-label="Done"><input autofocus aria-label="Inside"></cem-dialog></section>',
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'cem-dialog'); await whenCemRendered(host);
+        const owner = required<HTMLDialogElement>(host, 'dialog'), source = required(host, '[part=trigger]');
+        await userEvent.click(source); await waitFor(() => expect(owner.matches(':modal')).toBe(true));
+        expect(getComputedStyle(owner, '::backdrop').backgroundColor).toBe('rgb(8, 16, 24)');
+        expect(getComputedStyle(owner, '::backdrop').opacity).toBe('0.6');
+        expect(getComputedStyle(owner).overscrollBehavior).toBe('contain');
+        expect(getComputedStyle(owner, '::backdrop').overflow).toBe('hidden');
+        await userEvent.click(required(owner, '[part=close]')); expect(document.activeElement).toBe(source);
+        host.setAttribute('mode', 'nonmodal'); host.setAttribute('popover', 'manual'); await whenCemRendered(host);
+        await userEvent.click(source); await waitFor(() => expect(owner.matches(':popover-open')).toBe(true));
+        expect(owner.matches(':modal')).toBe(false);
+        expect(getComputedStyle(owner, '::backdrop').backgroundColor).toBe('rgba(0, 0, 0, 0)');
+        expect(getComputedStyle(owner, '::backdrop').opacity).toBe('1');
+        await userEvent.click(required(owner, '[part=close]'));
+    },
+});

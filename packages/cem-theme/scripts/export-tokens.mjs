@@ -582,7 +582,7 @@ function inferDtcgType(token) {
     if (tableId === "cem-stroke-indicator-appearance") return "number";
     if (tableId === "cem-stroke-rings") return "string";
     if (tableId === "cem-timing-easings") return "cubicBezier";
-    if (tableId === "cem-layering-popup-stacking") return "number";
+    if (["cem-layering-popup-stacking", "cem-layering-scrim"].includes(tableId)) return "number";
     if (spec === "cem-layering") {
         if (lightVal === "none" || rawVal === "none" || rawVal.includes("--cem-elevation-0")) return "string";
         return "shadow";
@@ -659,6 +659,13 @@ function computeDtcgValue(token, dtcgType) {
                     throw new Error(`Invalid popup stacking integer: ${value}`);
                 }
                 return integer;
+            }
+            if (token.sourceTable === "cem-layering-scrim") {
+                const opacity = Number(value);
+                if (value.trim() === "" || !Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+                    throw new Error(`Invalid scrim opacity: ${value}`);
+                }
+                return opacity;
             }
             if (dtcgType === "cubicBezier") return parseDtcgCubicBezier(value) ?? value;
             if (dtcgType === "shadow") return parseDtcgShadow(value) ?? value;

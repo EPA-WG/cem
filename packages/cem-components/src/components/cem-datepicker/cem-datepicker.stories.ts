@@ -3,6 +3,19 @@ import preview, { loadCemDeclaration, whenCemRendered, createCemStoryRuntime } f
 import declarationSource from './cem-datepicker.xhtml?raw';
 const meta = preview.meta({ component: 'cem-datepicker', title: 'CEM Components/cem-datepicker', loaders: [async () => { await loadCemDeclaration('cem-datepicker', declarationSource); return {}; }] });
 
+export const ModalBackdropInheritance = meta.story({
+    render: () => '<section style="--cem-scrim-color: rgb(8, 16, 24); --cem-scrim-opacity: 0.6"><cem-datepicker><input slot="input" type="text" aria-label="Date"><button slot="toggle" type="button">Choose date</button></cem-datepicker></section>',
+    play: async ({ canvasElement }) => {
+        const host = requiredElement<HTMLElement>(canvasElement, 'cem-datepicker'); await whenCemRendered(host);
+        const parts = datepickerParts(canvasElement, 'cem-datepicker'); requiredToggle(parts).click();
+        await storyWaitFor(() => expect(parts.dialog.matches(':modal')).toBe(true));
+        expect(getComputedStyle(parts.dialog, '::backdrop').backgroundColor).toBe('rgb(8, 16, 24)');
+        expect(getComputedStyle(parts.dialog, '::backdrop').opacity).toBe('0.6');
+        parts.cancel.click(); await storyWaitFor(() => expect(parts.dialog.open).toBe(false));
+        expect(document.activeElement).toBe(parts.input);
+    },
+});
+
 export const NativeOwners = meta.story({
     name: 'keeps one direct native text input and optional native toggle as the exact owners',
     render: () => fixtureFor('arrival-datepicker'),

@@ -12,7 +12,11 @@
         font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size);
         line-height: var(--cem-typography-ui-line-height);
       }
-      [part~='surface']:modal { box-shadow: var(--cem-elevation-4); }
+      [part~='surface']:modal { box-shadow: var(--cem-elevation-4); overscroll-behavior: contain; }
+      [part~='surface']:modal::backdrop {
+        background-color: var(--cem-scrim-color); opacity: var(--cem-scrim-opacity);
+        overflow: hidden; overscroll-behavior: contain;
+      }
       [part~='heading'] { margin-block: 0 var(--cem-gap-related); font: inherit; font-weight: var(--cem-typography-ui-font-weight); }
       [part~='body'] { margin-block-end: var(--cem-gap-related); }
       [part~='trigger'], [part~='close'] {

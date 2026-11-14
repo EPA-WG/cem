@@ -1,7 +1,7 @@
 # CEM D4 Layering — Signed Depth, Planes, and Appearance Shifts
 
 **Status:** Canonical  
-**Last updated:** 2026-09-27
+**Last updated:** 2026-11-14
 **Taxonomy placement:** D4. Layering (treats *depth + elevation* as one consumer concept)
 
 CEM uses **layering** as the umbrella term for:
@@ -421,6 +421,26 @@ Scrim communicates modality and commitment.
 - Overlay **MUST NOT** break modality; it may appear above physically, but remains subordinate in semantics and dismissal precedence.
 - Dismissal precedence: **dismiss the topmost Overlay first, then Command**.
 
+### 10.3 Canonical scrim opacity
+
+D4 owns the veil's translucency; [D0](./cem-colors.md#716-modal-scrim-color)
+owns `--cem-scrim-color`. Apply the endpoints directly to a modal's native
+`::backdrop`, never to the dialog or a parent containing readable content.
+The default veil is 32% opaque in all six theme profiles. System color modes
+retain that opacity with D0 system ink. Opacity is bounded to CSS's 0–1 range;
+containers may deliberately override either public endpoint through inheritance.
+
+###### cem-layering-scrim
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-scrim-opacity` | `0.32` | Opacity of the veil behind a modal Command | required |
+
+Each nested native modal owns its own backdrop. Veils therefore composite in
+native top-layer order; an overlay above a modal adds no veil. Local nonmodal
+dialogs and manual/auto popovers do not consume these endpoints or gain modality.
+Use native `:modal` to select this paint; CSS never substitutes for inertness,
+keyboard containment, cancellation or focus return.
+
 ---
 
 ## 11. Action states must align with layering and the color ladder
@@ -604,6 +624,10 @@ The following demonstrates the mapping shape; it is not a required implementatio
 - `--cem-layer-back-deep` → `--cem-layer-back` + `--cem-recess-2`
 - `--cem-layer-work-floating` → `--cem-layer-work` + `--cem-elevation-2`
 
+### 16.4 Required scrim endpoint
+
+- `--cem-scrim-opacity` (D0 separately owns `--cem-scrim-color`)
+
 ---
 
 ## 17. Governance and versioning
@@ -642,17 +666,19 @@ This spec is the canonical D4 contract for layering (signed depth).
 | `cem-layering-rungs` | §7.1 | 7 basis rungs as `box-shadow` recipes (`--cem-recess-{2,1}`, `--cem-elevation-{0..4}`) |
 | `cem-layering-semantic` | §8.1 | 5 required semantic endpoints (`--cem-layer-{back,base,work,overlay,command}`) |
 | `cem-layering-semantic-optional` | §8.2 | 2 optional endpoints (`--cem-layer-{back-deep,work-floating}`) |
+| `cem-layering-scrim` | §10.3 | Required modal scrim opacity; D0 owns the color |
 | `cem-layering-popup-stacking` | §15.1.1 | Public physical choice-popup stacking integer |
 | `cem-layering-rungs-forced` | §13.2 | Forced-colors rung override values (generator-only; no new tokens) |
 
 Generator derivation rules:
 - `cem-layering-rungs`, `cem-layering-semantic`, `cem-layering-semantic-optional`,
-  `cem-layering-popup-stacking` → token list (tier in last
+  `cem-layering-popup-stacking`, `cem-layering-scrim` → token list (tier in last
   column).
 - `cem-layering-rungs-forced` → override values emitted inside `@media (forced-colors: active) :root { … }`;
   no new tokens.
 - D4 emits **shadow recipes** as the rung value (R-D4-1 resolved). Tone, contour, material, spacing, and
-  motion adapter hooks are owned by their respective dimensions (D0, D5, etc.) and are not redeclared here.
+  motion adapter hooks are owned by their respective dimensions (D0, D5, etc.). D4 additionally owns
+  modal scrim opacity; its color is owned by D0, without an equivalent D4 alias.
 - `--cem-elevation-*` and `--cem-recess-*` MUST NOT be used as `z-index` values (§2.2).
 
 ---
