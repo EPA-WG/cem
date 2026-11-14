@@ -2311,7 +2311,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         ).toHaveLength(0);
     });
 
-    it('recommends a new page and confirmation-gates incompatible replacement in a CEM dialog', async () => {
+    async function replacementConfirmationFixture() {
         const validator = validatorFor(validResult());
         const repository = await repositoryWithSource('{main | Confirm replacement}\n');
         const workbench = await createWorkbench(repository, validator);
@@ -2324,13 +2324,20 @@ describe('CEM Studio Feature Tour workbench', () => {
         await view.whenSettled();
         root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
         await view.whenSettled();
+        return { repository, workbench, root, view };
+    }
+
+    it('recommends a new page and confirmation-gates incompatible replacement in a CEM dialog', async () => {
+        const { repository, workbench, root, view } = await replacementConfirmationFixture();
         expect(workbench.snapshot().command.application).toMatchObject({
             status: 'confirmation-required',
             confirmation: { target: { mode: 'current', entryId: 'validate-cem-ml' }, runAfterApply: false },
         });
         const dialog = root.querySelector('cem-dialog[data-cem-studio-command-replace-dialog] dialog');
-        await expect.poll(() => dialog.open).toBe(true);
-        expect(dialog.matches(':modal')).toBe(true);
+        await expect.poll(() => dialog.matches(':popover-open')).toBe(true);
+        expect(dialog.matches(':modal')).toBe(false);
+        expect(dialog.open).toBe(false);
+        expect(dialog.getAttribute('popover')).toBe('manual');
         const entry = document.activeElement;
         workbench.updateDraft('unrelated edit while confirming');
         await view.whenSettled();
@@ -2340,13 +2347,13 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().command.application.status).toBe('confirmation-required');
         await expect.element(dialog).toHaveAccessibleName('Confirm incompatible configuration replacement');
         expect(dialog.querySelector('[data-cem-studio-command-replace-confirm]').getAttribute('variant')).toBe('destructive');
-        let exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
+        const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
         expect(exported.value.project.revision).toBe(1);
 
         const dismissed = new Promise((resolve) => {
             root.addEventListener('cem-close', resolve, { once: true });
         });
-        dialog.close();
+        dialog.hidePopover();
         await dismissed;
         await view.whenSettled();
         expect(workbench.snapshot().command.application).toMatchObject({
@@ -2360,8 +2367,10 @@ describe('CEM Studio Feature Tour workbench', () => {
         await userEvent.keyboard('{Escape}');
         await expect.poll(() => workbench.snapshot().command.application.status).toBe('ready');
         await view.whenSettled();
-        root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
-        await view.whenSettled();
+    });
+
+    it('uses a new configuration or explicitly commits replacement from a manual popover', async () => {
+        const { repository, workbench, root, view } = await replacementConfirmationFixture();
         dialogAction(root, 'Use new configuration').click();
         await view.whenSettled();
         expect(workbench.snapshot().command.application).toMatchObject({ status: 'ready', target: { mode: 'new' } });
@@ -2377,7 +2386,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             status: 'applied',
             result: { disposition: 'updated', entry: { id: 'validate-cem-ml', kind: 'inspection' } },
         });
-        exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
+        const exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
         expect(exported.value.project.revision).toBe(2);
         expect(exported.value.project.entries.find(({ id }) => id === 'validate-cem-ml')).toMatchObject({
             kind: 'inspection',
@@ -3206,7 +3215,7 @@ describe('Project-owned workbench loading', () => {
         assertFileTreeLabels(workbench.snapshot().navigation.files);
         expect(treeNode('Login')).toBeDefined();
         root.querySelector('[host-command="clone-selected"] button').click(); await view.whenSettled();
-        expect(root.querySelector('dialog[open] h2').textContent).toBe('clone · alpha');
+        expect(root.querySelector('dialog:popover-open h2').textContent).toBe('clone · alpha');
         const form = root.querySelector('form[host-command="submit-action"]');
         const field = form.querySelector('cem-text-field');
         const formActions = form.querySelector('[part~="form-actions"]');
@@ -3221,14 +3230,14 @@ describe('Project-owned workbench loading', () => {
         const id = workbench.snapshot().navigation.selection.project;
         expect(id).toMatch(/^project-/); expect(workbench.snapshot().navigation.title).toBe('My Login - CEM Studio');
         root.querySelector('[host-command="create-selected"] button').click(); await view.whenSettled();
-        expect(root.querySelector('dialog[open] h2').textContent).toBe('create · My Login');
+        expect(root.querySelector('dialog:popover-open h2').textContent).toBe('create · My Login');
         await submit('new.cem');
         expect(workbench.snapshot().navigation).toMatchObject({ content: 'file', selected: { name: 'new.cem' } });
         const resourceId = session.snapshot().selection.resourceId;
         expect(workbench.snapshot().navigationError).toBeUndefined();
         expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).not.toBeNull();
         root.querySelector('[host-command="delete-selected"] button').click(); await view.whenSettled();
-        expect(root.querySelector('dialog[open] h2').textContent).toBe('delete · new.cem');
+        expect(root.querySelector('dialog:popover-open h2').textContent).toBe('delete · new.cem');
         await submit();
         expect(workbench.snapshot().navigation.content).toBe('project');
         expect(workbench.snapshot().navigationError).toBeUndefined();
@@ -3722,7 +3731,7 @@ describe('Project-owned workbench loading', () => {
         expect(session.snapshot().transition.stage).toBe('command');
         dialogAction(root, 'Apply command').click(); await view.whenSettled();
         expect(session.snapshot().transition.stage).toBe('confirmation');
-        expect(root.querySelectorAll('dialog[open]')).toHaveLength(1);
+        expect(root.querySelectorAll('dialog:popover-open')).toHaveLength(1);
         dialogAction(root, 'Replace configuration').click(); await view.whenSettled();
         expect(session.snapshot().selection.projectId).toBe('beta');
         const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
@@ -3754,7 +3763,7 @@ describe('Project-owned workbench loading', () => {
         dialogAction(root, 'Cancel navigation').click();
         gate.resolve(); await view.whenSettled();
         expect(session.snapshot()).toMatchObject({ selection: { projectId: 'feature-tour' }, workbench: { draft: 'retain late draft', dirty: true } });
-        expect(root.querySelector('dialog[open]')).toBeNull();
+        expect(root.querySelector('dialog:popover-open')).toBeNull();
     });
 
     it('admits an empty second project and guards mounted source navigation with native dialogs', async () => {
@@ -3771,22 +3780,23 @@ describe('Project-owned workbench loading', () => {
         const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
         await workbench.selectWorkbench(target.id);
         await view.whenSettled();
-        expect(root.querySelector('dialog[open]')).not.toBeNull();
+        expect(root.querySelector('dialog:popover-open')).not.toBeNull();
         dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
         expect(session.snapshot().workbench.draft).toBe('retain me');
         const selector = root.querySelector('[data-cem-studio-editor] [role="textbox"]');
         selector.focus();
         await vi.waitFor(() => expect(document.activeElement).toBe(selector));
         await workbench.selectWorkbench(target.id); await view.whenSettled();
-        const dialog = root.querySelector('dialog[open]');
-        dialog.requestClose(); await view.whenSettled();
+        expect(root.querySelector('dialog:popover-open')).not.toBeNull();
+        const { userEvent: native } = await import('vitest/browser');
+        await native.keyboard('{Escape}'); await view.whenSettled();
         expect(session.snapshot().transition).toBeUndefined();
         await vi.waitFor(() => expect(document.activeElement).toBe(selector));
         await workbench.selectWorkbench(target.id); await view.whenSettled();
         dialogAction(root, 'Discard draft').click(); await view.whenSettled();
         expect(session.snapshot()).toMatchObject({ status: 'ready', selection: { projectId: 'beta' },
             workbench: { status: 'empty', editable: false } });
-        expect(root.querySelector('dialog[open]')).toBeNull();
+        expect(root.querySelector('dialog:popover-open')).toBeNull();
         expect(root.textContent).toContain('This project has no resources');
     });
 });

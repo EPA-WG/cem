@@ -54,7 +54,7 @@
     {cem:otherwise | {cem-source-editor @content-type={nav.contentType} @source-id={nav.sourceId} @label="" @aria-label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true}}
    }
   }
-  {cem:if @test=nav.action.bootstrap |{cem:variable @name=flow @select=nav.action.bootstrap}{cem-dialog @label="New project" @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |{cem-stack |
+  {cem:if @test=nav.action.bootstrap |{cem:variable @name=flow @select=nav.action.bootstrap}{cem-dialog @label="New project" @mode=nonmodal @popover=manual @default-open=true @host-command=cancel-action @host-command-event=cem-close |{cem-stack |
 {cem:if @test=flow.busy |{p @role=status | Preparing project…}}
 {cem:if @test=flow.error |{cem-alert @tone=danger @label={flow.error.message}}}
 {cem:choose |
@@ -108,7 +108,7 @@
 {cem-action @variant=contextual @host-command=cancel-action | Cancel}
 }}}
   {cem:if @test='nav.action &amp;&amp; !nav.action.bootstrap' |
-   {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.targetName), "")} @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |
+   {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.targetName), "")} @mode=nonmodal @popover=manual @default-open=true @host-command=cancel-action @host-command-event=cem-close |
     {cem:if @test=nav.error | {cem-alert @tone=danger @label={nav.error.message}}}
     {form @part=form @host-command=submit-action @host-command-event=submit |
      {cem-stack |

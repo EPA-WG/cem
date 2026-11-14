@@ -528,6 +528,24 @@ async function clickStudioTab(page, name) {
     await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
 }
 
+async function selectStudioChoice(scope, option, label) {
+    const control = scope.getByRole('combobox', label ? { name: label, exact: true } : {});
+    if (await control.count()) {
+        await control.click();
+        await scope.getByRole('option', { name: option, exact: true }).click();
+    } else {
+        const group = label ? scope.getByRole('radiogroup', { name: label, exact: true }) : scope;
+        await group.getByRole('radio', { name: option, exact: true }).check();
+    }
+}
+
+async function pickStudioChoice(page, label, option) {
+    const role = await page.getByRole('combobox', { name: label, exact: true, includeHidden: true }).count() ? 'combobox' : 'radiogroup';
+    await revealStudioControl(page, role, label);
+    await selectStudioChoice(page, option, label);
+    await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+}
+
 async function createNavigatorProject(page, name) {
     await page.evaluate(async () => {
         const app = globalThis.__cemStudioApplication;
@@ -535,8 +553,13 @@ async function createNavigatorProject(page, name) {
     });
     await page.getByRole('button', { name: 'Create', exact: true }).click();
     const dialog = page.getByRole('dialog');
+    assert.deepEqual(await dialog.evaluate(element => [element.matches(':popover-open'), element.matches(':modal'), element.open]), [true, false, false]);
     await dialog.getByRole('textbox', { name: 'Project name', exact: true }).fill(name);
-    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await dialog.locator('cem-select[name=preset] input[value=custom]').check();
+    await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+    await dialog.locator('cem-textarea[name=sourceFiles] textarea').fill('source.cem');
+    await dialog.getByRole('button', { name: 'Review project', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Create project', exact: true }).click();
     await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     await openSavedProject(page, name);
 }
@@ -601,8 +624,7 @@ async function exerciseProjectLifecycle(page, context) {
     const choose = async (selector, name) => {
         const host = page.locator(selector);
         await revealStudioElement(page, host);
-        await host.getByRole('combobox').click();
-        await host.getByRole('option', { name, exact: true }).click();
+        await selectStudioChoice(host, name);
         await settle();
     };
     const click = async name => { console.log(`[cem-studio:lifecycle] ${name}`); await (await revealStudioControl(page, 'button', name)).click(); await settle(); };
@@ -643,26 +665,20 @@ async function exerciseProjectLifecycle(page, context) {
         await click('Parse persisted revision');
         if (name === 'Alpha inspection') {
             const revision = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectRevision);
-            await page.getByRole('combobox', { name: 'Operation option', exact: true }).click();
-            await page.getByRole('option', { name: 'format', exact: true }).click(); await settle();
+            await selectStudioChoice(page, 'format', 'Operation option'); await settle();
             const fieldForm = page.locator('form[host-command="edit-field"]');
             await fieldForm.waitFor({ state: 'attached' });
             assert.equal(await fieldForm.count(), 1);
-            await page.getByRole('combobox', { name: 'format', exact: true }).click();
-            await page.getByRole('option', { name: 'events', exact: true }).click();
+            await selectStudioChoice(fieldForm, 'events', 'format');
             await click('Set format');
             assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().command.parsed.options.format), 'events');
             await click('Reset format');
             assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().command.parsed.options.format), 'ast');
-            await page.getByRole('combobox', { name: 'Operation option', exact: true }).click();
-            await page.getByRole('option', { name: 'Operation options', exact: true }).click(); await settle();
+            await selectStudioChoice(page, 'Operation options', 'Operation option'); await settle();
             const groupForm = page.locator('form[host-command="edit-group"]');
             assert.equal(await groupForm.count(), 1);
             assert.equal(await page.locator('form[host-command="edit-field"]').count(), 0);
-            const setChoice = async (label, option) => {
-                await groupForm.getByRole('combobox', { name: label, exact: true }).click();
-                await page.getByRole('option', { name: option, exact: true }).click();
-            };
+            const setChoice = (label, option) => selectStudioChoice(groupForm, option, label);
             await setChoice('Change format', 'Set');
             await setChoice('format', 'events');
             await setChoice('Change preserve-source-offsets', 'Set');
@@ -696,12 +712,13 @@ async function exerciseProjectLifecycle(page, context) {
     await openResource(names[1]);
     const dialog = page.getByRole('dialog', { name: 'Resolve drafts before navigation', exact: true });
     await dialog.waitFor({ state: 'visible' });
-    for (let index = 0; index < 8; index += 1) {
-        await page.keyboard.press('Tab');
-        const focus = await dialog.evaluate(element => ({ contained: element.contains(document.activeElement), modal: element.matches(':modal'), documentFocused: document.hasFocus(), browserChrome: document.activeElement === document.body }));
-        assert.equal(focus.modal && (focus.contained || (!focus.documentFocused && focus.browserChrome)), true, `modal admitted background focus at Tab ${index}: ${JSON.stringify(focus)}`);
-    }
-    assert.equal(await source.evaluate(element => { element.focus(); return document.activeElement === element; }), false, 'modal background must be inert');
+    assert.deepEqual(await dialog.evaluate(element => [element.matches(':popover-open'), element.matches(':modal'), element.open, element.getAttribute('popover')]), [true, false, false, 'manual']);
+    assert.equal(await source.evaluate(element => { element.focus(); return document.activeElement === element; }), true, 'nonmodal background remains available');
+    await source.click();
+    assert.equal(await dialog.evaluate(element => element.matches(':popover-open')), true, 'outside activation keeps the draft decision open');
+    assert.equal((await snapshot()).draft, `${texts[0]}unsaved`);
+    await editor.evaluate(element => element.setSelectionRange(2, 7));
+    await dialog.getByRole('button', { name: 'Cancel navigation', exact: true }).focus();
     await page.keyboard.press('Escape'); await settle();
     assert.equal(await dialog.count(), 0);
     assert.equal(await editor.evaluate(element => element === document.querySelector('[data-cem-studio-editor] [role="textbox"]')), true);
@@ -763,11 +780,7 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal((await snapshot()).draft, texts[0]);
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.draftBackup()), '');
     const structure = () => page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().structure);
-    const pick = async (label, option) => {
-        await (await revealStudioControl(page, 'combobox', label)).click();
-        await page.getByRole('option', { name: option, exact: true }).click();
-        await settle();
-    };
+    const pick = (label, option) => pickStudioChoice(page, label, option);
     // Structure forms were removed from the navigator UI. Exercise the same
     // guarded shared domain operations, including failure and history semantics.
     const editStructure = async edit => {
@@ -1000,7 +1013,8 @@ async function exerciseProjectLifecycle(page, context) {
             for (const label of ['Graph configuration', 'New graph node', 'Graph edge', 'Graph parameters']) {
                 const fieldset = document.querySelector(`cem-fieldset[label="${label}"] fieldset`);
                 const style = getComputedStyle(fieldset);
-                paint.push({ mode, label, background: style.backgroundColor, color: style.color, inset: parseFloat(style.paddingInlineStart), border: parseFloat(style.borderTopWidth) });
+                paint.push({ mode, label, background: style.backgroundColor, color: style.color, inset: parseFloat(style.paddingInlineStart), border: parseFloat(style.borderTopWidth),
+                    density: fieldset.closest('[data-cem-density]')?.getAttribute('data-cem-density'), containerInset: style.getPropertyValue('--cem-inset-container').trim() });
             }
         }
         const inheritedInsets = ['Graph configuration', 'New graph node', 'Graph edge', 'Graph parameters'].map(label => {
@@ -1013,7 +1027,14 @@ async function exerciseProjectLifecycle(page, context) {
         return { paint, inheritedInsets };
     });
     assert.deepEqual(graphPaint.inheritedInsets, ['23px', '23px', '23px', '23px']);
-    for (const paint of graphPaint.paint) assert.ok(paint.background !== 'rgba(0, 0, 0, 0)' && paint.color !== paint.background && paint.inset > 0 && paint.border > 0, JSON.stringify(paint));
+    for (const paint of graphPaint.paint) {
+        // cem-dimension's super-compact contract explicitly owns a zero inset;
+        // the inherited override above proves the fieldset still consumes it.
+        assert.equal(paint.density, 'super-compact', JSON.stringify(paint));
+        assert.equal(paint.containerInset, '0px', JSON.stringify(paint));
+        assert.equal(paint.inset, 0, JSON.stringify(paint));
+        assert.ok(paint.background !== 'rgba(0, 0, 0, 0)' && paint.color !== paint.background && paint.border > 0, JSON.stringify(paint));
+    }
     await page.emulateMedia({ forcedColors: 'active' });
     for (const label of ['Graph configuration', 'New graph node', 'Graph edge', 'Graph parameters']) assert.equal(await page.locator(`cem-fieldset[label="${label}"] fieldset`).evaluate(fieldset => {
         const style = getComputedStyle(fieldset);
@@ -1091,7 +1112,7 @@ async function exerciseExampleProjects(page, context) {
             diagnostics: state.validation?.diagnostics, validationStale: state.validation?.stale, validation: state.validation?.reportSummary };
     });
     const click = async name => { console.log(`[cem-studio:examples] ${name}`); await (await revealStudioControl(page, 'button', name)).click(); await settle(); };
-    const pick = async (name, option) => { await (await revealStudioControl(page, 'combobox', name)).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
+    const pick = (name, option) => pickStudioChoice(page, name, option);
     const sampleName = 'Login';
     const copyId = name => page.evaluate(name => JSON.parse(globalThis.__cemStudioApplication.workbench.snapshot().home.projects.find(project => project.name === name).id).projectId, name);
     const selectConfiguration = async (projectId, entryId) => {

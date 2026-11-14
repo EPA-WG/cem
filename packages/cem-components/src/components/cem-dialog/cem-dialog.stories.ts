@@ -21,6 +21,26 @@ export const NamesAndNonmodalLifecycle = meta.story({
         expect(required(owner, '[part=heading]').textContent).toBe('Renamed record'); expect(host.querySelector('style')).toBeNull();
     },
 });
+export const OutsideFocusAndExplicitReturn = meta.story({
+    render: () => '<section interaction-scope><cem-dialog label="Nonmodal task" trigger="Open" close-label="Done" return-focus="@workflow"><input autofocus aria-label="Entry"></cem-dialog><input aria-label="Outside draft" value="Retained draft"><button interaction-name="workflow">Workflow</button></section>',
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'cem-dialog'); await whenCemRendered(host);
+        const owner = required<HTMLDialogElement>(host, 'dialog'), source = required(host, '[part=trigger]'), outside = required<HTMLInputElement>(canvasElement, 'section > input'), workflow = required(canvasElement, '[interaction-name=workflow]');
+        await userEvent.click(source); outside.focus(); outside.setSelectionRange(2, 7); owner.close();
+        await waitFor(() => expect(document.activeElement).toBe(outside));
+        expect([outside.value, outside.selectionStart, outside.selectionEnd]).toEqual(['Retained draft', 2, 7]);
+        await userEvent.click(source); await userEvent.click(required(owner, '[part=close]')); expect(document.activeElement).toBe(workflow);
+        host.setAttribute('return-focus', 'none'); await whenCemRendered(host); await userEvent.click(source); outside.focus();
+        let sharedFocus = 0;
+        const focus = outside.focus.bind(outside);
+        Object.defineProperty(outside, 'focus', { configurable: true, value: (options?: FocusOptions) => { sharedFocus++; focus(options); } });
+        try {
+            owner.close(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve())); expect(sharedFocus).toBe(0);
+        } finally { Reflect.deleteProperty(outside, 'focus'); }
+        host.removeAttribute('return-focus'); await whenCemRendered(host); await userEvent.click(source); outside.focus(); host.remove();
+        await waitFor(() => expect(document.activeElement).toBe(outside));
+    },
+});
 export const ModalFormsAndCancel = meta.story({
     render: () => '<section class="cem-theme-light"><cem-dialog label="Confirm details" mode="modal" trigger="Confirm" close-label="Cancel"><form method="dialog"><label>Required name <input autofocus required name="name"></label><button type="submit" value="saved">Save</button></form></cem-dialog></section>',
     play: async ({ canvasElement }) => {

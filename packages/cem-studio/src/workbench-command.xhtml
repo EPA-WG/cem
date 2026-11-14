@@ -18,7 +18,7 @@
                                 @variant=primary | Apply &amp; Run}}{cem:if @test='(application.status == "confirmation-required") &amp;&amp; !application.navigationPending' |{cem-dialog @data-cem-studio-command-replace-dialog=""
                                 @default-open=true @host-command=dismiss-replacement
                                 @host-command-event=cem-close
-                                @label="Confirm incompatible configuration replacement" @mode=modal |{cem-text | The selected configuration has an incompatible kind. Creating a new inspection configuration is recommended.}{cem-grid |{cem-action @data-cem-studio-command-use-new="" @disabled={if busy { true } else { null }}
+                                @label="Confirm incompatible configuration replacement" @mode=nonmodal @popover=manual |{cem-text | The selected configuration has an incompatible kind. Creating a new inspection configuration is recommended.}{cem-grid |{cem-action @data-cem-studio-command-use-new="" @disabled={if busy { true } else { null }}
                                         @host-command=use-new @host-command-event=click
                                         @variant=primary | Use new configuration}{cem-action @data-cem-studio-command-replace-confirm=""
                                         @disabled={if applyDisabled { true } else { null }} @host-command=confirm-replacement

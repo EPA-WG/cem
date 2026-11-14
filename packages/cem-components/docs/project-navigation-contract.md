@@ -32,6 +32,15 @@ The shared native-surface capability returns focus to the entry control when it
 remains available and the dialog still owned focus. Application services never
 query controls or call focus, show or close methods.
 
+This shared example keeps its explicit modal policy. Studio's project actions,
+questionnaire and draft/replacement decisions instead select manual nonmodal
+popover presentation as of 2026-11-14. They use the same native-surface owner and
+service admission/cancellation, keep background controls available and remain
+open after outside activation. Their visibility is `:popover-open`, independently
+of `dialog.open`; Escape applies while focus is in the task. Shared manual task
+popovers repair focus after a focused questionnaire step is replaced without
+stealing a deliberate outside destination.
+
 The named resource region isolates changing loading/empty/error content from
 retained workbench panes. Source and installed-package navigation verification
 exercise the composition at a compact viewport across all five themes, inherited

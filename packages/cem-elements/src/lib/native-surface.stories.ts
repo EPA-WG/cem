@@ -32,6 +32,45 @@ export const RemovedDialogFocusOwnership: Story = {
     },
 };
 
+export const OutsideFocusAfterNativeRestoration: Story = {
+    render: () => '<section><button>Launcher</button><input aria-label="Outside draft" value="Unchanged draft"><button>Workflow</button><dialog aria-label="Task"><input autofocus aria-label="Inside"></dialog></section>',
+    play: async ({ canvasElement }) => {
+        const root = required(canvasElement, 'section'), source = required(root, 'button'), outside = required<HTMLInputElement>(root, ':scope > input'), workflow = required(root, 'button:nth-of-type(2)'), owner = required<HTMLDialogElement>(root, 'dialog');
+        const close = owner.close.bind(owner);
+        // Deterministic coverage of the native restoration difference, including
+        // on engines whose native close already preserves outside focus.
+        Object.defineProperty(owner, 'close', { configurable: true, value: (result?: string) => { if (result === undefined) close(); else close(result); source.focus(); } });
+        Object.defineProperty(owner, 'requestClose', { configurable: true, value: undefined });
+        let controller = connectCemNativeSurface(owner);
+        const settle = async () => { for (let n = 0; n < 2; n++) await new Promise<void>(resolve => requestAnimationFrame(() => resolve())); };
+        const open = () => { source.focus(); expect(controller.open({ source })).toBe(true); outside.focus(); outside.setSelectionRange(2, 6); };
+        try {
+            for (const reason of ['outside', 'tab', 'command', 'native']) {
+                open(); const scroll = [scrollX, scrollY];
+                if (reason === 'native') owner.close(); else expect(controller.requestClose(reason)).toBe(true);
+                await settle(); expect(document.activeElement).toBe(outside);
+                expect([outside.selectionStart, outside.selectionEnd]).toEqual([2, 6]); expect(outside.value).toBe('Unchanged draft');
+                expect([scrollX, scrollY]).toEqual(scroll);
+            }
+            open(); owner.close(); workflow.focus(); await settle(); expect(document.activeElement).toBe(workflow);
+            owner.setAttribute('return-focus', 'none'); open(); controller.requestClose(); await settle(); expect(document.activeElement).toBe(source);
+            owner.removeAttribute('return-focus');
+            for (const state of ['hidden', 'disabled', 'inert', 'removed']) {
+                open(); if (state === 'removed') outside.remove(); else outside.setAttribute(state, '');
+                controller.requestClose(); await settle(); expect(document.activeElement).not.toBe(outside);
+                if (state === 'removed') root.insertBefore(outside, workflow); else outside.removeAttribute(state);
+            }
+            open(); const reopen = () => controller.open({ source: workflow });
+            owner.addEventListener('cem-close', reopen, { once: true }); controller.requestClose('outside'); await settle();
+            expect(owner.open).toBe(true); expect(document.activeElement).toBe(required(owner, 'input'));
+            controller.requestClose(); expect(document.activeElement).toBe(workflow);
+            open(); controller.disconnect(); await settle(); expect(document.activeElement).toBe(outside);
+            controller = connectCemNativeSurface(owner); open(); owner.remove(); controller.disconnect(); await settle();
+            expect(document.activeElement).toBe(outside);
+        } finally { Reflect.deleteProperty(owner, 'requestClose'); Reflect.deleteProperty(owner, 'close'); controller.disconnect(); }
+    },
+};
+
 export const ModalStepReplacementKeepsFocusOwned: Story = {
     render: () => '<section><button>Open task</button><dialog aria-label="Stepped task" mode="modal"><div><button>Continue</button></div><button>Keep focus here</button></dialog></section>',
     play: async ({ canvasElement }) => {
@@ -59,6 +98,22 @@ export const ModalStepReplacementKeepsFocusOwned: Story = {
             controller.open({ source: invoker }); required(body, 'textarea').focus();
             const nonmodal = replace(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
             await expect(document.activeElement).not.toBe(nonmodal);
+        } finally { controller.disconnect(); }
+    },
+};
+export const PopoverStepReplacementKeepsOwnedFocus: Story = {
+    render: () => '<section><button>Launcher</button><button>Outside</button><dialog popover="manual" aria-label="Stepped task"><div><button>Continue</button></div></dialog></section>',
+    play: async ({ canvasElement }) => {
+        const root = required(canvasElement, 'section'), source = required(root, 'button'), outside = required(root, 'button:nth-child(2)'), owner = required<HTMLDialogElement>(root, 'dialog'), body = required(owner, 'div');
+        const controller = connectCemNativeSurface(owner);
+        const replace = () => { const field = document.createElement('textarea'); field.setAttribute('aria-label', 'Next step'); body.replaceChildren(field); return field; };
+        try {
+            controller.open({ source }); required(body, 'button').focus();
+            const next = replace(); await waitFor(() => expect(document.activeElement).toBe(next));
+            expect(owner.matches(':popover-open')).toBe(true); expect(owner.matches(':modal')).toBe(false);
+            outside.focus(); replace(); await Promise.resolve(); expect(document.activeElement).toBe(outside);
+            required(body, 'textarea').focus(); owner.setAttribute('focus-target', 'none');
+            const untouched = replace(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve())); expect(document.activeElement).not.toBe(untouched);
         } finally { controller.disconnect(); }
     },
 };

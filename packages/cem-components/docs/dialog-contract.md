@@ -88,6 +88,31 @@ Native forced `close()` and successful `form method="dialog"` remain separate
 completion paths. This compatibility change preserves native modality, the
 stable owner, focus references, form validation and popover presentation.
 
+## Outside focus on nonmodal closure
+
+The shared owner captures the element focused immediately before a native
+dialog opens and snapshots an eligible outside destination when closure starts.
+Some native nonmodal closes return focus to the original entry even after the
+user has moved outside. The adapter compensates only when focus actually lands
+on that exact entry in the same session/generation and the outside destination
+is still connected, visible, enabled and focusable. The single repair uses
+`preventScroll` and preserves the outside editor's value and selection. Engines
+that already keep outside focus receive no additional focus call.
+
+The snapshot is transient browser ownership, never serialized checkpoint data.
+Closing/reopening or disposal cannot grant an older session focus authority.
+Another active destination is preserved; a close callback may choose a new
+workflow target. Native modal return and popover presentation keep their own
+focus routes. `return-focus="none"` opts out of the repair as well as ordinary
+shared return; native browser focus behavior still applies. Explicit return
+references remain effective when closing from within the task.
+
+Task-step replacement keeps owned focus for modals and manual task popovers:
+when the focused control disappears and focus falls to the body/owner, the
+shared owner selects a surviving eligible internal target. Deliberate outside
+focus, a surviving focused control and `focus-target="none"` suppress that repair.
+Local nonmodal `show()` dialogs retain their existing focus policy.
+
 ## Migration from legacy dialogs
 
 Remove `transient` and live `expanded`. Use explicit `mode="modal"` where modal
@@ -107,11 +132,12 @@ bundle and installed-package verification through `verify-surfaces`.
 
 Recommendation: retain the existing three presentation choices. Use native
 `showModal()` for blocking tasks, `show()` for persistent local tasks and an
-explicit `popover` for top-layer nonmodal tasks. Replacing modal dialogs with
-popovers would require recreating browser focus containment and background
-inertness. It offers no benefit to the current shared-owner model. This is an
-assessment and follow-up plan; it does not change the shipped declarations or
-their default presentation.
+explicit `popover` for top-layer nonmodal tasks. Blocking tasks retain browser
+focus containment and background inertness through native modality. Shared
+declarations keep their default presentation. Following the owner's subsequent
+2026-11-14 instruction, Studio explicitly selects `mode="nonmodal"
+popover="manual"` for its task dialogs, making the workbench available while
+retaining guarded decisions and persistent top-layer presentation.
 
 ### Presentation and dismissal matrix
 
@@ -206,8 +232,10 @@ that must precede a broader dialog change:
    in Chromium but returns it to the launcher in Firefox. The probe intercepts
    the launcher's JavaScript `focus()` method and confirms zero shared return
    calls in this path; the unadapted native reference reproduces the same engine
-   difference. Preserve the current outside destination without adding a second
-   general focus owner.
+   difference. Fixed on 2026-11-14 by the bounded
+   [outside-focus repair](#outside-focus-on-nonmodal-closure). The unadapted native
+   comparison remains evidence; adapted workspace and packed runtimes now assert
+   outside focus, selection and scroll preservation in both engines.
 3. Native close-policy support and request APIs have independent compatibility
    histories. Fixed on 2026-11-14 with cancelable request fallback and explicit
    unsupported-policy refusal, verified against masked capabilities in both
@@ -217,9 +245,9 @@ that must precede a broader dialog change:
    request or manual-popover paths; any future declarative guard configuration
    must reject an incompatible auto/hint guarantee before opening.
 
-Outside-focus differences remain observation probes until the separate shared
-restoration fix lands. Close-policy and API compatibility are regression
-assertions. The [dialog compatibility data](https://github.com/mdn/browser-compat-data/blob/main/html/elements/dialog.json)
+Outside-focus preservation, close-policy and API compatibility are regression
+assertions. Unadapted focus differences remain reference observations. The
+[dialog compatibility data](https://github.com/mdn/browser-compat-data/blob/main/html/elements/dialog.json)
 and [API compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/HTMLDialogElement.json)
 were checked during this assessment. Installed WebKit cannot launch because host
 libraries are missing; Safari, assistive technology and physical Back/dismiss
@@ -229,6 +257,6 @@ gestures are unverified. No modal emulation fallback is recommended.
 CEM_SURFACE_FIREFOX=1 yarn nx run @epa-wg/cem-components:verify-surfaces --excludeTaskDependencies --skipNxCache
 ```
 
-Shared close-policy/capability handling is complete. Continue with outside-focus
-recovery and then canonical scrim styling. Add colocated production-dialog cases
+Shared close-policy/capability handling and outside-focus recovery are complete.
+Continue with canonical scrim styling. Add colocated production-dialog cases
 for each change; retain browser-owned modality and the existing default API.

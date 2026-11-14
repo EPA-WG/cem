@@ -54,6 +54,7 @@ export async function verifyDialogPresentations(browser, runtimeUrl, fixtureUrl)
                 if (profile !== 'modal') {
                     await page.evaluate(() => window.surfaceAssessment.controller.requestClose());
                     outsideCloseFocus = await page.evaluate(() => { const s = window.surfaceAssessment; return { destination: document.activeElement === s.outside ? 'outside' : document.activeElement === s.source ? 'launcher' : document.activeElement === document.body ? 'body' : 'other', sharedReturns: s.sharedReturns }; });
+                    assert.equal(outsideCloseFocus.destination, 'outside', `${profile}: preserve the outside focus destination`);
                     assert.equal(outsideCloseFocus.sharedReturns, 0, `${profile}: shared restoration stays suppressed after outside navigation`);
                     await page.evaluate(() => { const s = window.surfaceAssessment; s.controller.open({ source: s.source }); });
                 }
@@ -175,7 +176,73 @@ export async function verifyDialogPresentations(browser, runtimeUrl, fixtureUrl)
         await page.evaluate(() => { const s = window.surfaceAssessment; s.nested.open({ source: s.owner.querySelector('button') }); s.controller.requestClose(); });
         assert.deepEqual(await page.evaluate(() => { const s = window.surfaceAssessment; return [s.owner.open, s.child.matches(':popover-open'), document.activeElement === s.source]; }), [false, false, true], 'Parent closure tears down descendants without child focus restoration');
         await page.evaluate(() => { const s = window.surfaceAssessment; s.tooltip.disconnect(); s.nested.disconnect(); s.controller.disconnect(); });
+        await verifyOutsideFocus(page, runtimeUrl, fixtureUrl);
         assert.deepEqual(errors, []);
         console.log(`Dialog presentation assessment ${browser.browserType().name()} ${browser.version()}: ${JSON.stringify(reports)}; policy observations: ${JSON.stringify(policy)}; modal light dismissal supported: ${lightDismissSupported}; forced close, nested dismissal and focus passed (${runtimeUrl}).`);
     } finally { await page.close(); }
+}
+
+async function verifyOutsideFocus(page, runtimeUrl, fixtureUrl) {
+    const routes = ['request', 'fallback', 'native-close', 'native-command', 'tab', 'disconnect', 'remove', 'separate-invoker', 'new-focus',
+        'beforetoggle-focus', 'none', 'hidden', 'disabled', 'inert', 'removed', 'remove-during-close', 'modal-explicit', 'veto', 'reopen'];
+    for (const route of routes) {
+        await page.goto(fixtureUrl);
+        await page.evaluate(async ({ runtimeUrl, route }) => {
+            const { connectCemNativeSurface } = await import(runtimeUrl);
+            document.body.innerHTML = '<button id="launcher">Launcher</button><dialog id="task" aria-label="Outside focus"><input autofocus aria-label="Inside"></dialog><input id="outside" aria-label="Outside" value="Retained draft"><button id="command" commandfor="task" command="close" value="saved">Close</button><button id="workflow">Workflow</button>';
+            document.body.style.minHeight = '1800px';
+            const source = document.getElementById('launcher'), owner = document.getElementById('task'), outside = document.getElementById('outside'), workflow = document.getElementById('workflow');
+            if (route === 'fallback') Object.defineProperty(owner, 'requestClose', { configurable: true, value: undefined });
+            if (route === 'none') owner.setAttribute('return-focus', 'none');
+            if (route === 'modal-explicit') { owner.setAttribute('mode', 'modal'); owner.setAttribute('return-focus', '#workflow'); }
+            const controller = connectCemNativeSurface(owner);
+            const s = window.surfaceAssessment = { source, owner, outside, workflow, controller, repairs: [] };
+            source.focus();
+            if (!controller.open({ source: route === 'separate-invoker' ? workflow : source })) throw Error('Outside-focus opening refused');
+            if (route !== 'tab') outside.focus();
+            outside.focus = options => { s.repairs.push(options?.preventScroll === true); HTMLInputElement.prototype.focus.call(outside, options); };
+            if (route === 'beforetoggle-focus') owner.addEventListener('beforetoggle', event => { if (event.newState === 'closed') workflow.focus(); });
+            if (route === 'remove-during-close') owner.addEventListener('beforetoggle', event => { if (event.newState === 'closed') outside.remove(); });
+            if (route === 'reopen') owner.addEventListener('cem-close', () => controller.open({ source: workflow }), { once: true });
+        }, { runtimeUrl, route });
+        if (route === 'tab') {
+            await page.keyboard.press('Tab');
+            assert.equal(await page.evaluate(() => document.activeElement === window.surfaceAssessment.outside), true, 'Native Tab reaches the outside input');
+        }
+        const result = await page.evaluate(async route => {
+            const s = window.surfaceAssessment, { owner, outside, controller } = s;
+            outside.setSelectionRange(2, 7); window.scrollTo(0, 250); const scroll = scrollY;
+            if (['hidden', 'disabled', 'inert'].includes(route)) outside.setAttribute(route, '');
+            if (route === 'removed') outside.remove();
+            if (route === 'veto') {
+                const veto = event => event.preventDefault(); owner.addEventListener('cem-before-close', veto);
+                if (controller.requestClose() || !owner.open || document.activeElement !== outside || s.repairs.length) throw Error('Veto changed outside focus');
+                owner.removeEventListener('cem-before-close', veto);
+            }
+            if (['native-close', 'new-focus', 'beforetoggle-focus', 'none', 'remove-during-close'].includes(route)) owner.close();
+            else if (route === 'native-command') document.getElementById('command').click();
+            else if (route === 'disconnect') controller.disconnect();
+            else if (route === 'remove') { owner.remove(); controller.disconnect(); }
+            else controller.requestClose(route === 'tab' ? 'tab' : 'command');
+            if (route === 'new-focus') s.workflow.focus();
+            for (let n = 0; n < 2; n++) await new Promise(resolve => requestAnimationFrame(resolve));
+            const result = { outside: document.activeElement === outside, workflow: document.activeElement === s.workflow,
+                inside: owner.contains(document.activeElement), open: owner.open, repairs: s.repairs,
+                selection: [outside.selectionStart, outside.selectionEnd], value: outside.value, scroll, afterScroll: scrollY, result: owner.returnValue };
+            Reflect.deleteProperty(outside, 'focus'); Reflect.deleteProperty(owner, 'requestClose'); controller.disconnect();
+            return result;
+        }, route);
+        const unavailable = ['none', 'hidden', 'disabled', 'inert', 'removed', 'remove-during-close'];
+        if (unavailable.includes(route)) assert.deepEqual(result.repairs, [], `${route}: no outside focus grant`);
+        else if (['new-focus', 'beforetoggle-focus', 'modal-explicit'].includes(route)) assert(result.workflow, `${route}: preserve explicit workflow focus`);
+        else if (route === 'reopen') assert(result.open && result.inside, 'Reopened task keeps its new focus');
+        else {
+            assert(result.outside && !result.open, `${route}: preserve outside input: ${JSON.stringify(result)}`);
+            assert.deepEqual(result.selection, [2, 7], `${route}: preserve selection`);
+            assert.equal(result.value, 'Retained draft'); assert.equal(result.afterScroll, result.scroll, `${route}: preserve scroll`);
+            assert(result.repairs.length <= 1 && result.repairs.every(Boolean), `${route}: at most one repair with preventScroll`);
+        }
+        if (route === 'native-command') assert.equal(result.result, 'saved', 'Native command result survives focus repair');
+    }
+    console.log(`Outside-focus regression: ${routes.length} native/fallback, navigation, disposal, opt-out and focus-ownership cases passed (${runtimeUrl}).`);
 }

@@ -35,7 +35,7 @@ async function setup(mount = true) {
     root = document.createElement('main'); root.style.cssText = 'inline-size:1280px; block-size:800px'; document.body.append(root);
     view = await mountCemStudioWorkbench({ root, workbench: service }); await view.whenSettled();
 }
-const dialog = () => root.querySelector('dialog[open]');
+const dialog = () => root.querySelector('dialog:popover-open');
 const button = command => root.querySelector(`cem-action[host-command="${command}"] button, cem-icon-button[host-command="${command}"] button`);
 const field = name => dialog().querySelector(`cem-text-field[name="${name}"] input, cem-textarea[name="${name}"] textarea`);
 async function click(command) { await userEvent.click(button(command)); await view.whenSettled(); }

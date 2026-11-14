@@ -446,16 +446,70 @@ for the current native work and the conditional diagnostic items on recurrence.
     physical-device acceptance is inferred from feature masking. The
     [close-policy contract](../packages/cem-components/docs/dialog-contract.md#close-policy-and-request-compatibility)
     records the compatibility boundary and keeps outside-focus repair separate.
-- [ ] Preserve the outside focus destination when a persistent nonmodal dialog
+- [x] Preserve the outside focus destination when a persistent nonmodal dialog
       closes in Firefox. Use the unadapted/native comparison to bound the repair;
       preserve native modal restoration, explicit return references, Tab/outside
       navigation, removal and menu-to-task handoff. Add shared and colocated
       production regressions; convert the assessment observation to an assertion.
+  - [x] Add shared regressions for native/fallback close, Tab/outside navigation,
+        selection and scroll preservation, native removal/disposal, stale reopen,
+        unavailable outside controls, explicit focus overrides and opt-out.
+  - [x] Add colocated dialog/shell regressions and compiled Chromium/Firefox
+        assertions against workspace and packed runtimes, retaining an unadapted
+        browser reference and verifying modal/popover/menu-to-task behavior.
+    Verified 2026-11-14: 41 shared/component stories and six submenu/checkpoint
+    cases pass. Workspace and isolated packed runtimes pass 19 outside-focus
+    cases each in Chromium 148 and Firefox 150, alongside presentation, policy,
+    gallery, bundle, inherited-theme and forced-color checks. The adapter repairs
+    only unexpected restoration to the native pre-open entry in the same live
+    session; opt-out, unavailable destinations and subsequent workflow focus
+    receive no stale focus grant. Typecheck, runtime build, declarative ownership
+    and lint pass (existing non-null-assertion warnings). No paint or theme-token
+    ownership changed. WebKit remains unavailable because host libraries are
+    missing; historical browsers and physical assistive technology are unverified.
+- [x] Use explicit manual nonmodal popovers for Studio dialogs, per the owner's
+      2026-11-14 instruction: project questionnaire/create/clone/remove,
+      incompatible command replacement and draft-navigation decisions. Preserve
+      guarded persistence, cancellation, stable owners and focus return while
+      making background controls available; retain native modal support in the
+      shared components.
+  - [x] Update mounted Studio and production-delivery fixtures for popover
+        visibility, background focus, persistent outside activation, Escape,
+        draft safety, questionnaire progression and project actions.
+  - [x] Verify shared manual-task-popover step replacement retains owned focus
+        without stealing a deliberate outside destination or ignoring focus opt-out.
+  - [x] Keep confirmation dismissal and commit paths independently bounded by
+        the existing test deadline, and refresh the delivery driver's legacy
+        creation helper for the current questionnaire and radio choices.
+  - [x] Align the delivery fixture's fieldset paint assertions with the canonical
+        super-compact density: require the inherited `0px` container token and
+        matching computed inset, preserve the `23px` override check, and retain
+        five-theme contrast, border and forced-color assertions.
+    Verified 2026-11-14: five questionnaire and seven focused workbench browser
+    cases pass, including project actions, native hide/trusted Escape, guarded
+    replacement and draft retention. The production workspace-delivery gate
+    passes online creation/import, offline save/Apply/run, outside activation,
+    Escape/focus/caret retention, export, reload, Trash/Restore, recovery,
+    graph editing and Login/Supplier workflows. Theme and inherited/forced-color
+    checks pass. Fieldset assertions now require the exact canonical
+    [super-compact density](../packages/cem-theme/src/lib/tokens/cem-dimension.md#66-inherited-density-profiles)
+    token and computed zero inset alongside the existing `23px` override;
+    component paint and public token ownership are preserved. Studio build,
+    typecheck, UI classification, output verification and lint pass. Shared
+    native modality remains available; the component/browser limits above apply.
 - [ ] Give modal dialog backdrops a canonical theme-owned scrim definition and
       declarative consumption after auditing existing theme endpoints. Verify
       six themes, inherited overrides, forced colors and nested modal/overlay
       paint; keep nonmodal popovers nonblocking. Follow the source-table,
       generator/manifest and public CSS ownership contracts.
+
+- [ ] Verify all CEM components using
+      [`modern-web-guidance`](/home/suns/cem/.agents/skills/modern-web-guidance/SKILL.md).
+      Search/retrieve the matching component and discipline guides; audit native
+      semantics, accessibility, keyboard/focus behavior, dismissal, modern CSS
+      and browser-support/fallback requirements. Record component-level evidence
+      and actionable gaps, preserve declarative CEM implementation and canonical
+      theme ownership, and rerun relevant stories and shipped galleries for fixes.
 
 ## Amsterdam presentation samples: active Studio priority
 

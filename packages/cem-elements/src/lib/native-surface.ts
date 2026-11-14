@@ -5,7 +5,7 @@ import { captureCemMenuTaskRelay, type CemMenuTaskRelay } from './menu-task-rela
 import { getCemActionInvocation } from './action-command-capability.js';
 import { interactionReference, observeInteractionReferences, reportInteractionReference } from './interaction-reference.js';
 import { createCemSurfaceGeometryLease, nativeSurfaceGeometry, type CemSurfaceGeometryLease } from './popup-controller.js';
-import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
+import { focusSurface, restoreSurfaceFocus, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
 import { captureCemSurfaceInvocation, snapshotGeometryRect, type CemSurfaceInvocation } from './surface-invocation.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { isCemEditorCompositionKey } from './form-control-capability.js';
@@ -75,6 +75,8 @@ class NativeSurface implements CemNativeSurfaceController {
     private focusWithin = false;
     private focusedControl?: HTMLElement;
     private focusRepair = false;
+    private nativeEntry?: HTMLElement;
+    private outsideClose?: { entry: HTMLElement; destination: HTMLElement; generation: number; session: string };
     private readonly focusChanges: MutationObserver;
     private closeReason = 'native';
     private restore = false;
@@ -106,6 +108,7 @@ class NativeSurface implements CemNativeSurfaceController {
                 this.focusWithin = event.target instanceof Node && owner.contains(event.target);
                 this.focusedControl = this.focusWithin && event.target instanceof HTMLElement ? event.target : undefined;
                 this.focusRepair = false;
+                if (this.outsideClose) this.captureOutsideClose();
             }
         }, options);
         owner.addEventListener('command', e => this.command(e as CommandEvent), options);
@@ -128,7 +131,8 @@ class NativeSurface implements CemNativeSurfaceController {
                         });
                     }
                 }
-            } else { this.phase = 'closing'; this.captureReturn(); }
+                if (!event.defaultPrevented) this.captureNativeEntry();
+            } else { this.phase = 'closing'; this.captureReturn(); this.captureOutsideClose(); }
             this.reflect(); queueMicrotask(() => this.sync());
         }, options);
         owner.addEventListener('cancel', e => {
@@ -203,11 +207,12 @@ class NativeSurface implements CemNativeSurfaceController {
             const previous = this.focusedControl;
             if (previous && !owner.contains(previous)) { this.focusedControl = undefined; this.focusRepair = true; }
             if (!this.focusRepair) return;
-            // A modal retains keyboard ownership when its focused step is
+            // A modal or manual task popover retains focus when its focused step is
             // replaced. Preserve an existing focused descendant, intentional
-            // external focus, nonmodal behavior and the authored focus policy.
+            // external focus, local nonmodal behavior and the authored focus policy.
             const active = owner.ownerDocument.activeElement;
-            if (this.disposed || !owner.matches(':modal') || !visible(owner)
+            const retainedTask = owner.matches(':modal') || this.kind() === 'dialog' && owner.getAttribute('popover') === 'manual';
+            if (this.disposed || !retainedTask || !visible(owner)
                 || (host.getAttribute('focus-target') === 'none' && !host.hasAttribute('data-cem-node-ref-focus-target'))
                 || (active !== owner.ownerDocument.body && active !== owner)) { this.focusRepair = false; return; }
             // Replacements can publish their shared controls in later renders.
@@ -336,6 +341,7 @@ class NativeSurface implements CemNativeSurfaceController {
             if (!alreadyOpen) {
                 if (this.owner.hasAttribute('popover')) this.owner.showPopover();
                 else if (nativeDialog(this.owner)) {
+                    this.captureNativeEntry();
                     if (this.host.getAttribute('mode') === 'modal' || this.invocation?.command === 'show-modal') this.owner.showModal(); else this.owner.show();
                 }
             }
@@ -368,6 +374,7 @@ class NativeSurface implements CemNativeSurfaceController {
             this.owner.hidePopover();
         } else if (nativeDialog(this.owner)) {
             const owner = this.owner, generation = this.generation, session = this.sessionId;
+            this.captureOutsideClose();
             this.requestingClose = true;
             try {
                 if (typeof owner.requestClose === 'function') {
@@ -385,7 +392,7 @@ class NativeSurface implements CemNativeSurfaceController {
             } catch {
                 reportInteractionReference(this.host, 'interaction-close-request-failed', 'close-request');
             } finally { this.requestingClose = false; }
-            if (visible(owner)) { this.phase = 'open'; this.restore = false; }
+            if (visible(owner)) { this.phase = 'open'; this.restore = false; this.outsideClose = undefined; }
         }
         this.sync(); return !visible(this.owner);
     }
@@ -420,6 +427,31 @@ class NativeSurface implements CemNativeSurfaceController {
         const active = this.owner.ownerDocument.activeElement;
         this.restore = !['outside', 'tab', 'disconnect', 'anchor-lost'].includes(this.closeReason)
             && (this.closeReason === 'escape' || !!active && this.owner.contains(active));
+    }
+    private captureNativeEntry(): void {
+        const active = this.owner.ownerDocument.activeElement;
+        this.nativeEntry = nativeDialog(this.owner) && !this.owner.hasAttribute('popover') && active instanceof HTMLElement
+            && !this.owner.contains(active) ? active : undefined;
+        this.outsideClose = undefined;
+    }
+    private captureOutsideClose(): void {
+        this.outsideClose = undefined;
+        const active = this.owner.ownerDocument.activeElement;
+        if (!nativeDialog(this.owner) || this.owner.hasAttribute('popover') || this.owner.matches(':modal') || !this.nativeEntry
+            || this.host.getAttribute('return-focus') === 'none' && !this.host.hasAttribute('data-cem-node-ref-return-focus')) return;
+        if (active instanceof HTMLElement && active !== this.nativeEntry && !this.owner.contains(active)
+            && surfaceElementAvailable(active) && surfaceFocusTargetEligible(active)) {
+            this.outsideClose = { entry: this.nativeEntry, destination: active, generation: this.generation, session: this.sessionId };
+        }
+    }
+    private preserveOutsideClose(): void {
+        const saved = this.outsideClose; this.outsideClose = undefined;
+        // Repair only the native opening target's unexpected return. Another
+        // destination, a new session or unavailable control has no focus grant.
+        if (saved && !this.disposed && !this.restore && !visible(this.owner) && saved.generation === this.generation && saved.session === this.sessionId
+            && this.owner.ownerDocument.activeElement === saved.entry
+            && !(this.host.getAttribute('return-focus') === 'none' && !this.host.hasAttribute('data-cem-node-ref-return-focus'))
+            && surfaceElementAvailable(saved.destination) && surfaceFocusTargetEligible(saved.destination)) saved.destination.focus({ preventScroll: true });
     }
     private noteDismissalReason(reason: string): void {
         this.closeReason = reason;
@@ -475,11 +507,13 @@ class NativeSurface implements CemNativeSurfaceController {
         } else if (!open && this.wasOpen) {
             this.focusedControl = undefined;
             this.focusRepair = false;
+            this.nativeEntry = undefined;
             // A hidden top-layer surface no longer owns pointer interest, even
             // when the browser does not dispatch pointerleave during dismissal.
             this.tooltipPointer = false;
             this.wasOpen = false; this.phase = 'closing'; this.prepared = false; this.geometry.reset(); this.reflect();
             this.closeNested();
+            this.preserveOutsideClose();
             if (this.kind() === 'dialog' && this.restore) restoreSurfaceFocus(this.host, this.invocation?.returnDestination ?? this.invocation?.source);
             const generation = ++this.generation;
             this.emit('cem-close', false, this.closeReason);
@@ -655,6 +689,7 @@ class NativeSurface implements CemNativeSurfaceController {
         for (const state of this.tooltipSources.values()) state.abort.abort(); this.tooltipSources.clear();
         for (const source of this.describedSources.keys()) this.forgetDescription(source);
         this.describedSources.clear(); this.invocation = undefined; this.checkpointContext = undefined; this.activation = undefined; controllers.delete(this.owner);
+        this.nativeEntry = undefined; this.outsideClose = undefined;
         if (returnOnRemoval) restoreSurfaceFocus(this.host, returnTo);
     }
 }

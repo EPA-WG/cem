@@ -3150,10 +3150,12 @@ Trash/Restore. The second project's save/Apply/run, export and reload run offlin
 the first project's saved source remains unchanged.
 
 Acceptance inspects exposed Chromium accessibility names and DOM ID references,
-modal background inertness, Escape return focus, retained editor identity/caret,
-visible keyboard focus, and page reflow at 320, 390 and 1280 CSS pixels. Native
-Tab navigation may visit browser chrome while a modal is open; it must never
-focus the inert page behind the modal. Existing delivery checks retain all five
+manual nonmodal popover visibility, available background controls, persistent
+outside activation, Escape return focus, retained editor identity/caret,
+visible keyboard focus, and page reflow at 320, 390 and 1280 CSS pixels. Studio's
+task dialogs use `mode="nonmodal" popover="manual"`, per the owner's 2026-11-14
+instruction. They retain guarded navigation and explicit decisions without
+making the surrounding workbench inert. Existing delivery checks retain all five
 themes, inherited overrides, forced colors and reduced motion.
 
 The narrow viewport audit identified a shared select grid minimum-size defect.
@@ -4222,7 +4224,14 @@ targets, then review both hierarchies and the native pipeline stages. The file
 inspector shows readonly starter content. **Edit structure** returns to the
 answers; files can be edited normally after creation. Shared CEM controls supply
 radio groups for the five presets and the two-choice format selectors, keyboard
-interaction, modal focus ownership and inherited themes.
+interaction, manual task-popover focus ownership and inherited themes. The
+questionnaire, project create/clone/remove, command replacement and navigation
+decisions use one retained native dialog in manual popover presentation.
+Outside controls remain available; outside activation does not dismiss a task.
+Escape while focus is inside and explicit Cancel use shared closure and service
+cancellation. Step replacement retains internal focus when its control disappears,
+while deliberate outside focus is preserved. The shared `cem-dialog` component
+continues to support explicit native modality for other consumers.
 
 The questionnaire uses a native `plan` request, for example:
 

@@ -18,6 +18,26 @@ export const NativeAlias = meta.story({
         host.remove(); expect(owner.open).toBe(false); expect(host.querySelector('[part=trigger]')).toBeNull();
     },
 });
+export const OutsideFocusAndExplicitReturn = meta.story({
+    render: () => '<section interaction-scope><cem-dialog-shell label="Nonmodal task" trigger="Open" close-label="Done" return-focus="@workflow"><input autofocus aria-label="Entry"></cem-dialog-shell><input aria-label="Outside draft" value="Retained draft"><button interaction-name="workflow">Workflow</button></section>',
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'cem-dialog-shell'); await whenCemRendered(host);
+        const owner = required<HTMLDialogElement>(host, 'dialog'), source = required(host, '[part=trigger]'), outside = required<HTMLInputElement>(canvasElement, 'section > input'), workflow = required(canvasElement, '[interaction-name=workflow]');
+        await userEvent.click(source); outside.focus(); outside.setSelectionRange(2, 7); owner.close();
+        await waitFor(() => expect(document.activeElement).toBe(outside));
+        expect([outside.value, outside.selectionStart, outside.selectionEnd]).toEqual(['Retained draft', 2, 7]);
+        await userEvent.click(source); await userEvent.click(required(owner, '[part=close]')); expect(document.activeElement).toBe(workflow);
+        host.setAttribute('return-focus', 'none'); await whenCemRendered(host); await userEvent.click(source); outside.focus();
+        let sharedFocus = 0;
+        const focus = outside.focus.bind(outside);
+        Object.defineProperty(outside, 'focus', { configurable: true, value: (options?: FocusOptions) => { sharedFocus++; focus(options); } });
+        try {
+            owner.close(); await new Promise<void>(resolve => requestAnimationFrame(() => resolve())); expect(sharedFocus).toBe(0);
+        } finally { Reflect.deleteProperty(outside, 'focus'); }
+        host.removeAttribute('return-focus'); await whenCemRendered(host); await userEvent.click(source); outside.focus(); host.remove();
+        await waitFor(() => expect(document.activeElement).toBe(outside));
+    },
+});
 
 export const KeyboardFallbackFocus = meta.story({
     render: () => '<section class="cem-theme-light"><cem-dialog-shell label="Keyboard task" trigger="Open task" mode="modal"><p>Read this task.</p></cem-dialog-shell></section>',
