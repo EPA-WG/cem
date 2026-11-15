@@ -67,7 +67,7 @@
                 "cem-icon-button",
                 "cem-menu-item"
             ],
-            "interaction": "Render enabled action controls and preserve their native button and menuitem semantics.",
+            "interaction": "Render enabled action controls and preserve native button semantics outside composite menus.",
             "status": "covered",
             "owner": "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts",
             "test": "AllAttributes",
@@ -89,7 +89,7 @@
                     "owner": "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts",
                     "test": "AllAttributes",
                     "assertions": [
-                        "const button = within(host).getByRole('menuitem', { name: 'Menu item' }) as HTMLButtonElement;",
+                        "const button = within(host).getByRole('button', { name: 'Menu item' }) as HTMLButtonElement;",
                         "expect(button.type).toBe('button');"
                     ]
                 }

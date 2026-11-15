@@ -8,7 +8,7 @@ import { checkpointPopupGeometry, showPopup, hidePopup, positionPopup, observePo
 
 // Direct composite parts and projected submenu slots are the declaration contract.
 const COMPOSITE = '[part~="composite"]';
-const originals = new WeakMap<HTMLElement, { role: string | null; tabindex: string | null; disabled: string | null }>();
+const originals = new WeakMap<HTMLElement, { owner: HTMLElement; role: string | null; tabindex: string | null; disabled: string | null }>();
 const relationshipAttributes = new WeakMap<HTMLElement, Map<string, string | null>>();
 function releaseRelationship(control: HTMLElement): void {
     const attributes = relationshipAttributes.get(control);
@@ -20,6 +20,7 @@ const states = new WeakMap<HTMLElement, State>();
 let sequence = 0;
 const menus = new Set<HTMLElement>();
 interface State {
+    controls: Set<HTMLElement>;
     relayRevision: number;
     queuedActivations: number;
     active?: HTMLElement;
@@ -39,7 +40,7 @@ interface State {
 }
 function stateFor(host: HTMLElement): State {
     let state = states.get(host);
-    if (!state) { state = { relayRevision: 0, queuedActivations: 0, buffer: '', typedAt: 0, syncing: false }; states.set(host, state); }
+    if (!state) { state = { controls: new Set(), relayRevision: 0, queuedActivations: 0, buffer: '', typedAt: 0, syncing: false }; states.set(host, state); }
     return state;
 }
 function container(host: HTMLElement): HTMLElement | null { return host.querySelector<HTMLElement>(`:scope > ${COMPOSITE}`); }
@@ -120,6 +121,17 @@ function setAttribute(node: Element, name: string, value: string | null): void {
     if (value === null) { if (node.hasAttribute(name)) node.removeAttribute(name); }
     else if (node.getAttribute(name) !== value) node.setAttribute(name, value);
 }
+function releaseControl(host: HTMLElement, control: HTMLElement): void {
+    const original = originals.get(control);
+    if (original?.owner !== host) return;
+    const state = stateFor(host);
+    if (state.open === control) close(host, !!state.openPanel?.contains(host.ownerDocument.activeElement));
+    releaseRelationship(control);
+    setAttribute(control, 'role', original.role);
+    setAttribute(control, 'tabindex', original.tabindex);
+    originals.delete(control);
+    state.controls.delete(control);
+}
 function focus(host: HTMLElement, control: HTMLElement | undefined): void {
     if (!control) return;
     stateFor(host).active = control;
@@ -176,28 +188,40 @@ function open(host: HTMLElement, trigger: HTMLElement, last = false): void {
 function synchronize(host: HTMLElement): void {
     const state = stateFor(host);
     const box = container(host);
-    if (!box || state.syncing) return;
+    if (state.syncing) return;
+    const ownedControls = controls(host);
+    for (const control of state.controls) if (!ownedControls.includes(control)) releaseControl(host, control);
+    if (!box) return;
     state.syncing = true;
     try {
         const menuMode = enabled(host);
         setAttribute(box, 'role', menuMode ? (column(host) || owner(host) ? 'menu' : 'menubar') : 'group');
         setAttribute(box, 'aria-orientation', menuMode ? (column(host) ? 'vertical' : 'horizontal') : null);
-        for (const control of controls(host)) {
-            if (!originals.has(control)) originals.set(control, { role: control.getAttribute('role'), tabindex: control.getAttribute('tabindex'), disabled: control.getAttribute('aria-disabled') });
+        for (const control of ownedControls) {
+            const prior = originals.get(control);
+            if (prior && prior.owner !== host) releaseControl(prior.owner, control);
+            if (!originals.has(control)) originals.set(control, { owner: host, role: control.getAttribute('role'), tabindex: control.getAttribute('tabindex'), disabled: control.getAttribute('aria-disabled') });
+            state.controls.add(control);
             if (control.matches('a')) setAttribute(control, 'aria-disabled', control.hasAttribute('disabled') || control.parentElement?.hasAttribute('disabled') ? 'true' : originals.get(control)?.disabled ?? null);
         }
         const candidates = items(host);
         setAttribute(box, 'tabindex', menuMode && candidates.length === 0 ? '-1' : null);
         if (!state.active || !candidates.includes(state.active)) state.active = candidates[0];
         if (state.open && (!candidates.includes(state.open) || !panelFor(state.open))) close(host);
-        if (!menuMode) close(host);
-        for (const control of controls(host)) {
+        if (!menuMode) close(host, !!state.openPanel?.contains(host.ownerDocument.activeElement));
+        for (const control of ownedControls) {
             const authoredRole = originals.get(control)?.role;
             setAttribute(control, 'role', menuMode ? (authoredRole === 'menuitemradio' || authoredRole === 'menuitemcheckbox' ? authoredRole : 'menuitem') : authoredRole ?? null);
             const disabled = unavailable(control);
             setAttribute(control, 'tabindex', menuMode ? (control === state.active && !disabled ? '0' : '-1') : (disabled ? '-1' : originals.get(control)?.tabindex ?? null));
             const panel = panelFor(control);
             if (!panel) { releaseRelationship(control); continue; }
+            if (!menuMode) {
+                releaseRelationship(control);
+                setAttribute(panel, 'hidden', '');
+                synchronize(panel);
+                continue;
+            }
             if (!relationshipAttributes.has(control)) relationshipAttributes.set(control, new Map(['aria-haspopup', 'aria-controls', 'aria-expanded'].map(name => [name, control.getAttribute(name)])));
             if (!control.id) control.id = `cem-composite-trigger-${++sequence}`;
             if (!panel.id) panel.id = `cem-composite-panel-${++sequence}`;
@@ -207,6 +231,7 @@ function synchronize(host: HTMLElement): void {
             const panelBox = container(panel);
             if (panelBox) setAttribute(panelBox, 'aria-labelledby', control.id);
             if (state.open !== control) setAttribute(panel, 'hidden', '');
+            synchronize(panel);
         }
         position(host);
     } finally { state.syncing = false; }
@@ -321,8 +346,8 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
     },
     disconnected(host) {
         close(host);
-        controls(host).forEach(releaseRelationship);
         const state = stateFor(host);
+        for (const control of state.controls) releaseControl(host, control);
         state.releaseRelay?.(); state.releaseRelay = undefined;
         state.abort?.abort();
         state.abort = undefined;

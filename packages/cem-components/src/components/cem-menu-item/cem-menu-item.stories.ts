@@ -18,17 +18,17 @@ export const AllAttributes = meta.story({
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-menu-item') as HTMLElement;
         await whenCemRendered(host);
-        const button = within(host).getByRole('menuitem', { name: 'Menu item' }) as HTMLButtonElement;
+        const button = within(host).getByRole('button', { name: 'Menu item' }) as HTMLButtonElement;
         expect(button.type).toBe('button');
         expect(button.getAttribute('part')).toBe('control');
         expect(button.disabled).toBe(false);
         expect(button.hasAttribute('aria-expanded')).toBe(false);
         host.setAttribute('label', 'Open settings');
         await whenCemRendered(host);
-        expect(within(host).getByRole('menuitem', { name: 'Open settings' })).toBe(button);
+        expect(within(host).getByRole('button', { name: 'Open settings' })).toBe(button);
         host.removeAttribute('label');
         await whenCemRendered(host);
-        expect(within(host).getByRole('menuitem', { name: 'Menu item' })).toBe(button);
+        expect(within(host).getByRole('button', { name: 'Menu item' })).toBe(button);
         for (const value of ['', 'false', 'true']) {
             host.setAttribute('disabled', value);
             await whenCemRendered(host);
@@ -126,7 +126,7 @@ export const OpenSubmenuSelection = meta.story({
     render: () => `<section class="cem-theme-light"><p>Trusted nested-menu checks run in the browser test runner.</p>${submenuExample}<button style="margin-block-start:20rem">Outside</button><cem-menu-item expanded="true" label="Standalone"></cem-menu-item></section>`,
     play: async ({ canvasElement }) => {
         if (import.meta.env.MODE !== 'test') return;
-        const { userEvent } = await import('vitest/browser');
+        const { userEvent, page } = await import('vitest/browser');
         await settleSubmenus(canvasElement);
         const file = menuTrigger(canvasElement, 'File'), more = menuTrigger(canvasElement, 'More'), edit = menuTrigger(canvasElement, 'Edit');
         expectSubmenuContour(file, false);
@@ -141,15 +141,15 @@ export const OpenSubmenuSelection = meta.story({
         expect(document.activeElement).toBe(menuTrigger(canvasElement, 'Deep command'));
         await userEvent.keyboard('{Escape}'); expectSubmenuContour(more, false); expectSubmenuContour(file, true);
         await userEvent.keyboard('{Escape}'); expectSubmenuContour(file, false);
-        await userEvent.click(file); expectSubmenuContour(file, true);
-        await userEvent.click(edit); expectSubmenuContour(file, false); expectSubmenuContour(edit, true);
+        await page.getByRole('menuitem', { name: 'File', exact: true }).click(); expectSubmenuContour(file, true);
+        await page.getByRole('menuitem', { name: 'Edit', exact: true }).click(); expectSubmenuContour(file, false); expectSubmenuContour(edit, true);
         await userEvent.keyboard('{Enter}'); expectSubmenuContour(edit, false);
-        await userEvent.click(file); await userEvent.click(canvasElement.querySelector('section > button')!);
+        await page.getByRole('menuitem', { name: 'File', exact: true }).click(); await userEvent.click(canvasElement.querySelector('section > button')!);
         expectSubmenuContour(file, false);
         file.focus(); await userEvent.keyboard('{ArrowDown}{Tab}'); expectSubmenuContour(file, false);
         const unavailable = menuTrigger(canvasElement, 'Unavailable');
         unavailable.click(); expectSubmenuContour(unavailable, false);
-        await userEvent.click(file);
+        await page.getByRole('menuitem', { name: 'File', exact: true }).click();
         file.parentElement!.setAttribute('disabled', ''); await whenCemRendered(file.parentElement!);
         expectSubmenuContour(file, false); expect(file.disabled).toBe(true);
     },
@@ -159,7 +159,7 @@ export const OpenSubmenuThemes = meta.story({
     render: () => `<section class="cem-theme-light"><p>Trusted six-theme and forced-color checks run in the browser test runner.</p>${submenuExample}</section>`,
     play: async ({ canvasElement }) => {
         if (import.meta.env.MODE !== 'test') return;
-        const { userEvent, cdp } = await import('vitest/browser');
+        const { userEvent, cdp, page } = await import('vitest/browser');
         await settleSubmenus(canvasElement);
         const container = canvasElement.querySelector('section')!;
         const file = menuTrigger(canvasElement, 'File');
@@ -169,9 +169,9 @@ export const OpenSubmenuThemes = meta.story({
             const shadow = splitTopLevel(getComputedStyle(file, '::before').boxShadow)[0];
             expect(paintedColor(shadow.slice(0, shadow.indexOf(')') + 1))).toBe(resolveTokenColor(file, '--cem-zebra-color-1'));
             const bounds = file.getBoundingClientRect();
-            await userEvent.hover(file); expectSubmenuContour(file, true);
+            await page.getByRole('menuitem', { name: 'File', exact: true }).hover(); expectSubmenuContour(file, true);
             expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(file).backgroundColor), file, '--cem-action-contextual-hover-background');
-            const down = nextTrustedPointerDown(file), click = userEvent.click(file, { delay: 200 });
+            const down = nextTrustedPointerDown(file), click = page.getByRole('menuitem', { name: 'File', exact: true }).click({ delay: 200 });
             await eventBeforeInteractionCompletes(down, click, 'pointerdown');
             expectSubmenuContour(file, true);
             expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(file).backgroundColor), file, '--cem-action-contextual-active-background');
@@ -206,7 +206,7 @@ export const ProjectedContent = meta.story({
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-menu-item') as HTMLElement;
         await whenCemRendered(host);
-        const button = within(host).getByRole('menuitem', { name: 'Projected command' });
+        const button = within(host).getByRole('button', { name: 'Projected command' });
         expect(button.querySelector('[data-content="projected"]')?.textContent).toBe('Projected command');
         expect(host.shadowRoot).toBeNull();
     },
@@ -237,7 +237,7 @@ export const Hover = meta.story({
                 host: harness.query<HTMLElement>('cem-menu-item:not([disabled])'),
                 button: harness.query<HTMLButtonElement>('cem-menu-item:not([disabled]) button'),
                 name: 'Open menu',
-                role: 'menuitem',
+                role: null,
                 tokens: {
                     defaultBackground: '--cem-action-contextual-default-background',
                     defaultText: '--cem-action-contextual-default-text',
@@ -251,7 +251,7 @@ export const Hover = meta.story({
                 host: harness.query<HTMLElement>('cem-menu-item[disabled]'),
                 button: harness.query<HTMLButtonElement>('cem-menu-item[disabled] button'),
                 name: 'Disabled menu',
-                role: 'menuitem',
+                role: null,
                 tokens: actionCases[0].tokens,
             },
         ] as const;
@@ -361,7 +361,7 @@ export const Active = meta.story({
                 host: harness.query<HTMLElement>('cem-menu-item:not([disabled])'),
                 button: harness.query<HTMLButtonElement>('cem-menu-item:not([disabled]) button'),
                 name: 'Open menu',
-                role: 'menuitem',
+                role: null,
                 slice: 'selected',
                 targetTag: 'button',
                 tokens: {
@@ -379,7 +379,7 @@ export const Active = meta.story({
                 host: harness.query<HTMLElement>('cem-menu-item[disabled]'),
                 button: harness.query<HTMLButtonElement>('cem-menu-item[disabled] button'),
                 name: 'Disabled menu',
-                role: 'menuitem',
+                role: null,
                 tokens: actionCases[0].tokens,
             },
         ] as const;

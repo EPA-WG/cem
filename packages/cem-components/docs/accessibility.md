@@ -418,6 +418,10 @@ strip it.
 
 
 `cem-menu` preserves native Tab navigation unless `keyboard="menu"` is selected.
+Native mode exposes a named group and native button/link items; standalone
+`cem-menu-item` controls also retain their implicit native roles. Menu roles and
+popup relationships belong to the shared composite controller, are synchronized
+through nested owners, and are released on native-mode changes or removal.
 Label it with `aria-label` or `aria-labelledby`. Menu mode uses a menubar for row
 roots, menu for columns and submenus, and a single enabled roving stop per open
 menu. Nested owners expose haspopup, controls and expanded relationships;

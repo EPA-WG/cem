@@ -30,6 +30,7 @@ const sheetOnly = process.argv.includes('--sheet-only');
 const fieldsetOnly = process.argv.includes('--fieldset-only');
 const canonicalSourcesOnly = process.argv.includes('--canonical-sources-only');
 const navigationContentOnly = process.argv.includes('--navigation-content-only');
+const menusOnly = process.argv.includes('--menus-only');
 const passiveOnly = process.argv.includes('--passive-only');
 const passiveComponent = process.argv.find(value => value.startsWith('--passive-component='))?.slice('--passive-component='.length);
 const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar', 'cem-media-preview', 'cem-tree-item', 'cem-app-bar', 'cem-tab', 'cem-step'].filter(tag => !passiveComponent || tag === passiveComponent);
@@ -78,6 +79,7 @@ try {
     else if (!installedOnly && disclosureDataOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && layoutOnly) await verifyLayout(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && navigationContentOnly) await verifyNavigationContent(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && menusOnly) await verifyMenus(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && timeRangeOnly) await verifyTimeRange(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && datepickerOnly) await verifyDatepicker(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && autocompleteOnly) await verifyAutocomplete(`${origin}/packages/cem-components/playgrounds/`);
@@ -105,6 +107,7 @@ try {
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDatepicker(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyTimeRange(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyNavigationContent(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly && !suggestionsOnly) await verifyMenus(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyLayout(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly && !suggestionsOnly) await verifyCompactStudio(`${origin}/packages/cem-components/playgrounds/`, false);
@@ -136,6 +139,7 @@ try {
     else if (disclosureDataOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (layoutOnly) await verifyLayout(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (navigationContentOnly) await verifyNavigationContent(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (menusOnly) await verifyMenus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (timeRangeOnly) await verifyTimeRange(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (datepickerOnly) await verifyDatepicker(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (autocompleteOnly) await verifyAutocomplete(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -163,6 +167,7 @@ try {
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDatepicker(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyTimeRange(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyNavigationContent(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly && !suggestionsOnly) await verifyMenus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyLayout(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly && !suggestionsOnly) await verifyCompactStudio(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, false);
@@ -190,6 +195,7 @@ try {
     else if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
     else if (layoutOnly) console.log(`Passive layout, content state, property controls, galleries and bundle verified from ${verifiedLocations}.`);
     else if (navigationContentOnly) console.log(`Navigation and content properties, galleries and bundle verified from ${verifiedLocations}.`);
+    else if (menusOnly) console.log(`Native/composite menu roles, properties, galleries and bundle verified from ${verifiedLocations}.`);
     else if (timeRangeOnly) console.log(`Timepicker and slider properties, native forms, galleries and bundle verified from ${verifiedLocations}.`);
     else if (datepickerOnly) console.log(`Datepicker property controls, native forms, calendar, galleries and bundle verified from ${verifiedLocations}.`);
     else if (autocompleteOnly) console.log(`Autocomplete property controls, galleries, live payload, forms and bundle verified from ${verifiedLocations}.`);
@@ -1083,7 +1089,13 @@ async function verifyGalleries(baseUrl, tags) {
                 const missing = await page.locator(sampleSelector).evaluateAll(nodes => nodes.filter(node => !node.querySelector('[part]')).map(node => ({ html: node.outerHTML, diagnostics: window.cemPlaygroundRuntime.diagnosticsFor(node) })));
                 throw new Error(`${tag} gallery samples did not render at ${page.url()}: ${JSON.stringify(missing)}`, { cause: error });
             });
-            assert.equal(await page.locator('[data-gallery-theme]').count(), 5, `${tag}: five theme modes`);
+            const gallerySource = await readFile(join(root, 'packages/cem-components/playgrounds', `${tag}-gallery.html`), 'utf8');
+            const expectedThemes = [...gallerySource.matchAll(/\bdata-gallery-theme="([^"]+)"/g)].map(match => match[1]);
+            const requiredThemes = ['light', 'dark', 'contrast-light', 'contrast-dark', 'native'];
+            for (const theme of requiredThemes) assert(expectedThemes.includes(theme), `${tag}: required ${theme} theme`);
+            assert.equal(new Set(expectedThemes).size, expectedThemes.length, `${tag}: unique theme sections`);
+            assert(expectedThemes.every(theme => [...requiredThemes, 'projector'].includes(theme)), `${tag}: known theme sections`);
+            assert.deepEqual(await page.locator('[data-gallery-theme]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-gallery-theme'))), expectedThemes, `${tag}: exact authored theme inventory`);
             await page.waitForFunction(() => {
                 const demos = [...document.querySelectorAll('cem-demo-element')];
                 return demos.length > 0 && demos.every(node => node.getAttribute('data-state') === 'ready');
@@ -1496,6 +1508,76 @@ async function verifyIconImageExamples(page) {
     const hidden = page.locator('cem-demo-element[legend="Hidden attribute presence"] cem-icon[hidden]');
     assert.equal(await hidden.count(), 3);
     assert(await hidden.evaluateAll(nodes => nodes.every(node => getComputedStyle(node).display === 'none')));
+}
+
+async function verifyMenus(baseUrl) {
+    await verifyGalleries(baseUrl, ['cem-menu', 'cem-menu-item']);
+    await verifyCommand(new URL('cem-menu-item.html', baseUrl).href, 'cem-menu-item');
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(new URL('cem-menu.html', baseUrl).href);
+        const menu = page.locator('main cem-menu[aria-label="Commands"]').first();
+        const command = menu.locator('cem-menu-item[label="Commands"] > button');
+        const link = menu.locator('cem-menu-item[label="Help"] > a');
+        await command.waitFor(); await link.waitFor();
+        const commandOwner = await command.elementHandle(), linkOwner = await link.elementHandle();
+        const nested = menu.locator('cem-menu[slot="submenu"]');
+        const native = async () => {
+            await menu.getByRole('button', { name: 'Commands', exact: true }).waitFor();
+            await menu.getByRole('link', { name: 'Help', exact: true }).waitFor();
+            assert.equal(await command.getAttribute('role'), null);
+            assert.equal(await link.getAttribute('role'), null);
+            assert.equal(await menu.locator(':scope > [part=composite]').getAttribute('role'), 'group');
+            assert.equal(await command.getAttribute('aria-haspopup'), null);
+            assert.equal(await nested.locator(':scope > [part=composite]').getAttribute('role'), 'group');
+            assert.equal(await command.evaluate((node, original) => node === original, commandOwner), true);
+            assert.equal(await link.evaluate((node, original) => node === original, linkOwner), true);
+        };
+        await native();
+        await menu.getByRole('link', { name: 'Home', exact: true }).focus();
+        await page.keyboard.press('Tab'); assert.equal(await command.evaluate(node => node === document.activeElement), true);
+        await page.keyboard.press('Tab'); assert.equal(await link.evaluate(node => node === document.activeElement), true);
+        for (const mode of ['menu', 'native', 'menu', 'native']) {
+            await page.getByRole('group', { name: 'keyboard', exact: true }).getByRole('radio', { name: mode, exact: true }).check();
+            await page.waitForFunction(mode => document.querySelector('main cem-menu[aria-label="Commands"]')?.getAttribute('keyboard') === mode, mode);
+            if (mode === 'native') {
+                await native();
+                // A change through an outside control must not steal its focus.
+                assert.equal(await page.getByRole('radio', { name: mode, exact: true }).evaluate(node => node === document.activeElement), true);
+                assert.equal(await nested.isVisible(), false);
+            } else {
+                await menu.getByRole('menuitem', { name: 'Commands', exact: true }).waitFor().catch(async error => {
+                    console.error('Menu accessibility:', await menu.ariaSnapshot());
+                    console.error('Menu role transition:', await menu.evaluate(host => ({
+                        mode: host.getAttribute('keyboard'),
+                        diagnostics: window.cemPlaygroundRuntime.diagnosticsFor(host),
+                    })));
+                    throw error;
+                });
+                assert.equal(await menu.locator(':scope > [part=composite]').getAttribute('role'), 'menubar');
+                assert.equal(await link.getAttribute('role'), 'menuitem');
+                await command.focus(); await command.press('ArrowDown');
+                const run = nested.getByRole('menuitem', { name: 'Run', exact: true });
+                await run.waitFor(); assert.equal(await run.evaluate(node => node === document.activeElement), true);
+                assert.equal(await nested.locator(':scope > [part=composite]').getAttribute('role'), 'menu');
+                await run.press('Escape');
+                assert.equal(await command.evaluate(node => node === document.activeElement), true);
+            }
+        }
+        await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        await page.getByRole('button', { name: 'Bundled menu command', exact: true }).waitFor();
+        const bundled = page.locator('cem-menu[aria-label="Bundled menu"]');
+        const leaf = bundled.getByRole('menuitem', { name: 'Bundled leaf', exact: true });
+        await leaf.waitFor(); const leafOwner = await leaf.elementHandle();
+        await bundled.evaluate(node => node.setAttribute('keyboard', 'native'));
+        const nativeLeaf = bundled.getByRole('button', { name: 'Bundled leaf', exact: true });
+        await nativeLeaf.waitFor();
+        assert.equal(await nativeLeaf.evaluate((node, original) => node === original, leafOwner), true);
+        assert.equal(await nativeLeaf.getAttribute('role'), null);
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
 }
 
 async function verifyNavigation(baseUrl) {

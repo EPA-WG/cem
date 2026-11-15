@@ -555,9 +555,34 @@ for the current native work and the conditional diagnostic items on recurrence.
   not those findings or a general compliance claim.
 
 - [ ] Resolve findings from the [CEM component web audit](../packages/cem-components/docs/modern-web-guidance-audit.md):
-  - [ ] MW-03: reconcile `cem-menu-item` roles with `cem-menu` native mode;
+  - [x] MW-03: reconcile `cem-menu-item` roles with `cem-menu` native mode;
         verify native buttons/links, live mode changes, standalone items and
         nested menu/menuitem ownership in worker/fallback and packed delivery.
+    - [x] Add source-backed worker/fallback regressions for implicit standalone
+          and native-mode roles, trusted Tab/activation, mode cycles, nested
+          owners, child rerenders and retained-control release/reparenting,
+          including open submenu triggers and their generated ARIA relationships.
+          Include parent-produced slice-driven mode changes, as used by the
+          property questionnaire, alongside direct host attribute changes.
+    - [x] Verify native/composite roles in source, bundled and isolated packed
+          menus; preserve disabled handling, focus, themes and submenu behavior.
+          Check exact authored theme inventories, including Presentation where
+          supplied, rather than assuming every gallery has only five themes.
+          Verify exact browser accessible names for submenu triggers; decorative
+          generated arrows must not become part of the command name.
+          Use explicit browser role/name locators for trusted pointer assertions;
+          the current test driver's element-to-name conversion misparses CSS alt text.
+
+    Completed 2026-11-15: native items no longer hard-code menu roles; shared
+    composite ownership updates nested modes and releases retained controls.
+    Native popup relationships and focus are restored correctly. Decorative
+    arrow alternatives preserve exact names. All 29 focused worker/fallback,
+    menu/dropdown/theme/task/relationship stories and source/packed/bundled menu
+    delivery checks pass, including parent-produced mode changes. Runtime and
+    component builds, declarative/style/state/catalog/package checks and lint
+    pass (180 existing warnings). No timeout or worker-budget changes; physical
+    AT/WebKit acceptance stays open. See the linked audit closure for evidence.
+
   - [ ] MW-04: reconcile icon-button fallback naming with the missing-name
         diagnostic contract; verify icon-only, visible-slot, external label and
         empty-name cases without inventing action names.

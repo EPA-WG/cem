@@ -169,7 +169,34 @@ Host visibility follows the [shared native visibility convention](./conventions.
 | `cem-icon-button` | Native icon command or navigation link. | `href` selects link mode; embedded `cem-icon` receives `image`, `size`, `direction`, `align`, `label`, and `aria-label`. Action-theme states include selected/selectable, pending and disabled. `variant="navigation"` adopts navigation state colors; explicit `aria-current` forwards to links and `aria-expanded`/`aria-controls` to buttons. | action, navigation, control, palette, stroke, bend | Use `aria-label` for icon-only controls; `label` also provides visible fallback text. |
 | `cem-dropdown` | Triggered panel for arbitrary content and menus. | Native trigger in `slot="base"` and default panel slot. | action, palette, stroke, control, bend, typography | Native button fallback; expanded/controls relationships, Escape restoration and outside/Tab dismissal. |
 | `cem-menu` | Persistent wrapping command/link collection; optional composite submenus. | Default slot accepts links, buttons and menu items. | action, palette, stroke, gap, inset, typography | Native Tab by default; opt-in menu mode owns roving focus and nested popup semantics. |
-| `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
+| `cem-menu-item` | Native command button or destination link. | Default slot is command text; `label` supplies fallback text. | action, palette, gap, inset, typography | Standalone/native-mode items retain native roles. An owning composite menu assigns `menuitem` roles and keyboard behavior. |
+
+### Menu role ownership
+
+`cem-menu` defaults to `keyboard="native"`: its collection is a named group,
+buttons remain buttons and links remain links in the ordinary Tab order.
+`cem-menu-item` does not hard-code a menu role, including when used alone.
+Applications that previously queried a standalone item as `menuitem` should query
+its native `button` or `link` role instead.
+
+Opting a root into `keyboard="menu"` makes its row a menubar, or its column a
+menu. The shared composite controller assigns roles and roving tab stops to its
+direct controls. Nested submenus inherit the root's mode, including live changes;
+they do not choose their own independent keyboard policy. Existing authored
+`menuitemradio`/`menuitemcheckbox` roles remain intact in composite mode.
+
+Returning to native mode restores the controls' original roles/tab stops,
+removes controller-owned menu popup relationships, and closes submenus. Focus
+inside a closing submenu returns to its trigger; outside focus stays outside.
+Child rerenders retain the native owners. Removing a control or disconnecting
+its menu releases role/tab-stop ownership before another collection claims it.
+Authored native roles/tab stops and disabled semantics remain owned by their
+original elements. Native mode does not enable popup submenus; select menu mode
+to use the documented arrow/Escape submenu behavior.
+
+Submenu arrow glyphs are decorative generated content with an empty text
+alternative, so they do not change the native control's accessible name.
+Expanded state remains conveyed by `aria-expanded`, not by announcing the arrow.
 
 Dropdown and submenu surfaces use the opaque comfort palette with matching text,
 and Canvas/CanvasText in forced colors. Menu containers consume theme-owned

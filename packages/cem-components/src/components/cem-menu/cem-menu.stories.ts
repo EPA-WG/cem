@@ -1,5 +1,5 @@
-import { expect } from 'storybook/test';
-import preview, { loadCemDeclaration, whenCemRendered } from '../../../../cem-elements/.storybook/preview.js';
+import { expect, within, waitFor } from 'storybook/test';
+import preview, { loadCemDeclaration, whenCemRendered, createCemStoryRuntime, nextRenderFrame, cemComponentDeclarationSource } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-menu.xhtml?raw';
 
 const meta = preview.meta({
@@ -52,7 +52,7 @@ export const NestedInteraction = meta.story({
     render: () => `<section class="cem-theme-light"><p>Trusted keyboard and pointer checks run in the browser test runner.</p>${nested}<button style="margin-block-start: 20rem">Outside</button></section>`,
     play: async ({ canvasElement }) => {
         if (import.meta.env.MODE !== 'test') return;
-        const { userEvent } = await import('vitest/browser');
+        const { userEvent, page } = await import('vitest/browser');
         await settled(canvasElement);
         const root = canvasElement.querySelector('cem-menu') as HTMLElement;
         const triggers = root.querySelectorAll<HTMLButtonElement>(':scope > [part="composite"] > cem-menu-item > button');
@@ -76,16 +76,16 @@ export const NestedInteraction = meta.story({
         await userEvent.keyboard('{Escape}');
         expect(document.activeElement).toBe(file);
         expect(panel.hidden).toBe(true);
-        await userEvent.click(file);
+        await page.getByRole('menuitem', { name: 'File', exact: true }).click();
         await whenCemRendered(file.parentElement!);
         expect(getComputedStyle(panel).position).toBe('fixed');
         expect(panel.hidden).toBe(false);
-        await userEvent.click(edit);
+        await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
         expect(panel.hidden).toBe(true);
         expect(document.activeElement?.textContent).toBe('Copy');
         await userEvent.keyboard('{Enter}');
         expect(edit.getAttribute('aria-expanded')).toBe('false');
-        await userEvent.click(file);
+        await page.getByRole('menuitem', { name: 'File', exact: true }).click();
         await userEvent.click(canvasElement.querySelector('section > button')!);
         expect(panel.hidden).toBe(true);
         expect(document.activeElement?.textContent).toBe('Outside');
@@ -154,4 +154,141 @@ export const EmptySubmenus = meta.story({
             expect(trigger.getAttribute('aria-expanded')).toBe('false');
         }
     },
+});
+
+function required<T extends HTMLElement>(root: ParentNode, selector: string): T {
+    const node = root.querySelector<T>(selector);
+    if (!node) throw new Error(`Missing ${selector}`);
+    return node;
+}
+
+async function nativeRoleLifecycle(root: HTMLElement, fallback: boolean) {
+    const { runtime, scope, declare } = createCemStoryRuntime(root, fallback);
+    const suffix = crypto.randomUUID(), menuTag = `cem-role-menu-${suffix}`, itemTag = `cem-role-item-${suffix}`;
+    const itemDeclaration = await declare(await cemComponentDeclarationSource('cem-menu-item'), itemTag);
+    // The isolated scope registers the canonical dependency under its own tag.
+    const source = declarationSource.replace('{cem-element @tag=cem-menu-item @capability=action-control @src="../cem-menu-item/cem-menu-item.xhtml#cem-menu-item"}', '');
+    const declaration = await declare(source, menuTag);
+    const declarations = [declaration, itemDeclaration];
+    const container = document.createElement('section');
+    container.innerHTML = `<${menuTag} aria-label="Modes">
+        <${itemTag} label="Command"></${itemTag}>
+        <${itemTag} label="Destination" href="#destination"></${itemTag}>
+        <${itemTag} label="Disabled destination" href="#blocked" disabled></${itemTag}>
+        <${itemTag} label="More"><${menuTag} slot="submenu"><${itemTag} label="Nested command"></${itemTag}></${menuTag}></${itemTag}>
+        <a href="#peer" role="link" tabindex="0">Authored peer</a>
+    </${menuTag}><${itemTag} label="Standalone"></${itemTag}>
+    <${itemTag} label="Standalone destination" href="#standalone"></${itemTag}>
+    <${menuTag} aria-label="Other modes"></${menuTag}>`;
+    root.append(container);
+    const menu = required<HTMLElement>(container, menuTag);
+    const settle = async () => {
+        for (let pass = 0; pass < 4; pass++) {
+            await runtime.whenRenderSettled(menu);
+            await Promise.all([...container.querySelectorAll<HTMLElement>(`${menuTag},${itemTag}`)].map(node => runtime.whenRenderSettled(node)));
+            await nextRenderFrame();
+        }
+    };
+    try {
+        await settle();
+        const commandHost = required<HTMLElement>(menu, `${itemTag}[label="Command"]`);
+        const command = required<HTMLButtonElement>(commandHost, 'button');
+        const destination = required<HTMLAnchorElement>(menu, `${itemTag}[href="#destination"] a`);
+        const more = required<HTMLButtonElement>(menu, `${itemTag}[label="More"] > button`);
+        const nested = required<HTMLElement>(menu, `${menuTag}[slot="submenu"]`);
+        const nestedBox = required<HTMLElement>(nested, '[part=composite]');
+        const nestedButton = required<HTMLButtonElement>(nested, 'button');
+        const standalone = required<HTMLElement>(container, `${itemTag}[label="Standalone"]`);
+        const native = () => {
+            expect(within(menu).getByRole('group', { name: 'Modes', exact: true })).toBe(menu.querySelector('[part=composite]'));
+            expect(within(menu).getByRole('button', { name: commandHost.getAttribute('label') ?? '', exact: true })).toBe(command);
+            expect(within(menu).getByRole('link', { name: 'Destination', exact: true })).toBe(destination);
+            expect(command.hasAttribute('role')).toBe(false);
+            expect(destination.hasAttribute('role')).toBe(false);
+            expect(command.tabIndex).toBe(0); expect(destination.tabIndex).toBe(0);
+            expect(more.hasAttribute('aria-haspopup')).toBe(false);
+            expect(nestedBox.getAttribute('role')).toBe('group');
+            expect(nestedButton.hasAttribute('role')).toBe(false);
+            expect(within(standalone).getByRole('button', { name: 'Standalone', exact: true })).toBe(standalone.querySelector('button'));
+        };
+        native();
+        expect(within(container).getByRole('link', { name: 'Standalone destination', exact: true }).getAttribute('href')).toBe('#standalone');
+        expect(required(menu, `${itemTag}[disabled] a`).hasAttribute('href')).toBe(false);
+        expect(required(menu, `${itemTag}[disabled] a`).tabIndex).toBe(-1);
+        if (import.meta.env.MODE === 'test') {
+            const { userEvent } = await import('vitest/browser');
+            let activations = 0; command.addEventListener('click', () => activations++);
+            command.focus(); await userEvent.keyboard('{ArrowRight}'); expect(document.activeElement).toBe(command);
+            await userEvent.keyboard('{Enter}'); await settle(); expect(activations).toBe(1);
+            await userEvent.keyboard('{Tab}'); expect(document.activeElement).toBe(destination);
+        }
+        for (const mode of ['menu', 'native', 'menu', null]) {
+            if (mode === null) menu.removeAttribute('keyboard'); else menu.setAttribute('keyboard', mode);
+            await settle();
+            if (mode === 'menu') {
+                await waitFor(() => expect(command.getAttribute('role')).toBe('menuitem'));
+                expect(within(menu).getByRole('menubar', { name: 'Modes', exact: true })).toBe(menu.querySelector('[part=composite]'));
+                expect(destination.getAttribute('role')).toBe('menuitem');
+                expect(nestedBox.getAttribute('role')).toBe('menu'); expect(nestedButton.getAttribute('role')).toBe('menuitem');
+                expect(more.getAttribute('aria-haspopup')).toBe('menu');
+                commandHost.setAttribute('label', 'Updated command'); await settle();
+                expect(within(menu).getByRole('menuitem', { name: 'Updated command', exact: true })).toBe(command);
+                commandHost.classList.toggle('consumer-class'); await settle();
+                expect(command.getAttribute('role')).toBe('menuitem');
+                more.click();
+                await waitFor(() => expect(document.activeElement).toBe(nestedButton));
+            } else {
+                await waitFor(native);
+                expect(nested.hidden).toBe(true);
+                expect(document.activeElement).toBe(more);
+            }
+        }
+        const peer = required<HTMLAnchorElement>(menu, '[href="#peer"]');
+        expect(peer.getAttribute('role')).toBe('link'); expect(peer.getAttribute('tabindex')).toBe('0');
+        menu.setAttribute('keyboard', 'menu'); await settle();
+        const other = required<HTMLElement>(container, `${menuTag}[aria-label="Other modes"]`);
+        required(other, '[part=composite]').append(commandHost); await settle();
+        await waitFor(() => expect(within(other).getByRole('button', { name: 'Updated command', exact: true })).toBe(command));
+        other.setAttribute('keyboard', 'menu'); await settle();
+        expect(command.getAttribute('role')).toBe('menuitem');
+        container.append(commandHost); await runtime.whenRenderSettled(commandHost);
+        await waitFor(() => expect(within(commandHost).getByRole('button', { name: 'Updated command', exact: true })).toBe(command));
+        expect(command.hasAttribute('role')).toBe(false); expect(command.tabIndex).toBe(0);
+        menu.remove();
+        expect(destination.hasAttribute('role')).toBe(false);
+        container.prepend(menu); await settle();
+        expect(destination.getAttribute('role')).toBe('menuitem');
+        more.click(); await waitFor(() => expect(document.activeElement).toBe(nestedButton));
+        const moreHost = required<HTMLElement>(menu, `${itemTag}[label="More"]`);
+        container.append(moreHost); await runtime.whenRenderSettled(moreHost);
+        await waitFor(() => expect(more.hasAttribute('role')).toBe(false));
+        for (const name of ['aria-haspopup', 'aria-controls', 'aria-expanded']) expect(more.hasAttribute(name)).toBe(false);
+        const producerTag = `cem-role-producer-${suffix}`;
+        declarations.push(await declare(`<cem-element><template type="text/cem-ml">
+            {slice @name=keyboard | native}
+            {button @type=button @value=menu @slice=keyboard @slice-event=click @slice-value="$target.value" | Use menu}
+            {button @type=button @value=native @slice=keyboard @slice-event=click @slice-value="$target.value" | Use native}
+            {${menuTag} @aria-label="Produced modes" @keyboard="{$datadom.slices.keyboard}" |
+                {${itemTag} @label="Produced command"}{${itemTag} @label="Produced destination" @href=#produced}}
+            </template></cem-element>`, producerTag));
+        const producer = document.createElement(producerTag); container.append(producer);
+        await runtime.whenRenderSettled(producer); await settle();
+        const producedMenu = required<HTMLElement>(producer, menuTag);
+        const producedCommand = required<HTMLButtonElement>(producedMenu, 'button');
+        for (const mode of ['menu', 'native', 'menu', 'native']) {
+            within(producer).getByRole('button', { name: `Use ${mode}`, exact: true }).click();
+            await runtime.whenRenderSettled(producer); await settle();
+            await waitFor(() => expect(within(producedMenu).getByRole(mode === 'menu' ? 'menuitem' : 'button', { name: 'Produced command', exact: true })).toBe(producedCommand));
+        }
+        expect(runtime.diagnosticsFor(menu).filter(item => item.severity === 'error' || item.severity === 'fatal')).toEqual([]);
+    } finally { container.remove(); declarations.forEach(node => node.remove()); scope.dispose(); }
+}
+
+export const NativeRolesWorker = meta.story({
+    name: 'Native/composite role lifecycle (worker; trusted keys in browser runner)',
+    render: () => '<section></section>', play: async ({ canvasElement }) => nativeRoleLifecycle(canvasElement, false),
+});
+export const NativeRolesFallback = meta.story({
+    name: 'Native/composite role lifecycle (fallback; trusted keys in browser runner)',
+    render: () => '<section></section>', play: async ({ canvasElement }) => nativeRoleLifecycle(canvasElement, true),
 });

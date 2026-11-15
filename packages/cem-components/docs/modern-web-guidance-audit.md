@@ -1,7 +1,7 @@
 # CEM component web audit — 2026-11-15
 
 Source baseline: `ffea182d3681d3d3d163259c789d627d98a9a835` on `develop`, plus
-the two fixes recorded below. Scope: all **59** canonical declarations and their
+the fixes recorded below. Scope: all **59** canonical declarations and their
 colocated stories. This is a source/contract and automated-browser audit, not a
 WCAG conformance declaration or physical assistive-technology acceptance.
 
@@ -42,7 +42,7 @@ form ownership. Light DOM is intentional; no Shadow DOM conversion is needed.
 | --- | --- | --- |
 | MW-01 | Fixed | Passive `cem-chip` emitted `aria-label` on an otherwise generic span. Removed that unsupported naming attribute without inventing a role or tab stop; visible slot/fallback text remains. Checkable chips retain their named native toggle button. The `accessibility` guide and [WAI-ARIA generic role](https://www.w3.org/TR/wai-aria-1.2/#generic) prohibit author naming on this role. |
 | MW-02 | Fixed | Text-mode `cem-media-preview` had a focusable, scrollable `pre` with an accessible-name attribute but no nameable region role. Added `role="region"`; worker/fallback stories query the named role, preserve exact hostile literal text, and retain focus/node identity after label changes. Text mode also handles plain output, so it does not falsely mark every payload as computer code. The `html` guide requires a named region for scrollable code blocks. |
-| MW-03 | P1 / open | `cem-menu-item` authors `role="menuitem"` on both button and link. `composite-menu-capability.ts` captures that as the original role and restores it in native mode, although its container becomes `role="group"` and Tab navigation remains ordinary. Native activation is covered by `NativeActivationAndBoundaries`, but that story does not assert the roles. Reconcile native/standalone versus composite role ownership; add mode-transition and nested-ownership regressions before changing defaults. See `menu` and `accessibility`. |
+| MW-03 | Resolved follow-up | `cem-menu-item` now emits native button/link semantics. The shared menu controller owns composite roles, synchronizes nested mode changes and releases its role/tab-stop and popup claims on native mode, removal and transfer. Source-backed worker/fallback plays cover native queries, trusted keys, open-menu mode changes, focus, rerenders, disconnect/reconnect and reparenting. See the [closure evidence](#mw-03-native-and-composite-menu-role-closure) and [role contract](component-reference.md#menu-role-ownership). |
 | MW-04 | P1 / open | `cem-icon-button` defaults its button name to “Icon action”, as explicitly documented in its contract. This conflicts with the general accessibility contract's missing-name diagnostic/no-invention rule and does not identify the actual command. Decide the compatible naming/diagnostic behavior in shared runtime, then cover visible slot text, explicit/external labels and empty names. Do not silently delete a public fallback or introduce component-local JS. See `icons` and `accessibility`. |
 | MW-05 | P2 / design gap | `cem-table` uses an ARIA table wrapper and caller-supplied ARIA rows/cells; `cem-sort-header` produces an ARIA columnheader with a native button and an action name. `responsive-table`/`sortable-table` prefer native table/caption/th ownership and a stable column name. `cem-data-view` already provides a native table, caption and scoped headers. Define a compatible native table/sort composition rather than inserting `th` under a `div` or claiming a sort-header event reorders data. Applications still own row order and completed-result announcements. |
 | MW-06 | P2 / design gap | `cem-tabs` wraps its horizontal tablist and gives every selected panel a tab stop, even when its payload already has focusable content. `tabs` recommends single-row scrolling and conditional panel focusability. Manual activation is intentional for potentially expensive Studio views and stays valid. Resolve wrapping/tab-stop contracts through shared `tab-panels`; preserve stable IDs, retained controls, disabled behavior and the selected/focused distinction. |
@@ -93,6 +93,8 @@ Every row also uses the `html`, `css`, `accessibility`, `color` and
 `web-components` discipline review. “No additional finding” means none found in
 this bounded source review; MW-10/MW-11 remain shared acceptance limits.
 Story counts below total **411** across **59** passing files.
+These counts describe the initial audit snapshot; follow-up closures below
+record their additional stories and verification separately.
 
 <!-- Rows name the exact source and story owners rather than generated copies. -->
 
@@ -122,8 +124,8 @@ Story counts below total **411** across **59** passing files.
 | [cem-icon-button](../src/components/cem-icon-button/cem-icon-button.xhtml) | [19 stories](../src/components/cem-icon-button/cem-icon-button.stories.ts) | Native button or anchor; embedded icon. Guides: icons; forms; menu. | Disabled link removes href/tab stop; button type is explicit. MW-04. |
 | [cem-list](../src/components/cem-list/cem-list.xhtml) | [6 stories](../src/components/cem-list/cem-list.stories.ts) | Native selectable select or passive ul. Guides: forms. | Native options/change ownership; passive list keeps list semantics without a reset. No additional finding. |
 | [cem-media-preview](../src/components/cem-media-preview/cem-media-preview.xhtml) | [12 stories](../src/components/cem-media-preview/cem-media-preview.stories.ts) | Named figure; text region or sandboxed titled iframe. Guides: html; security; performance. | MW-02 fixed; exact text remains inert; fixed document CSP and explicit live resource admission preserved. |
-| [cem-menu](../src/components/cem-menu/cem-menu.xhtml) | [4 stories](../src/components/cem-menu/cem-menu.stories.ts) | Group in native mode; menu/menubar in composite mode. Guides: menu; app-menus. | Shared roving/typeahead and submenu geometry; no second focusgroup system added. MW-03/MW-11. |
-| [cem-menu-item](../src/components/cem-menu-item/cem-menu-item.xhtml) | [7 stories](../src/components/cem-menu-item/cem-menu-item.stories.ts) | Native button or anchor with menuitem role. Guides: menu; app-menus. | Submenu trigger and leaf navigation have distinct paths. MW-03 native-mode role mismatch. |
+| [cem-menu](../src/components/cem-menu/cem-menu.xhtml) | [4 stories](../src/components/cem-menu/cem-menu.stories.ts) | Group in native mode; menu/menubar in composite mode. Guides: menu; app-menus. | Shared roving/typeahead and submenu geometry; no second focusgroup system added. MW-03 resolved in the follow-up below; MW-11 remains open. |
+| [cem-menu-item](../src/components/cem-menu-item/cem-menu-item.xhtml) | [7 stories](../src/components/cem-menu-item/cem-menu-item.stories.ts) | Native button or anchor; controller-owned composite role. Guides: menu; app-menus. | Submenu trigger and leaf navigation have distinct paths. MW-03 native-mode role mismatch resolved in the follow-up below. |
 | [cem-nav](../src/components/cem-nav/cem-nav.xhtml) | [10 stories](../src/components/cem-nav/cem-nav.stories.ts) | Named nav; optional native disclosure button. Guides: menu; accordion. | Navigation remains ordinary links rather than menu roles; expanded/hidden mirrored. No additional finding. |
 | [cem-option](../src/components/cem-option/cem-option.xhtml) | [5 stories](../src/components/cem-option/cem-option.stories.ts) | Passive choice payload wrapper. Guides: forms. | Consuming select/autocomplete/time controller owns option semantics, state and focus. No additional finding. |
 | [cem-option-group](../src/components/cem-option-group/cem-option-group.xhtml) | [7 stories](../src/components/cem-option-group/cem-option-group.stories.ts) | Passive group payload wrapper. Guides: forms. | Consuming controller supplies group name/role and inherited disabled state. No additional finding. |
@@ -185,4 +187,66 @@ intermittent readiness observation, not attributed to these attribute changes.
 No full all-family gallery rerun, WebKit run, public deployment, physical-device
 or spoken assistive-technology acceptance is claimed. Theme inheritance and
 forced-color checks exercise the existing contracts; they do not prove every
-possible consumer combination. MW-03 through MW-11 remain actionable follow-ups.
+possible consumer combination. MW-04 through MW-11 remain actionable follow-ups; MW-03 is resolved below.
+
+## MW-03 native and composite menu role closure
+
+Completed as a follow-up to the initial audit on 2026-11-15. The original
+411-test baseline and per-row counts above are historical; this change adds two
+source-backed menu lifecycle stories.
+
+- Standalone/native-mode items expose native buttons and links. The item
+  declaration contains no hard-coded `menuitem` role. This intentionally changes
+  queries that depended on the former standalone role.
+- Shared `composite-menu` assigns roles only in menu mode, including nested
+  owners. Native mode restores original roles/tab stops and releases generated
+  menu popup relationships. Existing explicit checkable menu roles survive.
+- Controls retain identity through child rerenders, live mode changes and
+  transfer. Controller ownership is released on removal/disconnect before a new
+  collection claims the same node. Closing a submenu during a mode change
+  returns its inside focus; a change from an outside control keeps outside focus.
+  Open triggers close before their attributes are released, so dismissal cannot
+  reintroduce a stale `aria-expanded` after transfer.
+- Parent-produced slice-driven mode changes are covered as well as direct host
+  attributes. A shipped-page accessibility snapshot exposed a separate naming
+  issue: the generated arrow yielded “Commands ▾”. Empty CSS content alternatives
+  now keep that decoration visible without adding it to the command name, as
+  described by [CSS generated-content alternatives](https://www.w3.org/TR/css-content-3/#alt).
+- All behavior remains in `cem-elements`; the component stays declarative.
+  The existing shared keyboard controller remains the sole roving-focus owner;
+  adding native focusgroup alongside it would create duplicate keyboard handling.
+  Visual treatment, canonical tokens, inherited overrides, operation budgets and browser
+  support policy are unchanged.
+
+The new worker and main-thread fallback stories first reproduced the wrong
+native role. After removing that role, they exposed inappropriate native-mode
+popup relationships. The completed correction passes 29 focused tests across
+menu, menu-item, dropdown, theme-switch, shared task relay and typed relationship
+lifecycle files. The six menu stories also pass after switching the cross-component
+fixture import to the required shared source loader. Runtime build, architecture,
+style, state-matrix, catalog, playground and bundle checks pass. The state-matrix
+inventory now points to the native-button assertion instead of the obsolete
+standalone-menuitem assertion.
+
+Final delivery verification:
+
+- `yarn nx run @epa-wg/cem-components:verify-playgrounds --excludeTaskDependencies --args='--menus-only'`
+  passes source and isolated packed menu/menu-item galleries, item properties,
+  slice-driven native/composite mode cycles, exact browser role/name queries,
+  native Tab order, nested Escape/focus return, outside focus, retained owners
+  and the release bundle. The gallery inventory check now requires the five
+  base themes and compares exact authored theme sections, including the existing
+  Presentation section in the menu-item gallery; duplicates/unknown themes fail.
+- All 29 focused stories pass with the final code, including six themes,
+  inherited styling and forced colors in the menu-item contour checks. Trusted
+  pointer tests use explicit browser role/name locators: the installed Vitest
+  element-to-selector helper incorrectly parsed CSS content alternatives as
+  part of an element's name. Native browser names remain exact; no production
+  workaround, dependency patch or timeout increase was introduced for that tool.
+- Runtime TypeScript build and component declarative/style/state/catalog,
+  playground/bundle and package gates pass. Component lint has zero errors and
+  the existing 180 non-null assertion warnings. The public catalog remains 59
+  declarations and the packed component package remains 329 files.
+
+Physical assistive technology and WebKit acceptance remain MW-11 work. This
+closure does not claim a full all-family gallery or all-component story rerun.
