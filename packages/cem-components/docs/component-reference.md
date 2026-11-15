@@ -404,6 +404,14 @@ Native `commandfor`, `command`, `popovertarget`, `popovertargetaction`, and `int
 
 Conflicting native/CEM invocation routes are rejected rather than toggled twice. Missing targets rebind as the DOM changes. Submit/reset behavior remains native even when invalid surface wiring is diagnosed. `cem-interaction-error` bubbles from the invoker when no valid target exists. Existing controls and target IDs survive ordinary rerender.
 
+Native popup invokers also use the framework's generic focus-return service.
+It follows the actual native opening source and supplements nested/explicit-close
+focus return for any popup content, without owning visibility or installing menu
+keyboard behavior. Correct native restoration and outside/Tab destinations are
+preserved; registered semantic surface owners retain their own policy. See
+[the runtime contract](../../cem-elements/README.md#native-invoker-focus-return)
+and the playground/gallery's **Nested native popup focus** example.
+
 This first delivery implements action-side wiring and native targets. Shared popup/dialog targets own session commands and their target-side lifecycle.
 
 ## Layout

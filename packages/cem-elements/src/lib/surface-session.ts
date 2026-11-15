@@ -28,6 +28,8 @@ function invalidate(record: Registration): void {
     record.epoch++;
     for (const listener of [...record.listeners]) listener();
 }
+/** Generic supplements yield to an already registered semantic focus owner. */
+export function hasCemSurfaceOwner(owner: HTMLElement): boolean { return owners.has(owner); }
 /** Registration is ownership, not native-reference/placement authority. */
 export function assertCemSurfaceOwnerAvailable(owner: HTMLElement): void {
     if (owners.has(owner)) throw new TypeError('Native surface already has a semantic owner');

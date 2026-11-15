@@ -70,6 +70,15 @@ opening/closing or depend on a particular component. The standard retains a
 previously focused element only for the first auto/hint popover in a stack;
 nested return focus therefore needs separate verification and generic handling.
 See [native show/hide algorithms](https://html.spec.whatwg.org/multipage/popover.html#show-popover).
+The generic focus supplement is now exposed as
+`connectCemNativeInvokerFocus(Document | ShadowRoot)` and installed with the CEM
+runtime. Native invokers remain the visibility owner. Existing registered semantic
+surface owners keep their focus policy. The
+[runtime contract](../packages/cem-elements/README.md#native-invoker-focus-return)
+records source/target lifetime fences, scoped teardown and native-only support
+limits. The native `cem-action` examples consume the service declaratively;
+legacy composite-menu/popup migration remains a separate task.
+
 Keep browser-native invocation, return-focus handling and semantic menu keyboard
 navigation as separate contracts. Verify pointer/keyboard invocation, nested
 Escape, outside/Tab closure, multiple invokers, cascades, teardown, and native

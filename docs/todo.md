@@ -631,19 +631,38 @@ for the current native work and the conditional diagnostic items on recurrence.
           invoker return-focus requirement in the
           [interaction design](cem-interaction-design.md#owner-revision--native-popup-invocation-and-generic-focus-return-2026-11-15).
           Confirm/clarify the JS ownership boundary in the primary UI principle.
-    - [ ] Lower popup activation to native `popovertarget` or `commandfor` with
-          `command="toggle-popover"`; keep one native visibility path and let the
-          browser own non-modal stacking and light dismissal for all popup kinds.
-    - [ ] Add generic invoker return-focus handling in `cem-elements`: use native
+    - [x] Support native `popovertarget` and `commandfor` popover invocation for
+          arbitrary native popup content and declarative CEM actions. Keep one
+          browser-owned visibility path, stacking and light dismissal; the generic
+          focus supplement must not call visibility methods or cancel activation.
+    - [ ] Migrate legacy popup/composite-menu visibility contracts to native
+          invoker markup. Reconcile retained keyboard/typeahead, ARIA, geometry
+          and semantic focus ownership without a second visibility controller;
+          the generic focus foundation does not migrate those contracts itself.
+    - [x] Add generic invoker return-focus handling in `cem-elements`: use native
           invoker/target relationships and the actual opening source, cover any
           popup content, and preserve correct native restoration. Do not branch
           on `cem-menu`, `cem-dropdown` or another component's tag/implementation.
-    - [ ] Add native HTML/standard-command verification for parent/child stacking,
+    - [x] Add native HTML/standard-command verification for parent/child stacking,
           parent-item activation, outside cascade dismissal and one-level Escape;
           verify generic return focus, outside/Tab destinations, multiple invokers,
           canceled opens, rebinding/removal, cascades and stale native events.
           Native-only baseline pages must work without page scripts; the optional
           generic focus capability is framework JS, not component-authored code.
+      - [x] Implement a generic native-invoker focus subscription for Document and
+            ShadowRoot roots; install it with the CEM runtime, deduplicate shared
+            source/packed subscriptions, release scoped subscriptions, and yield
+            to existing semantic surface owners without component-tag checks.
+      - [x] Add native HTML browser stories for both standard invocation routes,
+            actual/multiple openers, nested Escape/explicit close, native stacking,
+            outside/Tab focus, canceled opens, rapid reopen, source/target rebinding,
+            removal, refcounted disposal, native restoration and owned-surface yield.
+            Include runtime auto-installation and ancestor-scope disposal in an
+            independent iframe document with no `ToggleEvent.source` getter,
+            plus same-value and revoked/rebound routes.
+      - [x] Add a declarative CEM action example and source/packed delivery checks
+            for nested native popup focus return; verify a script-free HTML baseline
+            with page JavaScript disabled and keep component production sources JS-free.
     - [ ] Audit each direct/composed capability below for component-specific
           coupling. Remove any such dependency by expressing the component
           declaratively over generic native APIs. Generic interaction-pattern
@@ -652,11 +671,29 @@ for the current native work and the conditional diagnostic items on recurrence.
           and generic focus return. When required behavior lacks a known generic
           declarative expression, stop and ask the owner for research instead of
           adding component-specific JavaScript anywhere in the stack.
-    - [ ] Verify the existing no-authored-component-JS publication gate and add
+    - [x] Verify the existing no-authored-component-JS publication gate and add
           evidence for generic runtime ownership. Preserve native identity,
           accessibility, keyboard/form contracts, theme tokens and lifecycle
           cleanup. The browser runtime and generic event/resource machinery are
           allowed and must not be removed merely because they are JavaScript.
+
+    Native-invoker foundation verified 2026-11-15: the runtime build passes;
+    five generic native-invoker stories and all 22 action stories pass. A focused
+    25-story regression group also passes for surface references, task handoff,
+    element-reference lifetimes, dialogs and tooltips. Native-invoker checks on
+    source and isolated packed action property/gallery pages pass in Chromium
+    148.0.7778.96 and Firefox
+    150.0.2, including a native stacking/dismissal baseline with page JavaScript
+    disabled. The full Chromium action gate passes all 13 gallery cards, existing
+    form/keyboard/identity contracts, inherited themes, reduced motion and forced
+    colors. Its stale property/gallery counts and the existing contextual-menu
+    example's missing `control-role` coverage annotation were corrected without
+    removing behavior assertions. Declarative, state/style/catalog, playground,
+    bundle and package checks pass (59 declarations, 497 tokens, 329 packed
+    files); lint has zero errors and 180 existing warnings. No production
+    component JavaScript, local token defaults or timeout increases were added.
+    Legacy popup/menu migration, the broader coupling audit, existing whole-suite
+    stalls and WebKit/assistive-technology evidence remain open below.
 
     Inventory scope: canonical `packages/cem-components/src/components/*/*.xhtml`
     declarations, root/template `capability` attributes, their explicit

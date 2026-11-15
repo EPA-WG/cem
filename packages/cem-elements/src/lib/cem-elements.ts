@@ -174,6 +174,7 @@ import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint, resumeCemNat
 import { CEM_ACTION_CONTROL_CAPABILITY, cemActionControlCheckpoint, prepareCemActionControlGuard } from './action-control-capability.js';
 import { CEM_ACTION_COMMAND_CAPABILITY, cemActionCommandCheckpoint, prepareCemActionCommandGuard } from './action-command-capability.js';
 import { watchCemControlNames } from './control-name-diagnostics.js';
+import { connectCemNativeInvokerFocus } from './native-invoker-focus.js';
 import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
@@ -1848,6 +1849,7 @@ export class CemElementRuntime {
     private readonly restrictedPreview: boolean;
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly controlNameChecks = new WeakMap<HTMLElement, () => void>();
+    private readonly nativeInvokerRoots = new WeakMap<Document, () => void>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
     private readonly nativeCheckedPreservations = new WeakMap<HTMLElement, (element: Element) => boolean>();
     private readonly explicitInstancePayloads = new WeakSet<HTMLElement>();
@@ -2080,6 +2082,14 @@ export class CemElementRuntime {
     }
 
     install(host: CemElementWindow): void {
+        if (!this.nativeInvokerRoots.has(host.document) && !this.declarationScopeOption?.disposed) {
+            const release = connectCemNativeInvokerFocus(host.document), stops: (() => void)[] = [];
+            const dispose = () => { release(); stops.forEach(stop => stop()); this.nativeInvokerRoots.delete(host.document); };
+            this.nativeInvokerRoots.set(host.document, dispose);
+            for (let scope = this.declarationScopeOption; scope; scope = scope.parent ?? undefined) {
+                stops.push(onCemDeclarationScopeDispose(scope, dispose));
+            }
+        }
         if (host.customElements.get(this.declarationTag)) {
             return;
         }

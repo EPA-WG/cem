@@ -1110,3 +1110,30 @@ export const DescriptorAndDynamicWiring = meta.story({
         panel.hidePopover();
     },
 });
+
+export const NativeNestedPopupFocus = meta.story({
+    name: 'Nested native invokers return focus (trusted browser input)',
+    render: () => `<section><cem-action popovertarget="action-parent-details">Open parent details</cem-action>
+<aside id="action-parent-details" popover="auto">
+<p>Ordinary popup content; no menu-specific controller.</p>
+<cem-action popovertarget="action-child-details">Open child details</cem-action>
+<article id="action-child-details" popover="auto">
+<label>Detail note <input autofocus></label>
+<button type="button" popovertarget="action-child-details" popovertargetaction="hide">Close child details</button>
+</article>
+</aside></section>`,
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: native } = await import('vitest/browser');
+        await Promise.all([...canvasElement.querySelectorAll<HTMLElement>('cem-action')].map(whenCemRendered));
+        const parent = within(canvasElement).getByRole('button', { name: 'Open parent details', exact: true });
+        await native.click(parent);
+        const child = within(canvasElement).getByRole('button', { name: 'Open child details', exact: true });
+        await native.click(child);
+        expect(document.activeElement).toBe(within(canvasElement).getByRole('textbox', { name: 'Detail note', exact: true }));
+        await native.keyboard('{Escape}');
+        expect(document.activeElement).toBe(child);
+        expect((parent as HTMLButtonElement).popoverTargetElement?.matches(':popover-open')).toBe(true);
+        await native.keyboard('{Escape}'); expect(document.activeElement).toBe(parent);
+    },
+});

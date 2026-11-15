@@ -24,6 +24,7 @@ const nativeEvidence = [];
 const historyEvidence = [];
 const navigationOnly = process.argv.includes('--navigation-only');
 const actionOnly = process.argv.includes('--action-only');
+const nativeInvokersOnly = process.argv.includes('--native-invokers-only');
 const iconsOnly = process.argv.includes('--icons-only');
 const surfacesOnly = process.argv.includes('--surfaces-only');
 const sheetOnly = process.argv.includes('--sheet-only');
@@ -65,10 +66,12 @@ try {
     if (!['chromium', 'firefox', 'webkit'].includes(nativeBrowser)) throw new Error('Unknown native browser');
     if (iconsOnly && (navigationOnly || actionOnly || suggestionsOnly)) throw new Error('Choose one focused verification mode');
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
-    if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
+    if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' && !nativeInvokersOnly || evidenceOutput)) throw new Error('Browser selection requires --native-invokers-only or a native evidence mode; headed/output flags require a native evidence mode');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
+    if (nativeInvokersOnly || actionOnly) await verifyNativeInvokerBaseline();
     let sourceViewerPages;
-    if (!installedOnly && canonicalSourcesOnly) sourceViewerPages = await verifyCanonicalSourceViewers(`${origin}/packages/cem-components/playgrounds/`);
+    if (!installedOnly && nativeInvokersOnly) await verifyNativeInvokerPages(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && canonicalSourcesOnly) sourceViewerPages = await verifyCanonicalSourceViewers(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && treeOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-tree']);
     else if (!installedOnly && compactStudioOnly) await verifyCompactStudio(`${origin}/packages/cem-components/playgrounds/`);
@@ -125,7 +128,8 @@ try {
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (canonicalSourcesOnly) {
+    if (nativeInvokersOnly) await verifyNativeInvokerPages(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (canonicalSourcesOnly) {
         const installedViewerPages = await verifyCanonicalSourceViewers(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (sourceViewerPages) assert.deepEqual(installedViewerPages, sourceViewerPages, 'Installed pages must preserve the source viewer inventory');
     }
@@ -189,7 +193,8 @@ try {
             console.log(JSON.stringify(report, null, 2));
         }
     }
-    if (canonicalSourcesOnly) console.log(`Canonical XHTML source viewers verified from ${verifiedLocations}.`);
+    if (nativeInvokersOnly) console.log(`Native invocation and generic focus return verified in ${nativeBrowser} ${browser.version()} from ${verifiedLocations}; script-free native baseline passed.`);
+    else if (canonicalSourcesOnly) console.log(`Canonical XHTML source viewers verified from ${verifiedLocations}.`);
     else if (treeOnly) console.log(`Tree galleries: normal, sparse and condensed geometry in all five themes verified from ${verifiedLocations}.`);
     else if (compactStudioOnly) console.log(`Compact Studio accordion/data-view properties, all nine affected galleries and the canonical bundle verified from ${verifiedLocations}.`);
     else if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
@@ -217,6 +222,60 @@ try {
     await rm(temporary, { recursive: true, force: true });
 }
 
+async function verifyNativeInvokerBaseline() {
+    const context = await browser.newContext({ javaScriptEnabled: false }), page = await context.newPage();
+    try {
+        await page.setContent(`<!doctype html><html lang="en"><meta charset="utf-8"><title>Native invoker baseline</title>
+          <button type="button" popovertarget="parent">File</button>
+          <div id="parent" popover="auto" style="inset:60px auto auto 10px;margin:0">
+            <button type="button">New file</button><button type="button" popovertarget="child">Export</button>
+            <div id="child" popover="auto" style="inset:150px auto auto 30px;margin:0"><button type="button" autofocus>PDF</button></div>
+          </div><button type="button" style="position:fixed;top:300px;left:20px">Outside</button></html>`);
+        assert.equal(await page.locator('script').count(), 0);
+        const state = () => page.locator('[popover]').evaluateAll(nodes => nodes.map(node => node.matches(':popover-open')));
+        await page.getByRole('button', { name: 'File', exact: true }).click();
+        await page.getByRole('button', { name: 'Export', exact: true }).click();
+        assert.deepEqual(await state(), [true, true]);
+        await page.getByRole('button', { name: 'New file', exact: true }).click();
+        assert.deepEqual(await state(), [true, false]);
+        await page.getByRole('button', { name: 'Export', exact: true }).click();
+        await page.keyboard.press('Escape'); assert.deepEqual(await state(), [true, false]);
+        await page.getByRole('button', { name: 'Export', exact: true }).click();
+        await page.getByRole('button', { name: 'Outside', exact: true }).click();
+        assert.deepEqual(await state(), [false, false]);
+    } finally { await context.close(); }
+}
+async function verifyNativeInvokerCard(page) {
+    const card = page.locator('cem-demo-element[legend="Nested native popup focus"]');
+    const parent = card.getByRole('button', { name: 'Open parent details', exact: true });
+    await parent.waitFor(); await parent.click();
+    const child = card.getByRole('button', { name: 'Open child details', exact: true });
+    await child.click();
+    const note = card.getByRole('textbox', { name: 'Detail note', exact: true });
+    await note.waitFor(); await note.fill('Retained note');
+    assert.equal(await note.evaluate(node => node === document.activeElement), true);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(button => button === document.activeElement, await child.elementHandle());
+    assert.equal(await parent.evaluate(button => button.popoverTargetElement.matches(':popover-open')), true);
+    assert.equal(await child.evaluate(button => button.popoverTargetElement.matches(':popover-open')), false);
+    await child.click(); assert.equal(await note.inputValue(), 'Retained note');
+    await card.getByRole('button', { name: 'Close child details', exact: true }).click();
+    await page.waitForFunction(button => button === document.activeElement, await child.elementHandle());
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(button => button === document.activeElement, await parent.elementHandle());
+    assert.equal(await parent.evaluate(button => button.popoverTargetElement.matches(':popover-open')), false);
+}
+async function verifyNativeInvokerPages(baseUrl) {
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        for (const file of ['cem-action.html', 'cem-action-gallery.html']) {
+            await page.goto(new URL(file, baseUrl).href); await verifyNativeInvokerCard(page);
+        }
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
 async function capturePlaygroundReadiness(page) {
     return page.evaluate(() => {
         const runtime = window.cemPlaygroundRuntime;
@@ -238,7 +297,7 @@ async function verifyActionGallery(page) {
     await page.waitForFunction(() => getComputedStyle(document.querySelector('#playground-theme')).getPropertyValue('--cem-control-height-small').trim() !== '');
     await page.waitForFunction(() => {
         const cards = [...document.querySelectorAll('cem-demo-element')];
-        return cards.length === 11 && cards.every(card => card.getAttribute('data-state') === 'ready');
+        return cards.length === 13 && cards.every(card => card.getAttribute('data-state') === 'ready');
     });
     const declaration = await readFile(join(root, 'packages/cem-components/src/components/cem-action/cem-action.xhtml'), 'utf8');
     const implemented = [...new Set([
@@ -285,6 +344,7 @@ async function verifyActionGallery(page) {
             instance: card.querySelector('[data-cem-anonymous-instance]'), group: card.querySelector('[aria-label="Layout choice"]') };
     });
     await page.locator('cem-demo-element[legend="Controlled selection"] [slot=demo] cem-element').evaluate(async node => { await window.cemPlaygroundRuntime.whenRenderSettled(node); });
+    await verifyNativeInvokerCard(page);
     await verifyThemeControls(page);
     assert.equal(await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').getAttribute('aria-pressed'), 'true');
     assert((await page.locator('cem-demo-element[legend="Controlled selection"] [slot=text]').innerText()).includes('selected="false"'));
@@ -499,7 +559,10 @@ async function verify(url) {
     try {
         await page.goto(url);
         await page.locator('#action-preview button').waitFor();
-        await page.waitForFunction(() => document.querySelector('cem-demo-element')?.getAttribute('data-state') === 'ready');
+        await page.waitForFunction(() => {
+            const cards = [...document.querySelectorAll('cem-demo-element')];
+            return cards.length === 2 && cards.every(card => card.getAttribute('data-state') === 'ready');
+        });
         const button = page.locator('#action-preview button');
         assert.equal(await button.innerText(), 'Save changes');
         await page.evaluate(() => { window.originalPreview = document.querySelector('#action-preview button'); });
@@ -514,9 +577,9 @@ async function verify(url) {
             }, { label, option: label === 'Native command' ? ({ 'Toggle popover': 'popover', 'Open modal dialog': 'dialog', None: 'none' })[option] : option.toLowerCase() });
         };
         assert.equal(await page.getByRole('combobox').count(), 0);
-        assert.equal(await page.getByRole('radiogroup').count(), 9);
+        assert.equal(await page.getByRole('radiogroup').count(), 8);
         await page.waitForFunction(() => [...document.querySelectorAll('cem-radio')].every(host => host.querySelector('input[type=radio]')), undefined, { timeout: 30000 });
-        assert.equal(await page.getByRole('radio').count(), 30);
+        assert.equal(await page.getByRole('radio').count(), 27);
         await choose('Native command', 'Toggle popover');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('commandfor') === 'action-preview-popup');
         await page.locator('#action-preview button').click();
@@ -669,7 +732,7 @@ async function verify(url) {
         assert(await button.evaluate(node => node.matches(':focus-visible')));
         assert.notEqual(await button.evaluate(node => getComputedStyle(node).boxShadow), 'none');
         assert(await page.evaluate(() => window.originalPreview === document.querySelector('#action-preview button')));
-        assert.equal(await page.locator('cem-action').count(), 12);
+        assert.equal(await page.locator('cem-action').count(), 14);
         for (const [id, result] of [['size-inline', 'Change undone.'], ['size-text', 'Draft saved.'], ['size-icon', 'Item added.'], ['size-play', 'Playback sample activated.'], ['size-tile', 'Mountain image selected.'], ['size-hero', 'Mountain campaign selected.']]) {
             await page.locator(`#${id} button`).click();
             await page.waitForFunction(result => document.querySelector('#dimension-example-result')?.textContent.trim() === result, result);
@@ -695,8 +758,10 @@ async function verify(url) {
         }));
         assert(await page.locator('.hero-content').evaluate(node => getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length === 1));
         await page.setViewportSize({ width: 1280, height: 720 });
-        assert.equal(await page.locator('cem-demo-element cem-action, cem-demo-element cem-element').count(), 0);
-        assert((await page.locator('cem-demo-element').innerText()).includes('id="cem-action"'));
+        const canonicalViewer = page.locator('cem-demo-element[legend="Canonical action source"]');
+        assert.equal(await canonicalViewer.locator('cem-action, cem-element').count(), 0);
+        assert((await canonicalViewer.innerText()).includes('id="cem-action"'));
+        await verifyNativeInvokerCard(page);
         assert.equal(await page.locator('cem-element[tag="cem-action"]').count(), 1);
         assert.equal(await page.getByRole('radiogroup', { name: 'Expanded', exact: true }).count(), 0);
         assert.equal(await page.locator('#choice-compact button').getAttribute('aria-pressed'), 'true');
@@ -724,7 +789,7 @@ async function verify(url) {
         assert.equal(new URL(gallery, page.url()).href, new URL('cem-action-gallery.html', url).href);
         await page.goto(gallery);
         await verifyActionGallery(page);
-        assert.equal(await page.locator('cem-demo-element').count(), 11);
+        assert.equal(await page.locator('cem-demo-element').count(), 13);
         const returnLink = page.getByRole('link', { name: 'Action property playground and source' });
         await returnLink.waitFor();
         assert.equal(new URL(await returnLink.getAttribute('href'), page.url()).href, url);

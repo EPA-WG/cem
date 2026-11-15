@@ -160,7 +160,7 @@
 <li data-action-attribute="interaction"><code>interaction</code> — Reference to shared command metadata.</li>
 <li data-action-attribute="context-key"><code>context-key</code> — Item key captured with the native invocation source.</li>
 </ul></section>
-<cem-demo-element legend="Selected contextual menu actions"><template slot="source">
+<cem-demo-element legend="Selected contextual menu actions" data-covers="control-role"><template slot="source">
 <div role="menu" aria-label="Theme choices">
 <cem-action variant="contextual" control-role="menuitemradio" selected>☀ Light</cem-action>
 <cem-action variant="contextual" control-role="menuitemradio">☾ Dark</cem-action>
@@ -252,6 +252,20 @@
 <p id="gallery-action-help">This surface uses browser popover presentation.</p>
 <button type="button" popovertarget="gallery-action-popover" popovertargetaction="hide">Close</button>
 </div>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Nested native popup focus">
+<p slot="description">Native invokers open and close both popovers. Escape closes one level; the generic framework focus service returns to that level's actual invoker. Outside activation keeps its destination. Popover visibility does not add menu arrow navigation.</p>
+<template slot="source">
+<cem-action popovertarget="action-parent-details">Open parent details</cem-action>
+<aside id="action-parent-details" popover="auto">
+<p>Ordinary popup content; no menu-specific controller.</p>
+<cem-action popovertarget="action-child-details">Open child details</cem-action>
+<article id="action-child-details" popover="auto">
+<label>Detail note <input autofocus></label>
+<button type="button" popovertarget="action-child-details" popovertargetaction="hide">Close child details</button>
+</article>
+</aside>
 </template>
 </cem-demo-element>
 <cem-demo-element legend="Native modal dialog" data-covers="commandfor command">

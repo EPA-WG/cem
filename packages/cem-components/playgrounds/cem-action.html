@@ -317,6 +317,20 @@
 </template>
 </cem-element>
 <p>For single-choice menus, set <code>control-role="menuitemradio"</code>. The native button exposes <code>aria-checked</code> from the container-owned <code>selected</code> state and retains its selected zebra outline. See the selected contextual menu example in the full gallery.</p>
+<cem-demo-element legend="Nested native popup focus">
+<p slot="description">Native invokers open and close both popovers. Escape closes one level; the generic framework focus service returns to that level's actual invoker. Outside activation keeps its destination. Popover visibility does not add menu arrow navigation.</p>
+<template slot="source">
+<cem-action popovertarget="action-parent-details">Open parent details</cem-action>
+<aside id="action-parent-details" popover="auto">
+<p>Ordinary popup content; no menu-specific controller.</p>
+<cem-action popovertarget="action-child-details">Open child details</cem-action>
+<article id="action-child-details" popover="auto">
+<label>Detail note <input autofocus></label>
+<button type="button" popovertarget="action-child-details" popovertargetaction="hide">Close child details</button>
+</article>
+</aside>
+</template>
+</cem-demo-element>
 <section aria-label="Action command wiring">
 <h2>Native command wiring</h2>
 <p>Use Enter, Space or click. The browser owns this surface; custom local references are demonstrated in the full gallery.</p>

@@ -255,6 +255,49 @@ a different profile rerenders. Unknown identifiers fail preparation. The
 [profile matrix](../../docs/cem-element-aria-reference-profile.md) records automated
 DOM evidence and the separate, unverified assistive-technology mappings.
 
+### Native invoker focus return
+
+Native `button`/`input[type="button"]` `popovertarget` relationships and native
+`button` `commandfor` popover commands own opening, closing, stacking and light
+dismissal. Do not give the same button both invocation routes. `cem-action`
+already forwards these attributes to its produced native button; component
+production source remains declarative.
+
+Installing a `CemElementRuntime` with `runtime.install(window)` connects a
+generic focus supplement for the document. Standalone native hosts may call
+`connectCemNativeInvokerFocus(documentOrShadowRoot)`, exported from this package;
+the returned disposer is idempotent. Connections share one subscription per root,
+including source/packaged runtime copies. Scoped runtime connections release
+when their declaration scope or an ancestor is disposed. Connect before opening;
+an already-open popup's original invoker is not guessed retrospectively.
+
+The supplement reads native target references and records the actual opening
+source, using `ToggleEvent.source` when exposed and a native activation fallback
+on older implementations. It never calls a popup visibility method, cancels an
+activation, writes UI attributes/content, supplies a role or installs menu
+navigation. Native entry focus and correct native restoration remain intact. After a completed
+native close, a lost/inside focus may return to the still-eligible opener of
+that popup. Nested Escape preserves its parent popup; explicit cascade close
+returns through the outer closing session. Outside activation, Tab and later
+focus/input destinations are preserved. Multiple invokers, cancellation, rapid
+reopen, source/target replacement and revoked routes are fenced by live browser
+objects and their current relationships, not a component-tag lookup or saved IDs.
+
+A surface already registered with a semantic owner keeps that owner's focus
+policy; the supplement yields rather than adding another focus controller.
+Disconnected/rebound sources and targets retire the association. Unknown
+programmatic opening sources do not acquire an invented invoker. Session refs,
+listeners and close intent are transient browser state and are never serialized.
+No CSS, theme tokens, form values or application state are changed.
+
+This API requires native popover support and does not emulate visibility or
+polyfill invoker commands. Prefer `popovertarget` where native command support is
+outside the supported browser profile. Unsupported native features need an
+explicit host/browser policy; focus supplementation alone cannot add them.
+See the [generic native popup design](../../docs/cem-interaction-design.md#owner-revision--native-popup-invocation-and-generic-focus-return-2026-11-15)
+and the action playground's **Nested native popup focus** example. Migration of
+legacy popup/menu controllers to this visibility path is a separate follow-up.
+
 The shared `native-surface` capability connects one direct `part="surface"` native
 dialog or tooltip popover to the shared preparation/open/close lifecycle. It supports persistent
 nonmodal dialogs, native modal entry, popover visibility, cancelable close

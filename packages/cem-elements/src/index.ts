@@ -76,3 +76,5 @@ export type { CemResumedElementOwner } from './lib/cem-elements.js';
 export { CemRecoveryStatusObserver, type CemRecoveryStatus, type CemRecoveryStatusState, type CemRecoveryStatusReason, type CemRecoveryStatusOptions } from './lib/recovery-status.js';
 
 export { processingSchemaAssetBinding } from './lib/internal/runtime-support/processing-host-runtime.js';
+
+export { connectCemNativeInvokerFocus } from './lib/native-invoker-focus.js';
