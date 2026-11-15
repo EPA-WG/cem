@@ -92,10 +92,12 @@ async function explicitModes(canvasElement: HTMLElement, fallback: boolean) {
         expect(output.textContent).toBe(`  ${attack}\n\tline two  `);
         expect(host.querySelector('img, script')).toBeNull();
         expect(output.tabIndex).toBe(0);
+        expect(within(host).getByRole('region', { name: 'Exact output (truncated)', exact: true })).toBe(output);
         expect(assertAccessibleName(output, 'Exact output (truncated)')).toBe('Exact output (truncated)');
         output.focus(); host.setAttribute('label', 'Updated output');
         await runtime.whenRenderSettled(host);
         expect(host.querySelector('pre')).toBe(output); expect(document.activeElement).toBe(output);
+        expect(within(host).getByRole('region', { name: 'Updated output (truncated)', exact: true })).toBe(output);
         host.setAttribute('mode', 'document'); host.setAttribute('value', attack);
         // Attempts to widen the fixed document policy are not public options.
         host.setAttribute('sandbox', 'allow-scripts allow-same-origin');

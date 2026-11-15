@@ -28,7 +28,7 @@
 {figure @aria-label="{$label}" @class=cem-media-preview @part=root @cem:whitespace=layout |
  {cem:choose |
   {cem:when @test='mode == "text"' |
-   {pre @aria-label="{$textLabel}" @part=text @tabindex=0 |
+   {pre @role=region @aria-label="{$textLabel}" @part=text @tabindex=0 |
     {$ | value}
   }}
   {cem:when @test='mode == "document"' |

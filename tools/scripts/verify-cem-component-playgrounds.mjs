@@ -1116,6 +1116,16 @@ async function verifyGalleries(baseUrl, tags) {
                     assert.ok(metrics.condensed.height < metrics.normal.height, `${theme}: condensed is visibly shorter than normal`);
                 }
             }
+            if (tag === 'cem-chip') {
+                const passive = page.locator('cem-demo-element cem-chip:not([checkable]) > span[part=root]');
+                assert(await passive.count() > 0, 'Chip gallery must exercise passive content');
+                for (const chip of await passive.all()) {
+                    assert.equal(await chip.getAttribute('role'), null);
+                    assert.equal(await chip.getAttribute('aria-label'), null);
+                    assert.equal(await chip.evaluate(node => node.tabIndex), -1);
+                    assert((await chip.textContent()).trim().length > 0);
+                }
+            }
             const declaration = await readFile(join(root, 'packages/cem-components/src/components', tag, tag + '.xhtml'), 'utf8');
             // Public parameter defaults have bodies; @value instructions emit owned DOM attributes.
             const implemented = [...new Set([
@@ -2888,6 +2898,7 @@ async function verifyPassive(baseUrl) {
                 await page.waitForFunction(() => document.querySelector('.properties cem-media-preview')?.hasAttribute('truncated'));
                 await settle();
                 assert.equal(await host.locator('pre').getAttribute('aria-label'), 'Updated label (truncated)');
+                assert.equal(await host.getByRole('region', { name: 'Updated label (truncated)', exact: true }).textContent(), value);
                 await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
                 await page.keyboard.press('Tab');
                 await host.locator('pre').focus();

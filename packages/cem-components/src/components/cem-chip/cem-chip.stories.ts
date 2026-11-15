@@ -24,6 +24,9 @@ export const CheckableAndPassive = meta.story({
         const checked = harness.query<HTMLButtonElement>('cem-chip[checkable][checked] button');
 
         expect(passive).toBeInstanceOf(HTMLSpanElement);
+        expect(passive.textContent?.trim()).toBe('Static topic');
+        expect(passive.hasAttribute('role')).toBe(false);
+        expect(passive.hasAttribute('aria-label')).toBe(false);
         expect(passive.hasAttribute('aria-pressed')).toBe(false);
         expect(passive.tabIndex).toBe(-1);
         expect(unchecked).toBeInstanceOf(HTMLButtonElement);

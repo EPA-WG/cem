@@ -88,7 +88,8 @@ uses the explicit modes below.
 `cem-media-preview` retains its named native figure and the existing `media`
 mode default/caption slots and label fallbacks. Explicit modes read `value`:
 
-- `text` renders exact literal text in a focusable, wrapping, scrollable `pre`.
+- `text` renders exact literal text in a focusable, wrapping, scrollable
+  `pre[role="region"]` named by the output label.
   Presence of `truncated` adds “(truncated)” to its accessible name; it never
   edits the source. Like other presence attributes, `truncated="false"` is present.
 - `document` renders a titled native iframe with fixed empty `sandbox` and `allow`,

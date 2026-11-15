@@ -528,13 +528,57 @@ for the current native work and the conditional diagnostic items on recurrence.
     WebKit and physical assistive technology remain unverified. See the
     [backdrop contract](../packages/cem-components/docs/dialog-contract.md#backdrop-and-theme-ownership).
 
-- [ ] Verify all CEM components using
+- [x] Verify all CEM components using
       [`modern-web-guidance`](/home/suns/cem/.agents/skills/modern-web-guidance/SKILL.md).
       Search/retrieve the matching component and discipline guides; audit native
       semantics, accessibility, keyboard/focus behavior, dismissal, modern CSS
       and browser-support/fallback requirements. Record component-level evidence
       and actionable gaps, preserve declarative CEM implementation and canonical
       theme ownership, and rerun relevant stories and shipped galleries for fixes.
+  - [x] Review all 59 declarations against relevant retrieved guides; publish a
+        component-by-component matrix with source/story evidence, limitations
+        and actionable findings rather than a blanket compliance claim.
+  - [x] Verify the shared architecture/style/catalog gates and component stories;
+        add focused regression checkitems for confirmed fixes before adding fixtures.
+  - [x] Remove prohibited naming ARIA from passive chips; verify visible text and
+        absence of an invented role/name while retaining named checkable buttons.
+  - [x] Expose text previews as named, keyboard-scrollable regions; verify role
+        queries, exact untrusted text, focus and retained-node identity in both
+        worker and main-thread fallback stories and shipped galleries.
+
+  Audit completed 2026-11-15: [59-component evidence matrix](../packages/cem-components/docs/modern-web-guidance-audit.md).
+  Two naming/region fixes shipped; 411 baseline stories and 13 focused post-fix
+  stories pass. Declarative/style/state/catalog, package, lint and source/packed
+  media/navigation galleries pass. The first navigation run timed out at unchanged
+  list readiness; the isolated rerun passed with unchanged limits. Nine findings
+  remain below, including physical/WebKit/AT evidence; this closes the audit,
+  not those findings or a general compliance claim.
+
+- [ ] Resolve findings from the [CEM component web audit](../packages/cem-components/docs/modern-web-guidance-audit.md):
+  - [ ] MW-03: reconcile `cem-menu-item` roles with `cem-menu` native mode;
+        verify native buttons/links, live mode changes, standalone items and
+        nested menu/menuitem ownership in worker/fallback and packed delivery.
+  - [ ] MW-04: reconcile icon-button fallback naming with the missing-name
+        diagnostic contract; verify icon-only, visible-slot, external label and
+        empty-name cases without inventing action names.
+  - [ ] MW-05: define native table/sort-header composition and migration; preserve
+        header/cell association, focus, row identity and result announcements.
+  - [ ] MW-06: review tab wrapping and panel tab stops against the retrieved tabs
+        guide; verify panels with/without focusable content and narrow/RTL layouts
+        while preserving intentional manual activation and retained payloads.
+  - [ ] MW-07: complete native form attribute/name forwarding and explicit label
+        associations; verify FACE value ownership, external forms, reset,
+        validation, autocomplete, enterkeyhint, autocorrect and textarea editing.
+  - [ ] MW-08: reconcile tooltip naming/description deduplication and native hint
+        behavior; verify equal-name hints, unnamed triggers, existing author ARIA,
+        nested menus, Escape, hover persistence, touch and cleanup.
+  - [ ] MW-09: evaluate native details/heading, switch and progress alternatives
+        against existing public APIs; document decisions before changing owners.
+  - [ ] MW-10: measure coarse-pointer targets, spacing exceptions, text spacing,
+        200% text resize and 320px reflow across themes/densities; preserve the
+        explicitly content-sized super-compact profile and canonical token owners.
+  - [ ] MW-11: publish a per-feature browser support/refusal matrix; run WebKit
+        on a supported host and physical keyboard/touch plus NVDA/VoiceOver checks.
 
 ## Amsterdam presentation samples: active Studio priority
 

@@ -488,7 +488,9 @@ composition keyboard events are left to the browser.
 
 `collapsible`, `expanded`, `selectable`, `checkable`, `checked` and `disabled`
 use attribute presence, including `="false"`. Passive lists/chips add no tab stop
-or selection owner. Selectable lists normalize only direct option payload and
+or selection owner. Passive chips keep their visible text without naming ARIA
+on the generic span; only checkable chip buttons expose an accessible control
+name. Selectable lists normalize only direct option payload and
 retain native select change events. Checkable chips use a native button and a
 local checked slice, without an extra form submission owner.
 

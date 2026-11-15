@@ -68,7 +68,7 @@
  {cem:when @test="seq:count(datadom.attributes.checkable) > 0" |
   {button @type=button @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @class=cem-chip @part=root @aria-label={datadom.attributes.aria-label ?? label} @aria-pressed={datadom.slices.checked ?? (seq:count(datadom.attributes.checked) > 0)} | {cem:choose | {cem:when @test="datadom.slices.checked ?? (seq:count(datadom.attributes.checked) > 0)" | {slice @slice=checked @slice-event=click @slice-value=false}}{cem:otherwise | {slice @slice=checked @slice-event=click @slice-value=true}}} {slot | {$label}}}
  }
- {cem:otherwise | {span @class=cem-chip @part=root @aria-label={datadom.attributes.aria-label ?? label} | {slot | {$label}}}}
+ {cem:otherwise | {span @class=cem-chip @part=root | {slot | {$label}}}}
 }
 </template>
 </cem-element>
