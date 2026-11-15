@@ -992,9 +992,73 @@ async function verifyField(url, tag) {
 
 async function verifyIcons(baseUrl) {
     await verifyCommand(new URL('cem-icon-button.html', baseUrl).href, 'cem-icon-button');
+    await verifyIconNames(baseUrl);
     await verifyIcon(new URL('cem-icon.html', baseUrl).href);
     await verifyGalleries(baseUrl, ['cem-icon', 'cem-icon-button']);
     await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
+async function verifyIconNames(baseUrl) {
+    const page = await browser.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(new URL('cem-icon-button.html', baseUrl).href);
+        const preview = page.locator('cem-icon-button#command-preview');
+        await preview.locator('button').waitFor();
+        const label = page.getByRole('textbox', { name: 'label', exact: true });
+        const aria = page.getByRole('textbox', { name: 'aria-label', exact: true });
+        const ref = page.getByRole('textbox', { name: 'aria-labelledby', exact: true });
+        const external = page.locator('#icon-button-name-reference');
+        await preview.evaluate(host => {
+            window.iconNameWarnings = [];
+            host.addEventListener('cem-error', event => {
+                if (event.detail.code === 'cem.component.accessible_name_missing') window.iconNameWarnings.push(event.detail);
+            });
+        });
+        const warning = async expected => {
+            await page.waitForFunction(expected => window.cemPlaygroundRuntime.diagnosticsFor(document.querySelector('cem-icon-button#command-preview'))
+                .filter(item => item.code === 'cem.component.accessible_name_missing').length === expected, expected);
+        };
+        await ref.fill('icon-button-name-reference');
+        await preview.getByRole('button', { name: 'Run selected command', exact: true }).waitFor();
+        await aria.fill('Explicit fallback');
+        await page.waitForFunction(() => document.querySelector('cem-icon-button#command-preview button')?.getAttribute('aria-label') === 'Explicit fallback');
+        await external.evaluate(node => { node.textContent = ' '; });
+        await warning(1);
+        assert.equal(await preview.locator('button').getAttribute('aria-label'), 'Explicit fallback');
+        await preview.getByRole('button', { name: '', exact: true }).waitFor();
+        assert.equal(await page.evaluate(() => window.iconNameWarnings.length), 1);
+        await external.evaluate(node => { node.textContent = 'External repaired'; });
+        await preview.getByRole('button', { name: 'External repaired', exact: true }).waitFor(); await warning(0);
+        await page.getByRole('textbox', { name: 'href', exact: true }).fill('#icon-link-target');
+        await preview.getByRole('link', { name: 'External repaired', exact: true }).waitFor();
+        await ref.fill(''); await aria.fill(''); await label.fill(''); await warning(1);
+        await preview.getByRole('link', { name: '', exact: true }).waitFor();
+        assert.equal(await page.evaluate(() => window.iconNameWarnings.length), 2);
+        await label.fill('Repaired author name'); await warning(0);
+        await preview.getByRole('link', { name: 'Repaired author name', exact: true }).waitFor();
+        const examples = page.locator('cem-demo-element[legend="External accessible names"]');
+        await examples.getByRole('button', { name: 'Open action menu', exact: true }).waitFor();
+        await examples.getByRole('link', { name: 'Icon documentation', exact: true }).waitFor();
+        const disclosure = page.locator('cem-demo-element[legend="Unavailable disclosure"]').getByRole('button', { name: 'More details (unavailable)', exact: true });
+        assert(await disclosure.isDisabled()); assert.equal(await disclosure.getAttribute('aria-expanded'), 'false');
+        assert(await disclosure.evaluate(control => !!document.getElementById(control.getAttribute('aria-controls'))?.hidden));
+        const radioMenu = page.locator('cem-demo-element[legend="Radio menu composition"]').getByRole('menu', { name: 'Display mode', exact: true });
+        await radioMenu.getByRole('menuitemradio', { name: 'Day mode', exact: true }).waitFor();
+        assert.equal(await radioMenu.getByRole('menuitemradio', { name: 'Day mode', exact: true }).getAttribute('aria-checked'), 'true');
+        assert.equal(await radioMenu.getByRole('menuitemradio', { name: 'Night mode', exact: true }).getAttribute('aria-checked'), 'false');
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        const bundle = page.locator('cem-icon-button[aria-labelledby="bundle-icon-name"]');
+        await bundle.getByRole('button', { name: 'Externally named bundled command', exact: true }).waitFor();
+        await page.locator('#bundle-icon-name').evaluate(node => { node.textContent = ''; });
+        await page.waitForFunction(() => window.cemPlaygroundRuntime.diagnosticsFor(document.querySelector('cem-icon-button[aria-labelledby="bundle-icon-name"]'))
+            .some(item => item.code === 'cem.component.accessible_name_missing' && item.severity === 'warning'));
+        await bundle.getByRole('button', { name: '', exact: true }).waitFor();
+        await page.locator('#bundle-icon-name').evaluate(node => { node.textContent = 'Bundle repaired'; });
+        await bundle.getByRole('button', { name: 'Bundle repaired', exact: true }).waitFor();
+        await page.waitForFunction(() => window.cemPlaygroundRuntime.diagnosticsFor(document.querySelector('cem-icon-button[aria-labelledby="bundle-icon-name"]')).length === 0);
+        assert.deepEqual(errors, []);
+    } finally { await page.close(); }
 }
 
 async function verifyFieldset(baseUrl) {

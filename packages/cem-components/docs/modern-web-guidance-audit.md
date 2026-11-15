@@ -43,7 +43,7 @@ form ownership. Light DOM is intentional; no Shadow DOM conversion is needed.
 | MW-01 | Fixed | Passive `cem-chip` emitted `aria-label` on an otherwise generic span. Removed that unsupported naming attribute without inventing a role or tab stop; visible slot/fallback text remains. Checkable chips retain their named native toggle button. The `accessibility` guide and [WAI-ARIA generic role](https://www.w3.org/TR/wai-aria-1.2/#generic) prohibit author naming on this role. |
 | MW-02 | Fixed | Text-mode `cem-media-preview` had a focusable, scrollable `pre` with an accessible-name attribute but no nameable region role. Added `role="region"`; worker/fallback stories query the named role, preserve exact hostile literal text, and retain focus/node identity after label changes. Text mode also handles plain output, so it does not falsely mark every payload as computer code. The `html` guide requires a named region for scrollable code blocks. |
 | MW-03 | Resolved follow-up | `cem-menu-item` now emits native button/link semantics. The shared menu controller owns composite roles, synchronizes nested mode changes and releases its role/tab-stop and popup claims on native mode, removal and transfer. Source-backed worker/fallback plays cover native queries, trusted keys, open-menu mode changes, focus, rerenders, disconnect/reconnect and reparenting. See the [closure evidence](#mw-03-native-and-composite-menu-role-closure) and [role contract](component-reference.md#menu-role-ownership). |
-| MW-04 | P1 / open | `cem-icon-button` defaults its button name to “Icon action”, as explicitly documented in its contract. This conflicts with the general accessibility contract's missing-name diagnostic/no-invention rule and does not identify the actual command. Decide the compatible naming/diagnostic behavior in shared runtime, then cover visible slot text, explicit/external labels and empty names. Do not silently delete a public fallback or introduce component-local JS. See `icons` and `accessibility`. |
+| MW-04 | Resolved follow-up | Removed the invented “Icon action” name, forwarded `aria-labelledby` to the native button/link, and added bounded shared missing-name warnings with repair/disposal. Visible content supplies native names when no explicit name is provided. The compatibility change and diagnostic limits are documented in the [icon-button contract](icon-button-contract.md#missing-name-diagnostics); see [closure evidence](#mw-04-icon-control-naming-closure). |
 | MW-05 | P2 / design gap | `cem-table` uses an ARIA table wrapper and caller-supplied ARIA rows/cells; `cem-sort-header` produces an ARIA columnheader with a native button and an action name. `responsive-table`/`sortable-table` prefer native table/caption/th ownership and a stable column name. `cem-data-view` already provides a native table, caption and scoped headers. Define a compatible native table/sort composition rather than inserting `th` under a `div` or claiming a sort-header event reorders data. Applications still own row order and completed-result announcements. |
 | MW-06 | P2 / design gap | `cem-tabs` wraps its horizontal tablist and gives every selected panel a tab stop, even when its payload already has focusable content. `tabs` recommends single-row scrolling and conditional panel focusability. Manual activation is intentional for potentially expensive Studio views and stays valid. Resolve wrapping/tab-stop contracts through shared `tab-panels`; preserve stable IDs, retained controls, disabled behavior and the selected/focused distinction. |
 | MW-07 | P2 / API gap | `cem-field`, `cem-text-field` and `cem-textarea` use wrapping labels and shared FACE submission/validity/reset. Their declarations do not forward all native editing/naming attributes: for example host `aria-labelledby`/`aria-label`, `enterkeyhint`, `autocorrect`, and textarea `inputmode`/`spellcheck` are absent. The forms/accessibility guides also favor explicit label/control IDs for voice tools. Define supported forwarding centrally and test actual native owners plus host external-form/validity behavior; do not create duplicate submitted inputs. Existing wrapping labels remain meaningful. |
@@ -187,7 +187,7 @@ intermittent readiness observation, not attributed to these attribute changes.
 No full all-family gallery rerun, WebKit run, public deployment, physical-device
 or spoken assistive-technology acceptance is claimed. Theme inheritance and
 forced-color checks exercise the existing contracts; they do not prove every
-possible consumer combination. MW-04 through MW-11 remain actionable follow-ups; MW-03 is resolved below.
+possible consumer combination. MW-05 through MW-11 remain actionable follow-ups; MW-03 and MW-04 are resolved below.
 
 ## MW-03 native and composite menu role closure
 
@@ -250,3 +250,65 @@ Final delivery verification:
 
 Physical assistive technology and WebKit acceptance remain MW-11 work. This
 closure does not claim a full all-family gallery or all-component story rerun.
+
+
+## MW-04 icon control naming closure
+
+Completed as a follow-up to the initial audit on 2026-11-15. The matrix above
+retains its initial story counts; two new source-backed naming stories exercise
+the worker and main-thread fallback paths.
+
+- Native buttons and links forward `aria-labelledby`. Explicit `aria-label` and
+  the existing `label` alias remain supported; otherwise projected text supplies
+  the native name. Icon-only buttons no longer receive the invented “Icon action”
+  name; glyphs remain decorative. This is an intentional compatibility change for bare controls and old
+  role/name queries, recorded in the public contract and examples.
+- Valid naming references take precedence even when their text is empty; broken
+  references allow the native fallback. Hidden explicitly referenced text is
+  supported, following [Accessible Name computation](https://www.w3.org/TR/accname-1.2/#computation-steps).
+  Live text, same-ID target replacement and ID changes are covered.
+- A shared runtime guard checks direct native button/link `part="control"`
+  owners after owner/nested renders settle. One warning/event per missing-name
+  episode is retained; repair, disconnect and declaration-scope disposal clear
+  it without clearing other diagnostics. Reconnect checks again. The guard
+  never changes DOM, activation or focus and has no component-name branch.
+- This is bounded name-presence checking, not a full AccName implementation.
+  Complex/generated/owned/shadow naming and over-budget content are inconclusive
+  rather than false failures. Browser role/name assertions remain the authority
+  in the regression plays. Physical assistive-technology acceptance remains MW-11.
+- Property pages, the full gallery and the release bundle demonstrate real
+  external labels. Property controls expose the reference and shipped-page
+  checks exercise warning/repair through both native modes and bundle delivery.
+  The full-suite passive-chip assertion now agrees with MW-01: retained visible
+  text on an unnamed generic span, without inventing a role or tab stop.
+- No component-local behavior, CSS/token defaults, optional runtime capabilities,
+  declaration versions, timeout or operation-budget changes were introduced.
+  Existing inherited-theme, forced-color, menu and native-form behavior remains
+  covered by the component stories and shipped icon checks.
+
+Delivery validation:
+
+- Runtime TypeScript build passes. The final isolated icon-button run passes all
+  21 stories, including worker/fallback naming, synchronous warning-listener
+  repair and connected-host scope disposal. The repaired list story file passes
+  all six stories. The earlier focused icon/theme/menu run passed 36 tests.
+- Uncached `verify-playgrounds --args='--icons-only'` and `--menus-only` both
+  pass workspace source and isolated packed property/gallery/bundle delivery.
+  Naming checks use browser role/name queries and the real property controls.
+  The attribute inventory also exposed pre-existing missing `control-role` and
+  ARIA-forwarding sample coverage; named radio-menu, current-page and unavailable
+  disclosure examples now demonstrate those actual native contracts.
+- Runtime/component builds, declarative/state/style/catalog and publication gates
+  pass. The package remains 329 files with 59 canonical declarations. Component
+  lint has zero errors and the existing 180 warnings; style checks cover 497
+  canonical tokens and nine contour regressions. No CSS or theme ownership changed.
+
+Whole-suite evidence has a remaining limit. An initial all-component run passed
+414 of 415 tests and found the stale passive-chip name assertion, now corrected
+and passing in isolation. Two subsequent full runs stopped progressing between
+files without reporting an assertion failure and were interrupted; the verbose
+attempt recorded 116 passing tests, including all six menu lifecycle stories.
+A shell wall-clock discontinuity was observed during that attempt, without proof
+that it caused the stall. The [TODO](../../../docs/todo.md) retains diagnosis as a
+separate action. This closure does **not** claim a fully green final 415-test run,
+WebKit or physical assistive-technology acceptance.

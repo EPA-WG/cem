@@ -23,12 +23,17 @@ glyph remains decorative. Glyph sizing now follows `cem-icon` and its tokens;
 
 ## Navigation and naming
 
-- Absent `href` renders a native button; `type` defaults to `button`. Its default accessible
-  label is Icon action and its default icon name is circle.
+- Absent `href` renders a native button; `type` defaults to `button`. Its default
+  glyph is circle, which is decorative and does not name the control.
 - Present `href`, including an empty string, renders a native link. Relative URLs
   and fragments use the live document base. Native click and Enter navigate.
+- `aria-labelledby` forwards to the native owner and has native precedence over
+  `aria-label` and the explicit `label` alias. Valid references with empty text
+  yield an empty name; broken references allow the normal native fallback.
+  Hidden referenced labels can still name the control. References stay on the
+  button/link and do not rename the embedded glyph.
 - `aria-label` takes precedence over `label` for the accessible control name.
-  Without either, link slot content supplies the name. Always name icon-only
+  Without either, slot content supplies the name in both modes. Always name icon-only
   links and buttons. Glyph accessibility follows `cem-icon`; image elements
   retain empty alternative text.
 - `disabled` uses presence, including `disabled="false"`. A disabled link omits
@@ -40,6 +45,35 @@ glyph remains decorative. Glyph sizing now follows `cem-icon` and its tokens;
   `step`, `location` and `false`; it takes precedence over the `selected` fallback.
 - `aria-expanded` and `aria-controls` forward to the native button. The owner
   controls disclosure state; the icon button does not toggle these values itself.
+
+## Missing-name diagnostics
+
+The former invented `Icon action` button name is removed. A bare control remains
+unnamed and emits `cem.component.accessible_name_missing` at warning severity
+through a bubbling/composed `cem-error` event. Supply an author name instead of
+depending on the old fallback, including in role/name queries.
+
+The shared runtime checks native button/link `part="control"` owners after the
+owner and its nested declarations settle. It recognizes naming references,
+explicit ARIA, native labels, visible DOM content, image alternatives and the
+native title fallback. `name`, `value`, descriptions and decorative glyphs do
+not supply action names. Empty/whitespace author labels do not manufacture one.
+Disabled controls are checked too. The check never inserts text/ARIA, changes
+focus, disables a control or suppresses activation.
+
+One active warning is retained in `diagnosticsFor(host)` while the name is
+missing. Unrelated rerenders do not emit duplicates. Repair clears this warning;
+a later loss starts a new episode. Live projected text, referenced text, target
+replacement and ID changes are observed. Disconnect or declaration-scope
+disposal releases observers and clears the active warning. Reconnection checks
+the current owner again. Other diagnostics are preserved.
+
+This is a bounded name-presence guard, not a replacement for the browser's full
+accessible-name computation or assistive-technology testing. It visits at most
+1024 naming nodes to depth 128 and admits at most 64 naming references. Complex
+shadow/owned/embedded control content, generated CSS names and over-budget
+structures are inconclusive rather than falsely reported as missing. Existing
+themes, Google icon fonts, form behavior and declaration identities are unchanged.
 
 ## Action theme support
 

@@ -43,6 +43,7 @@
 </head>
 <body>
 <cem-element hidden><template type="text/cem-ml">
+{cem-element @tag=cem-menu @capability=composite-menu @src="@epa-wg/cem-components/components/cem-menu/cem-menu.xhtml#cem-menu"}
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
 {cem-element @tag=cem-option-group @src="@epa-wg/cem-components/components/cem-option-group/cem-option-group.xhtml#cem-option-group"}
 {cem-element @tag=cem-badge @src="@epa-wg/cem-components/components/cem-badge/cem-badge.xhtml#cem-badge"}
@@ -121,7 +122,7 @@
 <aside aria-label="Embedded icon and shared attributes">
 <h2>Embedded cem-icon and shared attributes</h2>
 <p><code>cem-icon-button</code> embeds <a href="./cem-icon-gallery.html"><code>cem-icon</code></a> inside a native button or link and loads it automatically. It relays <code>image</code>, <code>size</code>, <code>direction</code>, <code>align</code>, <code>label</code>, <code>aria-label</code>, <code>class</code>, <code>hidden</code>, and default-slot content. Unicode, emoji, image URLs and font glyphs use the same rendering as <code>cem-icon</code>.</p>
-<p><strong>Attribute note:</strong> <code>label</code> supplies visible fallback text; projected content replaces it. For an icon-only control, use <code>aria-label</code> without <code>label</code>. <code>aria-label</code> names both the control and embedded glyph and takes precedence over the control’s <code>label</code> name.</p>
+<p><strong>Attribute note:</strong> <code>label</code> supplies visible fallback text; projected content replaces it. For an icon-only control, use <code>aria-label</code> without <code>label</code>. <code>aria-label</code> names both the control and embedded glyph and takes precedence over the control’s <code>label</code> name. Use <code>aria-labelledby</code> to reference an existing label; valid references take precedence over both.</p>
 <p><code>image</code> selects the glyph. An explicitly empty source hides the glyph. Without a source, buttons show circle and links show no glyph. <code>size="small|medium|large|x-large|xx-large"</code> sets action control height and is forwarded unchanged to the icon. Small and large select their icon sizes; other values use the default icon size. Normal or absent size inherits control height. The inherited <code>--cem-icon-size</code>, <code>--cem-icon-size-small</code>, and <code>--cem-icon-size-large</code> tokens control glyph size. Row and column layouts work in both modes.</p>
 <p>The navigation variant uses dedicated navigation colors and preserves explicit <code>aria-current</code> values. <code>aria-expanded</code> and <code>aria-controls</code> describe owner-controlled disclosure buttons.</p>
 <p><code>href</code>, <code>disabled</code>, <code>selected</code>, <code>selectable</code>, <code>pending</code>, <code>variant</code>, and activation remain owned by <code>cem-icon-button</code>. Present <code>href</code> selects a link; absent <code>href</code> selects a button.</p>
@@ -142,6 +143,8 @@
 <li data-gallery-attribute="image"><code>image</code></li>
 <li data-gallery-attribute="size"><code>size</code></li>
 <li data-gallery-attribute="aria-label"><code>aria-label</code></li>
+<li data-gallery-attribute="aria-labelledby"><code>aria-labelledby</code></li>
+<li data-gallery-attribute="control-role"><code>control-role</code></li>
 <li data-gallery-attribute="direction"><code>direction</code></li>
 <li data-gallery-attribute="align"><code>align</code></li>
 <li data-gallery-attribute="name"><code>name</code></li>
@@ -157,7 +160,7 @@
 <li data-gallery-attribute="aria-expanded"><code>aria-expanded</code></li>
 <li data-gallery-attribute="aria-controls"><code>aria-controls</code></li>
 <li data-gallery-attribute="variant"><code>variant</code></li></ul>
-<p><strong>Slots:</strong> The default slot is passed into cem-icon, replacing its visible label fallback. It names links when label and aria-label are absent; use aria-label for icon-only controls.</p>
+<p><strong>Slots:</strong> The default slot is passed into cem-icon, replacing its visible label fallback. It names buttons and links when explicit labels are absent; use aria-label or aria-labelledby for icon-only controls.</p>
 <cem-demo-element type="cem-ml" legend="Content alignment" description="Start, center and end align along the inline axis in row and column layouts. The last two examples use RTL. Full-width hosts make the alignment visible." data-covers="align direction label"><template slot="source">
 {div @style="display:grid;gap:var(--cem-gap-related)" |
     {cem-icon-button @image="★" @direction=row @align=start @label="row: start" @style="inline-size:100%"}
@@ -206,6 +209,24 @@
     {cem-icon-button @image="" @label="Text without glyph"}
 }
 </template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Unavailable disclosure" description="A disabled disclosure forwards its collapsed state and target relationship. The containing application owns both disclosure state and target visibility." data-covers="aria-expanded aria-controls"><template slot="source">
+{cem-icon-button @image="▾" @label="More details (unavailable)" @disabled=true @aria-expanded=false @aria-controls=icon-disclosure-details}
+{section @id=icon-disclosure-details @hidden=true | Details are not available yet.}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Radio menu composition" description="control-role is a composition hook for named radio items inside a composite menu, as used by the theme switch. The containing application owns selected state." data-covers="control-role"><template slot="source">
+{cem-menu @keyboard=menu @direction=column @aria-label="Display mode" |
+    {cem-icon-button @control-role=menuitemradio @selected=true @image="☀" @variant=contextual | Day mode}
+    {cem-icon-button @control-role=menuitemradio @image="☾" @variant=contextual | Night mode}
+}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="External accessible names" description="aria-labelledby names the native button or link from visible labels, ahead of aria-label. The IDs demonstrate real naming relationships." data-covers="aria-labelledby"><template slot="source">
+{div |
+    {span @id=icon-command-name | Open action menu}
+    {cem-icon-button @image="☰" @aria-labelledby=icon-command-name}
+    {span @id=icon-link-name | Icon documentation}
+    {cem-icon-button @image="↗" @href="./cem-icon.html" @aria-labelledby=icon-link-name}
+}
+</template></cem-demo-element>
 <cem-demo-element type="cem-ml" legend="Icon links" data-covers="href image variant direction"><template slot="source">
 {cem-icon-button @href="#icon-link-target" @image=recycling | Recycle}
 {cem-icon-button @href="#icon-link-target" @image="fas fa-cloud-upload-alt" | Upload}
@@ -216,8 +237,8 @@
 {cem-icon-button @href="#icon-link-target" @image=shopping_cart @label="Open cart"}
 {div @id=icon-link-target | Link destination}
 </template></cem-demo-element>
-<cem-demo-element type="cem-ml" legend="Command buttons" description="Without href, the control is a native button. Type defaults to button, which does not submit a surrounding form. The default glyph is circle and the default accessible name is Icon action; supply aria-label for a named icon-only command."><template slot="source">
-{cem-icon-button}
+<cem-demo-element type="cem-ml" legend="Command buttons" description="Without href, the control is a native button. Type defaults to button, which does not submit a surrounding form. The default glyph is circle. Supply aria-label, aria-labelledby, label or visible content; unnamed controls emit cem.component.accessible_name_missing as a warning."><template slot="source">
+{cem-icon-button @aria-label="Open options"}
 {form |
     {cem-icon-button @aria-label="Open settings" @image=settings}
 }
@@ -231,11 +252,11 @@
 ```
 }   }
 </template></cem-demo-element>
-<cem-demo-element type="cem-ml" legend="Navigation links" description="Present href selects a native link. Click or Enter follows its URL. Fragments target this page, relative URLs use the document base, absolute URLs navigate to another site, and an empty href navigates to the current document. Text supplies the accessible name when label and aria-label are absent." data-covers="href"><template slot="source">
+<cem-demo-element type="cem-ml" legend="Navigation links" description="Present href selects a native link. Click or Enter follows its URL. Fragments target this page, relative URLs use the document base, absolute URLs navigate to another site, and an empty href navigates to the current document. Text supplies the accessible name when label and aria-label are absent." data-covers="href aria-current"><template slot="source">
 {cem-icon-button @href="#icon-link-target" @image=arrow_downward | Jump to destination}
 {cem-icon-button @href=./cem-icon.html @image=open_in_new | Icon playground}
 {cem-icon-button @href=https://github.com/EPA-WG/cem @image=open_in_new | CEM repository}
-{cem-icon-button @href="" | Current document}
+{cem-icon-button @href="" @aria-current=page | Current document}
 </template></cem-demo-element>
 <cem-demo-element type="cem-ml" legend="Disabled buttons" description="Disabled uses attribute presence: disabled, disabled=false and disabled=true all prevent activation and remove the native button from the tab sequence. Remove the attribute to enable the command." data-covers="disabled"><template slot="source">
 {cem-icon-button @image=check @label="Enabled command"}

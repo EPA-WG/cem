@@ -828,7 +828,9 @@ export const ContentFamily = meta.story({
         expect(assertAccessibleName(table, 'Asset table')).toBe('Asset table');
         expect(table.querySelectorAll('[role="row"]')).toHaveLength(2);
         expect(table.querySelectorAll('[role="cell"]')).toHaveLength(2);
-        expect(assertAccessibleName(chip, 'Filtered by owner')).toBe('Filtered by owner');
+        expect(chip.hasAttribute('role')).toBe(false);
+        expect(chip.hasAttribute('aria-label')).toBe(false);
+        expect(chip.tabIndex).toBe(-1);
         expect(chip.textContent?.trim()).toBe('Owner');
         expect(badge.getAttribute('data-tone')).toBe('success');
         expect(badge.textContent?.trim()).toBe('Ready');

@@ -173,6 +173,7 @@ import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint, prepareCemPopupGuard, resumeC
 import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint, resumeCemNativeSurface } from './native-surface.js';
 import { CEM_ACTION_CONTROL_CAPABILITY, cemActionControlCheckpoint, prepareCemActionControlGuard } from './action-control-capability.js';
 import { CEM_ACTION_COMMAND_CAPABILITY, cemActionCommandCheckpoint, prepareCemActionCommandGuard } from './action-command-capability.js';
+import { watchCemControlNames } from './control-name-diagnostics.js';
 import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
@@ -1846,6 +1847,7 @@ export class CemElementRuntime {
     private readonly declarationScopeOption?: CemDeclarationScope;
     private readonly restrictedPreview: boolean;
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
+    private readonly controlNameChecks = new WeakMap<HTMLElement, () => void>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
     private readonly nativeCheckedPreservations = new WeakMap<HTMLElement, (element: Element) => boolean>();
     private readonly explicitInstancePayloads = new WeakSet<HTMLElement>();
@@ -3092,6 +3094,33 @@ export class CemElementRuntime {
         };
     }
 
+    private monitorControlNames(instance: HTMLElement, compiled: CompiledDeclaration): void {
+        if (compiled.declarationScope.disposed || this.controlNameChecks.has(instance) || !instance.querySelector(':scope > :is(button,a)[part~="control"]')) return;
+        const code = 'cem.component.accessible_name_missing';
+        const dispose = watchCemControlNames(instance, async () => {
+            await this.whenRenderSettled(instance);
+            const visited = new Set<HTMLElement>();
+            for (;;) {
+                const children = [...instance.querySelectorAll<HTMLElement>('*')].filter(child => !visited.has(child) && !!this.declarationForInstance(child));
+                if (!children.length) break;
+                children.forEach(child => visited.add(child));
+                await Promise.all(children.map(child => this.whenRenderSettled(child)));
+            }
+        }, missing => {
+            const previous = this.diagnosticsFor(instance);
+            if (previous.some(item => item.code === code) === missing) return;
+            if (!missing) { this.diagnostics.set(instance, previous.filter(item => item.code !== code)); return; }
+            const diagnostic: CemElementDiagnostic = { code, severity: 'warning', source: 'instance', tag: compiled.producedTag,
+                message: 'Native control requires a non-empty accessible name; provide a label, naming reference or visible text.' };
+            this.recordDiagnostics(instance, [diagnostic]);
+            instance.dispatchEvent(new CustomEvent('cem-error', { bubbles: true, composed: true, detail: diagnostic }));
+        });
+        let stopScope: () => void = () => undefined;
+        const stop = () => { dispose(); stopScope(); this.controlNameChecks.delete(instance); };
+        this.controlNameChecks.set(instance, stop);
+        stopScope = onCemDeclarationScopeDispose(compiled.declarationScope, stop);
+    }
+
     private defineProducedElement(declarationElement: HTMLElement, compiled: CompiledDeclaration): boolean {
         const registry = declarationElement.ownerDocument.defaultView?.customElements;
         const baseElement = declarationElement.ownerDocument.defaultView?.HTMLElement;
@@ -4097,10 +4126,12 @@ export class CemElementRuntime {
                         if (this.stylesheetConnections.get(instance)?.signal.aborted) return;
                         if (this.retainedStylesheets) this.stylesheetReady.add(instance);
                         compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                        this.monitorControlNames(instance, compiled);
                     }));
                 } else {
                     this.renderSettled.set(instance, Promise.resolve());
                     compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                    this.monitorControlNames(instance, compiled);
                 }
                 return;
             }
@@ -4431,6 +4462,8 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        this.controlNameChecks.get(instance)?.();
+        this.controlNameChecks.delete(instance);
         this.canonicalSsrAdmissions.get(instance)?.cancel();
         this.canonicalSsrAdmissions.delete(instance);
         this.checkpointNativeSources.delete(instance);
@@ -4734,6 +4767,7 @@ export class CemElementRuntime {
     ): void {
         if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
         compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+        this.monitorControlNames(instance, compiled);
         if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
 
         // The commit can add/remove controls or change their constraints. Evaluate

@@ -40,6 +40,14 @@ If none of the above resolves to a non-empty string, the component:
   the `cem-error` event (per [`conventions.md §5`](./conventions.md));
 - MUST NOT silently invent a name.
 
+Native button/link `part="control"` owners now have a shared browser name-presence
+guard, including `cem-icon-button`. It waits for nested rendering, tracks external
+label references, deduplicates the current warning, and clears it on repair or
+disposal. It neither names nor blocks the control. This bounded guard does not
+claim full name computation for arbitrary roles, shadow/owned/embedded content
+or generated CSS names; browser accessibility-tree and physical AT checks remain
+necessary. See [icon-button naming](icon-button-contract.md#missing-name-diagnostics).
+
 Form components additionally MUST link to their associated `<label for="...">` by
 ID. The `cem_ml` reference-slot rule (AC-F-5) verifies the link is resolvable; this
 contract requires the component to actually reflect the linkage at runtime via

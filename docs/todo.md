@@ -583,9 +583,46 @@ for the current native work and the conditional diagnostic items on recurrence.
     pass (180 existing warnings). No timeout or worker-budget changes; physical
     AT/WebKit acceptance stays open. See the linked audit closure for evidence.
 
-  - [ ] MW-04: reconcile icon-button fallback naming with the missing-name
+  - [x] MW-04: reconcile icon-button fallback naming with the missing-name
         diagnostic contract; verify icon-only, visible-slot, external label and
         empty-name cases without inventing action names.
+    - [x] Remove the invented button name, forward external naming references,
+          and verify named/default-slot/empty/disabled button and link cases.
+    - [x] Add shared native-control missing-name checks and warning events;
+          verify worker/fallback settlement, live referenced text/IDs, dedup,
+          repair (including synchronous repair by warning listeners), reconnect and
+          disposal without changing native activation.
+    - [x] Verify source/packed/bundled controls, menus, theme/forced-color paint,
+          property documentation and runtime/component publication contracts.
+          Include a real external-label example in the release bundle and verify
+          warning/repair behavior through the shipped property controls. Restore the
+          existing control-role composition hook in both attribute inventories and
+          a real named radio-menu example; verify its native checked owners. Cover
+          native current-page and disabled-disclosure ARIA forwarding in the samples.
+          Reconcile the full-suite content-family assertion with MW-01's passive
+          chip text/unnamed-span contract; retain its visible-content assertion.
+
+    Completed 2026-11-15: removed the invented icon command name, forwarded
+    native naming references and added bounded shared warnings with live repair,
+    reconnect and scope disposal. Source/packed/bundled icon and menu delivery
+    checks pass, including inherited themes and forced colors. All 21 focused
+    icon stories pass with final lifecycle checks; the repaired content-family
+    file passes all six stories. Runtime build, declarative/style/state/catalog,
+    playground/bundle/package checks and lint pass (180 existing warnings).
+    No local token defaults, component behavior or timeout increases were added.
+    See the audit's [MW-04 closure](../packages/cem-components/docs/modern-web-guidance-audit.md#mw-04-icon-control-naming-closure).
+
+  - [ ] Diagnose component whole-suite stalls between story files. The first
+        all-component run passed 414/415 and exposed MW-01's stale passive-chip
+        assertion, now repaired and verified in isolation. Two later full runs
+        stopped progressing without a reported assertion failure; the verbose
+        run stopped after 116 passes, including all six menu stories. Both were
+        interrupted. Reproduce in fresh bounded file groups, retain per-file
+        progress and distinguish runtime/worker cleanup from runner/host issues;
+        do not increase timeouts or claim a fully green 415-test run. A shell
+        wall-clock discontinuity was also observed during the verbose attempt;
+        its relationship to the stall is unproven.
+
   - [ ] MW-05: define native table/sort-header composition and migration; preserve
         header/cell association, focus, row identity and result announcements.
   - [ ] MW-06: review tab wrapping and panel tab stops against the retrieved tabs

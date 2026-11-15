@@ -1,5 +1,5 @@
 import { expect, within, waitFor, userEvent } from 'storybook/test';
-import preview, { loadCemDeclaration, whenCemRendered, storybookCemRuntime } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { loadCemDeclaration, whenCemRendered, storybookCemRuntime, createCemStoryRuntime, cemComponentDeclarationSource } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-icon-button.xhtml?raw';
 
 // Raw declarations need an absolute dependency URL in the Storybook document.
@@ -56,7 +56,7 @@ export const AllAttributes = meta.story({
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
         await whenIconButtonRendered(host);
-        const button = within(host).getByRole('button', { name: 'Icon action' }) as HTMLButtonElement;
+        const button = within(host).getByRole('button', { name: '' }) as HTMLButtonElement;
         expect(button.type).toBe('button');
         expect(button.getAttribute('part')).toBe('control');
         expect(button.disabled).toBe(false);
@@ -66,7 +66,7 @@ export const AllAttributes = meta.story({
         expect(within(host).getByRole('button', { name: 'Open settings' })).toBe(button);
         host.removeAttribute('label');
         await whenIconButtonRendered(host);
-        expect(within(host).getByRole('button', { name: 'Icon action' })).toBe(button);
+        expect(within(host).getByRole('button', { name: '' })).toBe(button);
         expect(button.classList.contains('cem-icon-button--primary')).toBe(true);
         expect(host.querySelector('[part="icon"]')?.textContent?.trim()).toBe('circle');
         host.setAttribute('image', 'settings');
@@ -389,6 +389,106 @@ async function whenIconButtonRendered(host: HTMLElement): Promise<void> {
     expect(icon).not.toBeNull();
     await whenCemRendered(icon);
 }
+
+async function namingContract(root: HTMLElement, fallback: boolean) {
+    const { runtime, scope, declare } = createCemStoryRuntime(root, fallback);
+    const suffix = crypto.randomUUID(), iconTag = `cem-named-icon-${suffix}`, tag = `cem-named-control-${suffix}`;
+    const iconDeclaration = await declare(await cemComponentDeclarationSource('cem-icon'), iconTag);
+    const source = declarationSource.replace('{cem-element @tag=cem-icon @src="../cem-icon/cem-icon.xhtml#cem-icon"}', '')
+        .replaceAll('{cem-icon ', `{${iconTag} `);
+    const declaration = await declare(source, tag);
+    const container = document.createElement('section'); root.append(container);
+    const code = 'cem.component.accessible_name_missing';
+    try {
+        for (const link of [false, true]) {
+            const label = document.createElement('span'); label.id = `name-${crypto.randomUUID()}`; label.hidden = true; label.textContent = 'External name';
+            const host = document.createElement(tag);
+            if (link) host.setAttribute('href', '#destination');
+            const text = document.createElement('strong'); text.hidden = true; text.textContent = 'Visible slot name'; host.append(text);
+            const warnings: CustomEvent[] = [];
+            const listen = (event: Event) => { if (event.target === host && (event as CustomEvent).detail.code === code) warnings.push(event as CustomEvent); };
+            container.addEventListener('cem-error', listen);
+            container.append(label, host);
+            const settle = async () => {
+                await runtime.whenRenderSettled(host);
+                for (const child of host.querySelectorAll<HTMLElement>(iconTag)) await runtime.whenRenderSettled(child);
+            };
+            const missing = () => runtime.diagnosticsFor(host).filter(item => item.code === code);
+            await settle();
+            const control = host.querySelector<HTMLElement>('button,a'); if (!control) throw new Error('Missing native control');
+            await waitFor(() => expect(missing()).toHaveLength(1));
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0].bubbles).toBe(true); expect(warnings[0].composed).toBe(true);
+            expect(warnings[0].detail).toMatchObject({ code, severity: 'warning', source: 'instance' });
+            expect(control).toHaveAccessibleName(''); expect(control.hasAttribute('aria-label')).toBe(false);
+            host.classList.add('consumer'); host.setAttribute('image', '★'); await settle();
+            expect(warnings).toHaveLength(1);
+            host.setAttribute('label', 'Author label'); await settle();
+            await waitFor(() => expect(missing()).toEqual([]));
+            expect(control).toHaveAccessibleName('Author label');
+            host.removeAttribute('label'); host.setAttribute('aria-label', 'Explicit name'); await settle();
+            expect(control).toHaveAccessibleName('Explicit name');
+            host.setAttribute('aria-labelledby', label.id); await settle();
+            expect(control.getAttribute('aria-labelledby')).toBe(label.id);
+            expect(control).toHaveAccessibleName('External name');
+            label.textContent = 'Renamed external';
+            await waitFor(() => expect(control).toHaveAccessibleName('Renamed external'));
+            label.textContent = '   ';
+            await waitFor(() => expect(missing()).toHaveLength(1));
+            expect(control).toHaveAccessibleName(''); expect(warnings).toHaveLength(2);
+            const replacement = document.createElement('span'); replacement.id = label.id; replacement.textContent = 'Fresh label';
+            label.replaceWith(replacement);
+            await waitFor(() => expect(missing()).toEqual([]));
+            expect(control).toHaveAccessibleName('Fresh label');
+            replacement.removeAttribute('id');
+            await waitFor(() => expect(control).toHaveAccessibleName('Explicit name'));
+            await waitFor(() => expect(missing()).toEqual([]));
+            host.removeAttribute('aria-labelledby'); host.setAttribute('aria-label', ' '); host.setAttribute('disabled', ''); await settle();
+            await waitFor(() => expect(missing()).toHaveLength(1)); expect(warnings).toHaveLength(3);
+            const before = warnings.length; host.remove(); replacement.textContent = 'Disconnected edit';
+            await Promise.resolve(); expect(warnings).toHaveLength(before); expect(missing()).toEqual([]);
+            container.append(host); await settle();
+            await waitFor(() => expect(warnings).toHaveLength(before + 1));
+            host.removeAttribute('disabled'); host.setAttribute('aria-label', '');
+            text.hidden = false;
+            await settle(); await waitFor(() => expect(missing()).toEqual([]));
+            expect(control).toHaveAccessibleName('Visible slot name');
+            text.textContent = '  ';
+            await waitFor(() => expect(missing()).toHaveLength(1));
+            text.textContent = 'Visible slot name';
+            await waitFor(() => expect(missing()).toEqual([]));
+            const episodes = warnings.length;
+            host.addEventListener('cem-error', () => { text.textContent = 'Synchronous repaired name'; }, { once: true });
+            text.textContent = '';
+            await waitFor(() => expect(warnings).toHaveLength(episodes + 1));
+            await waitFor(() => expect(missing()).toEqual([]));
+            expect(control).toHaveAccessibleName('Synchronous repaired name');
+            expect(host.querySelector('button,a')).toBe(control);
+            if (import.meta.env.MODE === 'test' && !link) {
+                const { userEvent: native } = await import('vitest/browser');
+                let clicks = 0; control.addEventListener('click', () => clicks++);
+                control.focus(); await native.keyboard('{Enter}'); await settle(); expect(clicks).toBe(1);
+            }
+            host.remove(); replacement.remove(); container.removeEventListener('cem-error', listen);
+        }
+        const label = document.createElement('span'); label.id = `disposal-name-${suffix}`; label.textContent = 'Named before disposal';
+        const host = document.createElement(tag); host.setAttribute('aria-labelledby', label.id);
+        const warnings: Event[] = []; host.addEventListener('cem-error', event => warnings.push(event));
+        container.append(label, host); await runtime.whenRenderSettled(host);
+        for (const child of host.querySelectorAll<HTMLElement>(iconTag)) await runtime.whenRenderSettled(child);
+        await nextRenderFrame(); scope.dispose(); label.textContent = '';
+        await nextRenderFrame(); await nextRenderFrame();
+        expect(runtime.diagnosticsFor(host)).toEqual([]); expect(warnings).toEqual([]);
+    } finally { container.remove(); declaration.remove(); iconDeclaration.remove(); scope.dispose(); }
+}
+export const NamingWorker = meta.story({
+    name: 'Naming and missing-name lifecycle (worker; native keys in browser runner)',
+    render: () => '<section></section>', play: async ({ canvasElement }) => namingContract(canvasElement, false),
+});
+export const NamingFallback = meta.story({
+    name: 'Naming and missing-name lifecycle (fallback; native keys in browser runner)',
+    render: () => '<section></section>', play: async ({ canvasElement }) => namingContract(canvasElement, true),
+});
 
 export const LegacyIconSources = meta.story({
     render: () => '<cem-icon-button image="recycling" label="Open documentation" href="#documentation">Documentation</cem-icon-button>',
