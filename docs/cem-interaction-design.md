@@ -14,6 +14,68 @@ verification scenarios in
 supersedes the former CEM-specific bare `#id` browser-tree lookup contract;
 native HTML ID attributes and invoker syntax remain at the HTML boundary.
 
+## Owner revision — native popup invocation and generic focus return (2026-11-15)
+
+Accepted design direction, not an implementation receipt. The clarified
+[declarative UI principle](declarative-ui-principle.md#the-rule) permits generic
+JavaScript in `cem-elements` and prohibits production JavaScript in
+`cem-components`. It supersedes the interim TODO interpretation requiring zero
+JavaScript in the framework itself.
+
+Native HTML owns auto-popover opening, nesting and dismissal. Generate a native
+`button` linked to its exact native surface with `popovertarget`, or with
+`commandfor` plus `command="toggle-popover"`. Use one invocation mechanism per
+button; do not wire both or add a second JavaScript toggle path. These
+relationships apply to arbitrary popups, not only `cem-menu` content.
+
+```html
+<button popovertarget="file-popup">File</button>
+<div id="file-popup" popover="auto">
+  <button type="button">New File</button>
+  <button popovertarget="export-popup">Export As</button>
+  <div id="export-popup" popover="auto">
+    <button type="button">PDF</button>
+    <button type="button">CSV</button>
+  </div>
+</div>
+```
+
+The browser maintains non-modal stacking. Activating an item in the parent
+outside its open child light-dismisses that child while leaving the parent open.
+An outside activation dismisses the stack; Escape closes the topmost child one
+level at a time. A leaf button alone does not imply closing the whole stack or
+implementing a command. These native visibility rules follow the
+[HTML popover model](https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss).
+They do not by themselves establish menu arrow navigation or typeahead.
+
+**Generic invoker return-focus capability:** associate the actual native invoker
+with its native popup when the relationship is created, and retain the actual
+opening source for that open session. Recognize standard `popovertarget` and
+popover invoker commands; do not discover owners by CEM tag, menu-specific parts
+or whichever button happens to reference the same ID first. Multiple invokers,
+rebinding and independently placed targets must preserve the current source.
+
+On closure, preserve correct browser focus restoration. Fill the nested-popup
+focus-return gap for Escape or an explicit close action, returning to the eligible
+invoker of the closing popup. Keep the parent popup open on a one-level close.
+Outside activation and Tab must preserve their destination; do not restore focus
+over an outside control, duplicate restoration during a cascade, or focus an
+invoker that is hidden, disabled or disconnected. Observe the completed native
+transition; a focus event during native closing must not start another close.
+Release associations on removal/rebinding and ignore stale queued events.
+
+This focus capability lives only in `cem-elements`, uses generic native
+relationships/events and applies to any popup content. It must not take over
+opening/closing or depend on a particular component. The standard retains a
+previously focused element only for the first auto/hint popover in a stack;
+nested return focus therefore needs separate verification and generic handling.
+See [native show/hide algorithms](https://html.spec.whatwg.org/multipage/popover.html#show-popover).
+Keep browser-native invocation, return-focus handling and semantic menu keyboard
+navigation as separate contracts. Verify pointer/keyboard invocation, nested
+Escape, outside/Tab closure, multiple invokers, cascades, teardown, and native
+command/target compatibility before migration; do not infer complete keyboard
+or assistive-technology acceptance from this illustration.
+
 ## 1. Invariants and component roles
 
 An action requests an operation; the surface owns actual visibility. Business checked values are separate. Invoker, target, anchor, fitting boundary, and return-focus destination are distinct relationships. Semantics and presentation are independent, with validated combinations.

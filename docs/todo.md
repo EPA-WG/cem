@@ -612,65 +612,62 @@ for the current native work and the conditional diagnostic items on recurrence.
     No local token defaults, component behavior or timeout increases were added.
     See the audit's [MW-04 closure](../packages/cem-components/docs/modern-web-guidance-audit.md#mw-04-icon-control-naming-closure).
 
-  - [ ] **Owner priority: remove all production browser JavaScript dependencies.**
-        Clarified 2026-11-15: this means zero browser JavaScript, including the
-        shared `cem-elements` runtime, not just zero component-authored scripts.
-        Earlier permission to put imperative UI behavior in `cem-elements` must
-        not be used as a workaround for this requirement. Do not resume UI
-        implementation with JavaScript adapters, listeners, polyfills, injected
-        handlers, runtime method calls or shipped module/worker bootstrap code.
+  - [ ] **Owner priority: preserve declarative components and generic runtime APIs.**
+        Final clarification 2026-11-15: JavaScript is allowed in `cem-elements`
+        for generic browser/HTML APIs and reusable declarative capabilities;
+        production JavaScript is prohibited in `cem-components`. The earlier
+        zero-browser-JavaScript interpretation, including removal of the generic
+        runtime, is superseded. Shared framework code must not branch on specific
+        CEM component tags or conceal component-specific controllers.
     - [x] Inventory all 59 canonical component declarations and explicit imported
           component dependencies. No production JS/TS files are authored in the
-          component folders (colocated test stories excluded), but **all 59 use
-          the JavaScript CEM runtime**. Of these, 28 declare a JavaScript behavior
-          capability and two more inherit such behavior through composition:
-          `cem-accordion` and `cem-theme-switch`. See the complete table below.
-    - [x] Stop and revert the uncommitted JavaScript-based native-submenu prototype
-          from this session. It is not an accepted zero-JavaScript implementation.
-          Keep its patch outside the repository for research reference only;
-          do not ship it or resume its JavaScript implementation.
-    - [ ] **RESEARCH REQUIRED — hard stop on implementation.** Ask the owner to
-          research/share a verified zero-JavaScript design for nested menus:
-          declarative invocation, native keyboard navigation/typeahead, one-level
-          Escape, sibling/nested dismissal, focus entry/return, Tab exit, outside
-          activation, logical external-parent relationships and RTL behavior.
-          Native HTML command/popover attributes alone have not been verified
-          here to replace that whole contract across the required browsers.
-    - [ ] Research and agree the zero-JavaScript execution model before migration:
-          build/server rendering to native HTML/CSS, browser-native interactions,
-          server-driven state/actions and supported-browser/feature limits.
-          Do not silently replace missing native features with JavaScript or
-          remove existing behavior without an explicit product decision.
-    - [ ] Remove the shared browser dependency for **every component below**:
-          runtime/custom-element registration, client compilation/rendering and
-          hydration, worker/bootstrap code, event/slice bindings, resource and
-          storage bindings, JavaScript-installed styles, diagnostics/observers,
-          form adapters and geometry/focus controllers. Build/server tooling and
-          verification scripts must be kept separate from production delivery;
-          their presence is not evidence of zero-JavaScript browser output.
-    - [ ] Replace each direct/composed behavior capability below with a verified
-          declarative/native or server-rendered design; stop and request owner
-          research for each behavior that cannot yet be expressed without JS.
-    - [ ] Audit Studio, Site and demo browser entry points and transitive imports
-          before claiming stack-wide zero-JavaScript delivery. Their current CEM
-          runtime use is not eliminated by changing component XHTML alone.
-    - [ ] Align `CLAUDE.md`, the declarative UI principle, component contracts and
-          publication gates with the clarified requirement. Verify production
-          pages without executing browser JavaScript and reject shipped scripts,
-          inline event handlers, `javascript:` URLs, module/worker bootstrap and
-          hidden transitive JavaScript requirements. Preserve actual keyboard,
-          accessibility, form and theme contracts or record an agreed limitation.
+          component folders (colocated test stories excluded). All 59 currently
+          consume the generic JavaScript runtime; 28 declare behavior capabilities
+          and two more inherit them through composition. This dependency alone
+          is not a violation. Retain the table below as a coupling-audit inventory.
+    - [x] Keep the earlier native-submenu prototype reverted; it is not the
+          implementation of the newly specified native-invoker/focus contract.
+    - [x] Record the owner's native nested `popover="auto"` baseline and generic
+          invoker return-focus requirement in the
+          [interaction design](cem-interaction-design.md#owner-revision--native-popup-invocation-and-generic-focus-return-2026-11-15).
+          Confirm/clarify the JS ownership boundary in the primary UI principle.
+    - [ ] Lower popup activation to native `popovertarget` or `commandfor` with
+          `command="toggle-popover"`; keep one native visibility path and let the
+          browser own non-modal stacking and light dismissal for all popup kinds.
+    - [ ] Add generic invoker return-focus handling in `cem-elements`: use native
+          invoker/target relationships and the actual opening source, cover any
+          popup content, and preserve correct native restoration. Do not branch
+          on `cem-menu`, `cem-dropdown` or another component's tag/implementation.
+    - [ ] Add native HTML/standard-command verification for parent/child stacking,
+          parent-item activation, outside cascade dismissal and one-level Escape;
+          verify generic return focus, outside/Tab destinations, multiple invokers,
+          canceled opens, rebinding/removal, cascades and stale native events.
+          Native-only baseline pages must work without page scripts; the optional
+          generic focus capability is framework JS, not component-authored code.
+    - [ ] Audit each direct/composed capability below for component-specific
+          coupling. Remove any such dependency by expressing the component
+          declaratively over generic native APIs. Generic interaction-pattern
+          capabilities are allowed; their names alone do not establish a violation.
+    - [ ] Keep semantic menu navigation/typeahead separate from popup visibility
+          and generic focus return. When required behavior lacks a known generic
+          declarative expression, stop and ask the owner for research instead of
+          adding component-specific JavaScript anywhere in the stack.
+    - [ ] Verify the existing no-authored-component-JS publication gate and add
+          evidence for generic runtime ownership. Preserve native identity,
+          accessibility, keyboard/form contracts, theme tokens and lifecycle
+          cleanup. The browser runtime and generic event/resource machinery are
+          allowed and must not be removed merely because they are JavaScript.
 
     Inventory scope: canonical `packages/cem-components/src/components/*/*.xhtml`
     declarations, root/template `capability` attributes, their explicit
     `{cem-element @tag=...}` dependencies and the shared capability registry in
     `packages/cem-elements/src/lib/cem-elements.ts`. The table names source owners,
-    not copied/generated artifacts. “None declared” and “—” do **not** mean
-    JavaScript-free: generic rendering, event/resource bindings and diagnostics
-    still depend on the browser runtime. This is a component inventory, not a
+    not copied/generated artifacts. “None declared” and “—” mean no explicit additional capability in this
+    inventory; generic rendering, event/resource bindings and diagnostics still
+    use the permitted browser runtime. This is a component inventory, not a
     completed audit of every application entry point or shared runtime module.
 
-    | Component — all require removal of the common browser runtime dependency | Direct JS behavior capability/source | Additional JS behavior through composition |
+    | Component — generic runtime use is allowed | Direct JS behavior capability/source to audit | Additional JS behavior through composition to audit |
     | --- | --- | --- |
     | [cem-accordion](../packages/cem-components/src/components/cem-accordion/cem-accordion.xhtml) | None declared | [disclosure-panel](../packages/cem-elements/src/lib/disclosure-panel-capability.ts) |
     | [cem-action](../packages/cem-components/src/components/cem-action/cem-action.xhtml) | [action-command](../packages/cem-elements/src/lib/action-command-capability.ts) | — |

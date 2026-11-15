@@ -53,6 +53,16 @@ for no-JavaScript component and application UI authoring.
   adapters, but it MUST NOT create or mutate visible UI or attach app-local UI
   behavior.
 
+**Owner clarification — 2026-11-15:** JavaScript is permitted in the generic
+`cem-elements` substrate. Production JavaScript is prohibited in
+`cem-components`; colocated Storybook/test modules remain the development-only
+exception. A shared runtime capability must operate on generic HTML/browser APIs,
+standard roles or reusable declarative contracts. It must not branch on a
+particular `cem-*` component tag, import component implementation code or hide a
+component-specific controller in the framework. A capability for a generic
+interaction pattern (for example, native popup focus return) is not permission
+for per-component behavior callbacks.
+
 The presence of framework JavaScript in a browser does not make a component or
 application imperatively authored. Ownership is the boundary: reusable DOM
 behavior and browser interaction machinery live in `cem-elements`; component
