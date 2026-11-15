@@ -27,7 +27,8 @@
             border-start-start-radius: 0; border-start-end-radius: 0;
             box-shadow: var(--cem-elevation-3); overflow: auto;
         }
-        :scope > :where([part~='popup'])[hidden] { display: none; }
+        :scope > [part~='popup']:where([popover]) { inset: auto; margin: 0; padding: 0; border: 0; }
+        :scope > [part~='popup']:where([popover]:not(:popover-open)), :scope > :where([part~='popup'])[hidden] { display: none; }
       @supports (anchor-name: --cem-probe) and (position-area: bottom span-right) and (position-try-fallbacks: top span-right) {
         :scope > [part~='popup'] {
           --_cem-surface-anchor-policy: area;

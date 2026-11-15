@@ -6,7 +6,8 @@
     {style @type="text/css" |```
         :scope { display: block; }
         :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
-        :scope[slot='submenu'] { display: none; background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text); }
+        :scope:where([slot='submenu'], [popover]) { margin: 0; padding: 0; inline-size: max-content; display: none; background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text); }
+        :scope:where([popover]:not([hidden])):popover-open { display: block; }
         :scope > :where([part~='composite']) {
             display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start;
             box-sizing: border-box;
@@ -30,7 +31,7 @@
         :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline: var(--cem-stroke-focus) solid currentColor; outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
         :scope > :where([part~='composite']) > [hidden]:where(:not([hidden='until-found' i])) { display: none; }
       @supports (anchor-name: --cem-probe) and (position-area: bottom span-right) and (position-try-fallbacks: top span-right) {
-        :scope[slot='submenu'] {
+        :scope:where([slot='submenu'], [popover]) {
           --_cem-surface-anchor-policy: area;
           position: var(--_cem-surface-position-mode, fixed);
           position-area: var(--_cem-surface-area, none);
@@ -38,7 +39,7 @@
         }
       }
         @media (forced-colors: active) {
-            :scope[slot='submenu'] { background: Canvas; color: CanvasText; border-color: CanvasText; }
+            :scope:where([slot='submenu'], [popover]) { background: Canvas; color: CanvasText; border-color: CanvasText; }
             :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline-color: Highlight; }
             :scope > :where([part~='composite']) > :is(a, button):where([disabled], [aria-disabled='true']) { color: GrayText; }
         }

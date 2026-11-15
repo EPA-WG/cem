@@ -196,6 +196,7 @@
     <main><h2>Public attributes and slots</h2>
         <ul>
             <li data-gallery-attribute="label"><code>label</code></li>
+            <li data-gallery-attribute="trigger-for"><code>trigger-for</code> — external native button reference; the generated base is omitted.</li>
             <li data-gallery-attribute="open"><code>open</code></li>
             <li data-gallery-attribute="disabled"><code>disabled</code></li>
             <li data-gallery-attribute="aria-label"><code>aria-label</code></li>
@@ -240,6 +241,17 @@
                 <hr />
             </template>
         </cem-demo-element>
+        <cem-demo-element legend="External native invoker"
+                          description="One native button opens an independently placed panel. Escape returns to that button; edits remain in the retained input.">
+            <template slot="source">
+                <div interaction-scope="external-dropdown">
+                    <button type="button" interaction-name="details">Open independent details</button>
+                    <cem-dropdown trigger-for="@details" open="false">
+                        <label>Independent note <input value="Keep this note"></label>
+                    </cem-dropdown>
+                </div>
+            </template>
+        </cem-demo-element>
         <cem-demo-element legend="Hide dropdown dynamically"
                           description="Change open via shared declarative controls; false closes it.">
             <template slot="source">
@@ -259,7 +271,7 @@
             </template>
         </cem-demo-element>
         <cem-demo-element legend="Projected base"
-                          description="The base slot replaces the fallback button. Supply a native button or another focusable trigger.">
+                          description="The base slot replaces the fallback button. Supply a native button with type=button.">
             <template slot="source">
                 <cem-dropdown open="false">
                     <button slot="base" type="button"><span aria-hidden="true">▾</span> Custom trigger</button>

@@ -1,10 +1,12 @@
 import type { CheckpointEndpoint, CheckpointMenu, CheckpointMenuPolicies, CheckpointMenuRole } from './checkpoint-interactions.js';
 import { registerCemMenuRelay, resetCemTaskActivation, consumeCemTaskActivation } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
-import { focusSurface, restoreSurfaceFocus, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
+import { focusSurface, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { compositeIndex } from './composite-navigation.js';
-import { checkpointPopupGeometry, showPopup, hidePopup, positionPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
+import { checkpointPopupGeometry, preparePopupGeometry, positionPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
+
+import { CemNativePopupBinding } from './native-popup-binding.js';
 
 // Direct composite parts and projected submenu slots are the declaration contract.
 const COMPOSITE = '[part~="composite"]';
@@ -20,6 +22,9 @@ const states = new WeakMap<HTMLElement, State>();
 let sequence = 0;
 const menus = new Set<HTMLElement>();
 interface State {
+    settled?: () => void;
+    native?: CemNativePopupBinding;
+    entryLast?: boolean;
     controls: Set<HTMLElement>;
     relayRevision: number;
     queuedActivations: number;
@@ -76,6 +81,7 @@ function relationshipsChanged(host: HTMLElement): void {
     const state = stateFor(host);
     const parent = parentMenu(host) ?? undefined;
     if (state.parent && state.parent !== parent && stateFor(state.parent).openPanel === host) close(state.parent, true);
+    if (state.parent !== parent) { state.native?.disconnect(); state.native = undefined; }
     state.parent = parent;
     const trigger = owner(host);
     if (rootMenu(host) && (!parent || trigger && panelFor(trigger) === host)) reportInteractionReference(host);
@@ -107,7 +113,7 @@ function panelFor(control: HTMLElement): HTMLElement | null {
     const panels = new Set<HTMLElement>(nested && (!nested.hasAttribute('parent-item') || owner(nested) === control && rootMenu(nested)) ? [nested] : []);
     for (const panel of menus) if (panel.hasAttribute('parent-item') && owner(panel) === control && rootMenu(panel)) panels.add(panel);
     if (panels.size > 1) {
-        for (const panel of panels) { claimPanel(panel); reportInteractionReference(panel, 'interaction-reference-conflict'); hidePopup(panel); }
+        for (const panel of panels) { claimPanel(panel); reportInteractionReference(panel, 'interaction-reference-conflict'); stateFor(panel).native?.request(false); }
         return null;
     }
     const panel = [...panels][0];
@@ -126,6 +132,8 @@ function releaseControl(host: HTMLElement, control: HTMLElement): void {
     if (original?.owner !== host) return;
     const state = stateFor(host);
     if (state.open === control) close(host, !!state.openPanel?.contains(host.ownerDocument.activeElement));
+    const panel = panelFor(control);
+    if (panel && stateFor(panel).native?.trigger === control) { stateFor(panel).native?.disconnect(); stateFor(panel).native = undefined; }
     releaseRelationship(control);
     setAttribute(control, 'role', original.role);
     setAttribute(control, 'tabindex', original.tabindex);
@@ -139,19 +147,12 @@ function focus(host: HTMLElement, control: HTMLElement | undefined): void {
     control.focus();
 }
 function close(host: HTMLElement, restore = false): void {
-    const state = stateFor(host);
-    const trigger = state.open;
-    state.open = undefined;
-    if (!trigger) return;
-    state.relayRevision++;
-    const panel = state.openPanel ?? panelFor(trigger);
-    state.openPanel = undefined;
-    if (panel) {
-        close(panel);
-        hidePopup(panel);
-    }
+    const state = stateFor(host), trigger = state.open, panel = state.openPanel;
+    if (!trigger || !panel) return;
+    state.open = undefined; state.openPanel = undefined; state.relayRevision++;
+    close(panel);
+    stateFor(panel).native?.request(false, false, restore);
     setAttribute(trigger, 'aria-expanded', 'false');
-    if (restore) restoreSurfaceFocus(panel ?? host, trigger);
 }
 function dismiss(host: HTMLElement): void { close(rootMenu(host) ?? host); }
 function boundaryOwner(host: HTMLElement): HTMLElement {
@@ -168,22 +169,44 @@ function position(host: HTMLElement): void {
     const ready = positionPopup(trigger, panel, column(host), panel, boundaryOwner(panel));
     if (ready) stateFor(panel).geometryReady = true;
     else if (!stateFor(panel).geometryReady || panel.getAttribute('anchor-lost') !== 'freeze') close(host);
+    stateFor(panel).settled?.(); stateFor(host).settled?.();
+}
+function bindPanel(host: HTMLElement, trigger: HTMLElement, panel: HTMLElement): CemNativePopupBinding {
+    const state = stateFor(host), child = stateFor(panel);
+    if (child.native && child.native.trigger !== trigger) { child.native.disconnect(); child.native = undefined; }
+    if (!child.native) child.native = new CemNativePopupBinding(panel, trigger, panel, {
+        admitted: () => enabled(host) && controls(host).includes(trigger) && panelFor(trigger) === panel && !unavailable(trigger),
+        prepare: () => preparePopupGeometry(trigger, panel, panel, boundaryOwner(panel)),
+        changed(open) {
+            setAttribute(trigger, 'aria-expanded', String(open));
+            if (open) {
+                state.open = trigger; state.openPanel = panel;
+                child.geometryReady = positionPopup(trigger, panel, column(host), panel, boundaryOwner(panel));
+                if (!child.geometryReady) child.native?.request(false);
+                synchronize(panel);
+            } else {
+                if (state.openPanel === panel) { state.open = undefined; state.openPanel = undefined; state.relayRevision++; }
+                releasePopupGeometry(panel); child.geometryReady = false;
+            }
+            child.settled?.(); state.settled?.();
+        },
+        entered() {
+            const candidates = items(panel);
+            focusSurface(panel, panel, (child.entryLast ? candidates.at(-1) : candidates[0]) ?? container(panel) ?? undefined);
+            child.entryLast = false;
+        },
+        closing: () => { state.relayRevision++; },
+    });
+    reportInteractionReference(panel, child.native.valid ? undefined : 'interaction-control-unsupported', 'native-invoker');
+    return child.native;
 }
 function open(host: HTMLElement, trigger: HTMLElement, last = false): void {
     if (!enabled(host) || unavailable(trigger)) return;
     const panel = panelFor(trigger);
     if (!panel) return;
-    if (stateFor(host).open !== trigger) close(host);
-    stateFor(host).open = trigger;
-    stateFor(host).openPanel = panel;
-    stateFor(panel).geometryReady = false;
-    if (!showPopup(trigger, panel, column(host), panel, boundaryOwner(panel))) { close(host); return; }
-    stateFor(panel).geometryReady = true;
-    setAttribute(trigger, 'aria-expanded', 'true');
-    synchronize(panel);
-    position(host);
-    const candidates = items(panel);
-    focusSurface(panel, panel, (last ? candidates.at(-1) : candidates[0]) ?? container(panel) ?? undefined);
+    const binding = bindPanel(host, trigger, panel);
+    stateFor(panel).entryLast = last;
+    binding.request(true, true);
 }
 function synchronize(host: HTMLElement): void {
     const state = stateFor(host);
@@ -217,6 +240,7 @@ function synchronize(host: HTMLElement): void {
             const panel = panelFor(control);
             if (!panel) { releaseRelationship(control); continue; }
             if (!menuMode) {
+                stateFor(panel).native?.disconnect(); stateFor(panel).native = undefined;
                 releaseRelationship(control);
                 setAttribute(panel, 'hidden', '');
                 synchronize(panel);
@@ -230,7 +254,7 @@ function synchronize(host: HTMLElement): void {
             setAttribute(control, 'aria-expanded', state.open === control ? 'true' : 'false');
             const panelBox = container(panel);
             if (panelBox) setAttribute(panelBox, 'aria-labelledby', control.id);
-            if (state.open !== control) setAttribute(panel, 'hidden', '');
+            bindPanel(host, control, panel).sync();
             synchronize(panel);
         }
         position(host);
@@ -250,10 +274,7 @@ function handleKey(host: HTMLElement, event: KeyboardEvent): void {
     const key = event.key;
     const parent = parentMenu(host);
     if (key === 'Tab') { dismiss(host); return; }
-    if (key === 'Escape') {
-        if (!stateFor(host).open && !parentMenu(host)) return;
-        if (stateFor(host).open) close(host, true);
-        else { const parent = parentMenu(host); if (parent) close(parent, true); }
+    if (key === 'Escape') { return; // Native auto-popover closes exactly one level.
     } else if ((isColumn && key === forward) || (!isColumn && (key === 'ArrowDown' || key === 'ArrowUp'))) {
         open(host, target, key === 'ArrowUp');
     } else if (isColumn && key === backward && parent) {
@@ -277,11 +298,12 @@ function handleKey(host: HTMLElement, event: KeyboardEvent): void {
 }
 
 export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
-    connected(host) {
+    connected(host, context) {
         const view = host.ownerDocument.defaultView;
         if (!view) return;
         const state = stateFor(host);
         if (state.abort) return;
+        state.settled = () => context?.runtime.checkpointInteractionSettled(host);
         const abort = new AbortController();
         state.abort = abort;
         menus.add(host);
@@ -302,8 +324,8 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
             if (unavailable(control)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
             resetCemTaskActivation(control);
             if (panelFor(control)) {
-                event.preventDefault();
-                if (state.open === control) close(host, true); else open(host, control);
+                // The native invoker's default action is the only click toggle.
+                return;
             } else if (enabled(host)) {
                 // Let native link/command activation complete before dismissing.
                 state.queuedActivations++;
@@ -321,16 +343,12 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         host.addEventListener('focusout', event => {
             // Native focusout can precede activeElement moving to relatedTarget.
             if (insideChain(host, event.relatedTarget as Node | null)) return;
-            queueMicrotask(() => {
-                if (!insideChain(host, host.ownerDocument.activeElement)) dismiss(host);
-            });
+            view.setTimeout(() => {
+                const active = host.ownerDocument.activeElement;
+                if (!abort.signal.aborted && active && active !== host.ownerDocument.body
+                    && active !== host.ownerDocument.documentElement && !insideChain(host, active)) dismiss(host);
+            }, 0);
         }, options);
-        host.ownerDocument.addEventListener('pointerdown', event => {
-            if (!insideChain(host, event.target as Node)) dismiss(host);
-        }, { ...options, capture: true });
-        host.ownerDocument.addEventListener('click', event => {
-            if (!insideChain(host, event.target as Node)) dismiss(host);
-        }, { ...options, capture: true });
         const reflow = () => { const parent = parentMenu(host); if (parent) position(parent); position(host); };
         state.releaseGeometry = observePopupGeometry(host, reflow);
         view.visualViewport?.addEventListener('resize', reflow, options);
@@ -345,13 +363,14 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         return (_current.matches(COMPOSITE) || controls(_host).includes(_current as HTMLElement)) && ['role', 'tabindex', 'aria-orientation', 'aria-haspopup', 'aria-controls', 'aria-expanded', 'aria-labelledby', 'aria-disabled', 'id'].includes(attribute.name);
     },
     disconnected(host) {
+        const state = stateFor(host); state.settled = undefined;
         close(host);
-        const state = stateFor(host);
         for (const control of state.controls) releaseControl(host, control);
         state.releaseRelay?.(); state.releaseRelay = undefined;
         state.abort?.abort();
         state.abort = undefined;
         state.observer?.disconnect();
+        state.native?.disconnect(); state.native = undefined;
         state.releaseReferences?.(); state.releaseReferences = undefined;
         state.releaseGeometry?.(); state.releaseGeometry = undefined; releasePopupGeometry(host); state.geometryReady = false; menus.delete(host);
         if (state.relationshipHidden) { host.hidden = state.relationshipHidden.value; state.relationshipHidden = undefined; }
@@ -399,6 +418,10 @@ function checkpointMenuPolicies(instance: HTMLElement, parentHost: HTMLElement |
 export function cemCompositeMenuCheckpoint(instance: HTMLElement, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined) {
     const state = states.get(instance);
     if (!instance.isConnected || !state?.abort || state.abort.signal.aborted || state.syncing || state.queuedActivations) return undefined;
+    if (enabled(instance)) for (const control of controls(instance)) {
+        const panel = panelFor(control), binding = panel && stateFor(panel).native;
+        if (panel && (!binding?.valid || binding.trigger !== control)) return undefined;
+    }
     const parentHost = parentMenu(instance) ?? undefined, launcherControl = owner(instance) ?? undefined;
     if (state.parent !== parentHost || !!parentHost !== !!launcherControl || !rootMenu(instance)) return undefined;
     if (parentHost && (panelFor(launcherControl!) !== instance || (stateFor(parentHost).openPanel === instance) === !!instance.hidden)) return undefined;
@@ -407,7 +430,7 @@ export function cemCompositeMenuCheckpoint(instance: HTMLElement, resolve: (node
     const parent = parentHost ? resolve(parentHost) : null, launcher = launcherControl ? resolve(launcherControl) : null;
     const panelHost = state.open && panelFor(state.open);
     if (state.open && unavailable(state.open) || !!state.open !== !!state.openPanel || state.openPanel !== (panelHost ?? undefined)
-        || state.openPanel && (state.openPanel.hidden || !stateFor(state.openPanel).geometryReady)) return undefined;
+        || state.openPanel && (!stateFor(state.openPanel).native?.open || state.openPanel.hidden || !stateFor(state.openPanel).geometryReady)) return undefined;
     const panel = state.openPanel ? resolve(state.openPanel) : null;
     if (parent === undefined || launcher === undefined || panel === undefined) return undefined;
     const activeNode = state.active?.getAttribute('data-cem-render-node-id') ?? null;

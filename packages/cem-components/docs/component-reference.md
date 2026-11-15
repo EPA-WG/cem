@@ -635,7 +635,10 @@ render native anchors; disabled leaves omit href and suppress activation.
 Opening focuses the panel's first enabled item. Escape closes the nearest panel
 and restores the trigger. Tab, outside activation and leaf activation dismiss
 open chains without a focus trap; only one sibling panel remains open. Runtime
-IDs link controls, trigger names and panels. Roots remain persistent.
+IDs link controls, trigger names and panels. Each submenu is a native
+`popover="auto"` with one `popovertarget` invoker. Native HTML owns click/Enter/
+Space, stacking and one-level Escape; generic menu semantics retain arrows,
+typeahead, focus policy and leaf/Tab dismissal. Roots remain persistent.
 An enabled submenu owner's managed `aria-haspopup="menu"` and
 `aria-expanded="true"` keep a selected-style inset zebra contour visible while
 focus moves into descendants. Nested open ancestors retain that contour; closing,
@@ -702,8 +705,11 @@ and the shared unsupported-browser path still in place.
 
 `cem-dropdown` loads from `components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown`.
 `label` supplies fallback trigger text (Dropdown); `aria-label` names it separately.
-The `base` slot overrides the fallback native button: supply a direct native button,
-link or focusable trigger. With `trigger-for`, the declared external trigger owns activation and the fallback button is omitted. The default slot accepts arbitrary HTML or a menu.
+The `base` slot overrides the fallback native button: supply a direct native button
+with `type="button"`. With `trigger-for`, the declared external button owns
+activation and the fallback button is omitted. Navigation links, submit/reset
+buttons and conflicting native invoker routes are diagnosed rather than converted.
+The default slot accepts arbitrary HTML or a menu.
 `open="false"` closes; other values open, including the source's default visible
 state. Use explicit `open="false"` for an initially closed interactive dropdown.
 `disabled` and `hidden` use presence; `dir` and `class` inherit normally.
@@ -714,22 +720,22 @@ viewport or declared boundary; vertical scrolling appears only when the content
 exceeds that available height.
 
 The trigger toggles on native click/Enter/Space; ArrowDown opens and focuses the
-first enabled panel control. Escape restores trigger focus. Tab, focus leaving
-the component and outside activation dismiss without a trap. Geometry flips and
+first enabled panel control. Escape restores trigger focus. Tab, focus moving to
+an outside control and outside activation dismiss without a trap. Geometry flips and
 clamps within the viewport when opened or resized. The dropdown retains its
-relative host, `z-index: 1` and square top corners. Supported viewport placements
-use a transient fixed CSS anchor; the compatibility path uses the declared
-absolute panel. Initially open offscreen examples keep their natural position
-below the trigger. CSS anchors follow scrolling and try alternate areas at the
-viewport edge; the compatibility solver handles remaining shifts and explicit
-boundaries. The declaration consumes existing action, control,
+relative host and square top corners; its actual panel is a native
+`popover="auto"` in the top layer, linked by one `popovertarget` route. CSS
+anchors follow scrolling and try alternate areas at the viewport edge; fixed
+pixel fitting handles remaining shifts and explicit boundaries. `open` and
+`hidden` reflect native visibility. Opening an unrelated auto-popup or modal can
+close the panel, updating `open` to false. The declaration consumes existing action, control,
 bend, typography, focus and elevation tokens instead of defining
 component-specific shadow/height/width aliases.
 
 Place `cem-menu direction="column" keyboard="menu"` in the default slot.
 Nested menu-item submenu slots keep their existing composition. Both capabilities
-consume the shared popup controller. The nearest menu handles Escape first;
-only when its submenu chain is closed does the outer dropdown handle Escape.
+consume the shared native popup binding. The browser closes one popover level
+per Escape; the generic invoker service returns focus to that level's opener.
 Leaf menu activation dispatches shared popup dismissal, closing the complete
 chain. Popup wrappers and menu navigation retain separate ownership; no gallery
 or component JavaScript implements their behavior.

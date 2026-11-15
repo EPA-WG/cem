@@ -267,7 +267,7 @@ Installing a `CemElementRuntime` with `runtime.install(window)` connects a
 generic focus supplement for the document. Standalone native hosts may call
 `connectCemNativeInvokerFocus(documentOrShadowRoot)`, exported from this package;
 the returned disposer is idempotent. Connections share one subscription per root,
-including source/packaged runtime copies. Scoped runtime connections release
+including source/packaged copies of the same runtime version. Scoped runtime connections release
 when their declaration scope or an ancestor is disposed. Connect before opening;
 an already-open popup's original invoker is not guessed retrospectively.
 
@@ -295,8 +295,37 @@ polyfill invoker commands. Prefer `popovertarget` where native command support i
 outside the supported browser profile. Unsupported native features need an
 explicit host/browser policy; focus supplementation alone cannot add them.
 See the [generic native popup design](../../docs/cem-interaction-design.md#owner-revision--native-popup-invocation-and-generic-focus-return-2026-11-15)
-and the action playground's **Nested native popup focus** example. Migration of
-legacy popup/menu controllers to this visibility path is a separate follow-up.
+and the action playground's **Nested native popup focus** example.
+
+The `popup` and `composite-menu` capabilities now lower their admitted button/panel
+relationships through the shared native popup binding. The actual panels use
+`popover="auto"`; each invoker receives one `popovertarget` route. Click, Enter,
+Space, nested Escape and outside light dismissal use native HTML behavior. Menu
+arrows, Home/End, typeahead, RTL and roving focus remain generic framework
+semantics. Arrow opening activates the native invoker; compatibility `open`
+intent uses the native API with its source, without synthesizing a business
+click. ArrowLeft, Tab, leaf/task dismissal and lifecycle invalidation may request
+native closure. Transient focus loss to the document body does not close a native
+owner; focus moving to an actual outside control still dismisses the chain.
+No controller toggles a parallel positioned/hidden panel.
+
+Legacy `open` and panel `hidden` values project actual native visibility; explicit
+`open` changes remain compatibility requests. Auto-popovers share the browser's
+stack, so unrelated popup/modal entry may close them. Panels now occupy the top
+layer, with fixed CSS-anchor/pixel fitting rather than a natural absolute overlay.
+The existing focus/return references are generic policies of the same invoker
+focus service. Native restoration, outside destinations and task handoff remain
+fenced by the actual source and current lifetime. Removal, rebinding or controller
+replacement releases native attributes, policy subscriptions and geometry.
+
+Native popup wiring requires an eligible button (no submit/reset/navigation
+conversion) and rejects conflicting native routes; unsupported browsers and
+controls receive diagnostics rather than a second visibility implementation.
+Recovery validates the original live route and native presentation, with renewed
+behavior identities for popup/menu/action controls. Geometry settlement retains
+its existing witness: equivalent owned CSS writes are idempotent and rejected
+CSS-anchor attempts are retried when layout inputs change. Neither pending
+foreign geometry work nor author styles are discarded to admit a checkpoint.
 
 The shared `native-surface` capability connects one direct `part="surface"` native
 dialog or tooltip popover to the shared preparation/open/close lifecycle. It supports persistent

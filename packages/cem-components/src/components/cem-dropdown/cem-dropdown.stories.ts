@@ -1,4 +1,4 @@
-import { expect } from 'storybook/test';
+import { expect, waitFor } from 'storybook/test';
 import preview, { loadCemDeclaration, whenCemRendered } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-dropdown.xhtml?raw';
 
@@ -50,6 +50,8 @@ export const NestedMenu = meta.story({
         const dropdown = canvasElement.querySelector('cem-dropdown') as HTMLElement;
         const trigger = dropdown.querySelector(':scope > [part="base"] > button') as HTMLButtonElement;
         const popup = dropdown.querySelector('aside')!;
+        expect(popup.popover).toBe('auto');
+        expect(trigger.popoverTargetElement).toBe(popup);
         trigger.focus(); await userEvent.keyboard('{Enter}');
         expect(popup.hidden).toBe(false);
         expect(document.activeElement?.textContent).toBe('File');
@@ -65,6 +67,14 @@ export const NestedMenu = meta.story({
         await userEvent.keyboard('{Escape}');
         expect(popup.hidden).toBe(true);
         expect(document.activeElement).toBe(trigger);
+        await userEvent.click(trigger);
+        (document.activeElement as HTMLElement).blur();
+        expect(document.activeElement).toBe(document.body);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(popup.matches(':popover-open')).toBe(true);
+        dropdown.querySelector<HTMLButtonElement>('cem-menu-item > button')!.focus();
+        canvasElement.querySelector<HTMLButtonElement>('section > button')!.focus();
+        await waitFor(() => expect(popup.matches(':popover-open')).toBe(false));
         const leaf = dropdown.querySelector('a[href]')!;
         let nativeLeafActivation = false;
         leaf.addEventListener('click', event => { nativeLeafActivation = !event.defaultPrevented; event.preventDefault(); });

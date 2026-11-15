@@ -66,9 +66,9 @@ try {
     if (!['chromium', 'firefox', 'webkit'].includes(nativeBrowser)) throw new Error('Unknown native browser');
     if (iconsOnly && (navigationOnly || actionOnly || suggestionsOnly)) throw new Error('Choose one focused verification mode');
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
-    if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' && !nativeInvokersOnly || evidenceOutput)) throw new Error('Browser selection requires --native-invokers-only or a native evidence mode; headed/output flags require a native evidence mode');
+    if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' && !nativeInvokersOnly && !menusOnly || evidenceOutput)) throw new Error('Browser selection requires --native-invokers-only, --menus-only or a native evidence mode; headed/output flags require a native evidence mode');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (nativeInvokersOnly || actionOnly) await verifyNativeInvokerBaseline();
+    if (nativeInvokersOnly || actionOnly || menusOnly) await verifyNativeInvokerBaseline();
     let sourceViewerPages;
     if (!installedOnly && nativeInvokersOnly) await verifyNativeInvokerPages(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && canonicalSourcesOnly) sourceViewerPages = await verifyCanonicalSourceViewers(`${origin}/packages/cem-components/playgrounds/`);
@@ -200,7 +200,7 @@ try {
     else if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
     else if (layoutOnly) console.log(`Passive layout, content state, property controls, galleries and bundle verified from ${verifiedLocations}.`);
     else if (navigationContentOnly) console.log(`Navigation and content properties, galleries and bundle verified from ${verifiedLocations}.`);
-    else if (menusOnly) console.log(`Native/composite menu roles, properties, galleries and bundle verified from ${verifiedLocations}.`);
+    else if (menusOnly) console.log(`Native popup/menu invocation, focus, six themes, roles, properties, galleries and bundle verified in ${nativeBrowser} ${browser.version()} from ${verifiedLocations}.`);
     else if (timeRangeOnly) console.log(`Timepicker and slider properties, native forms, galleries and bundle verified from ${verifiedLocations}.`);
     else if (datepickerOnly) console.log(`Datepicker property controls, native forms, calendar, galleries and bundle verified from ${verifiedLocations}.`);
     else if (autocompleteOnly) console.log(`Autocomplete property controls, galleries, live payload, forms and bundle verified from ${verifiedLocations}.`);
@@ -513,6 +513,15 @@ async function verifySelect(url) {
 
 async function choosePageTheme(page, theme) {
     const control = page.locator('cem-gallery-page > cem-gallery-nav[part=navigation] cem-theme-switch[part=theme]');
+    await control.locator('[part=trigger] button').waitFor();
+    await page.waitForFunction(host => {
+        const trigger = host.querySelector('[part=trigger] button');
+        return trigger?.popoverTargetElement?.popover === 'auto' && trigger.popoverTargetElement.isConnected;
+    }, await control.elementHandle());
+    await control.evaluate(async host => {
+        const runtime = window.cemPlaygroundRuntime;
+        await Promise.all([host, ...host.querySelectorAll('*')].map(node => runtime.whenRenderSettled(node)));
+    });
     await control.locator('[part=trigger] button').click();
     await control.locator(`cem-menu cem-icon-button[value="cem-theme-${theme}"] button`).click();
     await page.waitForFunction(value => document.querySelector('cem-gallery-page')?.getAttribute('data-theme') === value, `cem-theme-${theme}`);
@@ -1639,8 +1648,75 @@ async function verifyIconImageExamples(page) {
     assert(await hidden.evaluateAll(nodes => nodes.every(node => getComputedStyle(node).display === 'none')));
 }
 
+async function verifyNativePopupMenus(baseUrl) {
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(new URL('cem-dropdown-gallery.html', baseUrl).href);
+        const card = page.locator('cem-demo-element[legend="Nested menus"]');
+        await page.waitForFunction(() => { const cards = [...document.querySelectorAll('cem-demo-element')]; return cards.length > 0 && cards.every(card => card.getAttribute('data-state') === 'ready'); });
+        const launcher = card.getByRole('button', { name: 'Commands', exact: true });
+        await launcher.waitFor();
+        const retained = await launcher.elementHandle();
+        for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native', 'projector']) {
+            await choosePageTheme(page, theme).catch(async error => {
+                console.error('Native theme route', await page.locator('cem-gallery-nav cem-theme-switch').evaluate(host => ({
+                    buttons: [...host.querySelectorAll('[part=trigger] button')].map(node => ({ id: node.id, route: node.getAttribute('popovertarget'), expanded: node.getAttribute('aria-expanded') })),
+                })));
+                throw error;
+            });
+            await launcher.click();
+            const file = card.getByRole('menuitem', { name: 'File', exact: true });
+            await file.waitFor(); await file.press('ArrowRight');
+            const fresh = card.getByRole('menuitem', { name: 'New', exact: true });
+            await fresh.waitFor(); await fresh.press('ArrowDown');
+            const exportItem = card.getByRole('menuitem', { name: 'Export', exact: true });
+            await exportItem.press('ArrowRight');
+            const pdf = card.getByRole('menuitem', { name: 'PDF', exact: true });
+            await pdf.waitFor();
+            assert.equal(await pdf.evaluate(node => node === document.activeElement), true);
+            assert.equal(await card.locator('[popover]:popover-open').count(), 3);
+            for (const trigger of [launcher, file, exportItem]) assert.equal(await trigger.evaluate(node =>
+                node.popoverTargetElement?.popover === 'auto' && !node.hasAttribute('commandfor')), true);
+            await pdf.press('Escape');
+            await page.waitForFunction(node => document.activeElement === node, await exportItem.elementHandle());
+            assert.equal(await card.locator('[popover]:popover-open').count(), 2);
+            await exportItem.press('Escape');
+            await page.waitForFunction(node => document.activeElement === node, await file.elementHandle());
+            assert.equal(await card.locator('[popover]:popover-open').count(), 1);
+            await file.press('Escape');
+            await page.waitForFunction(node => document.activeElement === node, retained);
+            assert.equal(await card.locator('[popover]:popover-open').count(), 0);
+            assert.equal(await launcher.evaluate((node, original) => node === original, retained), true);
+        }
+        await launcher.click();
+        await card.getByRole('menuitem', { name: 'File', exact: true }).click();
+        await page.getByRole('heading', { level: 1 }).click();
+        assert.equal(await card.locator('[popover]:popover-open').count(), 0);
+        await launcher.click();
+        await card.getByRole('menuitem', { name: 'File', exact: true }).press('ArrowRight');
+        await card.getByRole('menuitem', { name: 'New', exact: true }).click();
+        await page.waitForFunction(() => !document.querySelector('cem-demo-element[legend="Nested menus"] [popover]:popover-open'));
+        await page.waitForFunction(node => document.activeElement === node, retained);
+        const external = page.locator('cem-demo-element[legend="External native invoker"]');
+        const externalTrigger = external.getByRole('button', { name: 'Open independent details', exact: true });
+        await externalTrigger.click();
+        const note = external.getByRole('textbox', { name: 'Independent note', exact: true });
+        await note.fill('Retained independent edit');
+        const retainedNote = await note.elementHandle();
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(node => document.activeElement === node, await externalTrigger.elementHandle());
+        await externalTrigger.click();
+        assert.equal(await note.inputValue(), 'Retained independent edit');
+        assert.equal(await note.evaluate((node, original) => node === original, retainedNote), true);
+        await page.keyboard.press('Escape');
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
 async function verifyMenus(baseUrl) {
-    await verifyGalleries(baseUrl, ['cem-menu', 'cem-menu-item']);
+    await verifyNativePopupMenus(baseUrl);
+    await verifyGalleries(baseUrl, ['cem-menu', 'cem-menu-item', 'cem-dropdown']);
     await verifyCommand(new URL('cem-menu-item.html', baseUrl).href, 'cem-menu-item');
     const context = await browser.newContext(), page = await context.newPage(), errors = [];
     page.on('pageerror', error => errors.push(error.message));

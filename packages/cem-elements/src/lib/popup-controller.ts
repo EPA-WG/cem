@@ -51,6 +51,9 @@ function cssAnchorPolicy(panel: HTMLElement): boolean {
         && CSS.supports('anchor-name', '--cem-probe') && CSS.supports('position-area', 'bottom span-right')
         && CSS.supports('position-try-fallbacks', 'top span-right');
 }
+// A failed CSS alternative is retried only after its layout inputs change.
+// Retrying it during every host render would mutate and invalidate that host again.
+const cssAnchorFailures = new WeakMap<HTMLElement, { anchor: HTMLElement; anchorParent: Element | null; panelParent: Element | null; key: string }>();
 function tryCssAnchor(host: HTMLElement | undefined, panel: HTMLElement, anchor: Element | undefined, bounds: { left: number; top: number; right: number; bottom: number },
     placement: string, fallback: readonly string[], options: { flip: boolean; shift: boolean }, gap: number, boundary?: Element): string | undefined {
     const viewport = panel.ownerDocument.defaultView?.visualViewport;
@@ -60,7 +63,13 @@ function tryCssAnchor(host: HTMLElement | undefined, panel: HTMLElement, anchor:
         && anchor.getRootNode() === panel.getRootNode() && !boundary && policy
         && (!viewport || viewport.scale === 1 && viewport.offsetLeft === 0 && viewport.offsetTop === 0)
         && (panel.matches(':popover-open,:modal') || !!(anchor.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING));
-    if (!eligible) { clearCssSurfaceAnchor(panel); return; }
+    if (!eligible) { clearCssSurfaceAnchor(panel); cssAnchorFailures.delete(panel); return; }
+    const rect = anchor.getBoundingClientRect(), size = panel.getBoundingClientRect(), panelStyle = getComputedStyle(panel);
+    const key = JSON.stringify([rect.left, rect.top, rect.width, rect.height, size.width, size.height, bounds,
+        style.direction, style.writingMode, panelStyle.direction, panelStyle.writingMode, panelStyle.transform,
+        panelStyle.minWidth, panelStyle.maxWidth, panelStyle.minHeight, panelStyle.maxHeight, placement, fallback, options, gap]);
+    const failed = cssAnchorFailures.get(panel);
+    if (failed?.anchor === anchor && failed.anchorParent === anchor.parentElement && failed.panelParent === panel.parentElement && failed.key === key) return;
     const name = bindCssSurfaceAnchor(panel, anchor);
     writeGeometryStyle(panel, 'position-anchor', name);
     writeGeometryStyle(panel, '--_cem-surface-position-mode', 'fixed');
@@ -74,6 +83,7 @@ function tryCssAnchor(host: HTMLElement | undefined, panel: HTMLElement, anchor:
     for (const choice of policy.choices) {
         const expected = surfacePosition(origin, box.width, box.height, bounds, choice, rtl, style.writingMode, [], { flip: false, shift: false, gap });
         if ((!options.shift || visible) && Math.abs(box.left - expected.left) < 0.75 && Math.abs(box.top - expected.top) < 0.75) {
+            cssAnchorFailures.delete(panel);
             rememberCssSurfaceAnchor(panel, { left: box.left, top: box.top, placement: choice });
             if (host) writeGeometryPlacement(panel, choice);
             return choice;
@@ -82,6 +92,7 @@ function tryCssAnchor(host: HTMLElement | undefined, panel: HTMLElement, anchor:
     // No CSS alternative can satisfy this boundary (or the anchor is outside
     // its CSS scope). Release the bridge before the compatibility solver shifts.
     clearCssSurfaceAnchor(panel);
+    cssAnchorFailures.set(panel, { anchor, anchorParent: anchor.parentElement, panelParent: panel.parentElement, key });
     return;
 }
 
@@ -196,33 +207,19 @@ function fitSurface(host: HTMLElement, panel: HTMLElement, trigger: HTMLElement 
     return true;
 }
 export function releasePopupGeometry(panel: HTMLElement): void {
+    cssAnchorFailures.delete(panel);
     popupGeometrySnapshots.delete(panel);
     releaseSurfaceGeometry(panel);
 }
-export function showPopup(trigger: HTMLElement, panel: HTMLElement, column = false, host?: HTMLElement, boundaryHost = host): boolean {
-    if (!ownsSurfaceGeometry(panel)) return false;
-    if (panel.hidden) panel.hidden = false;
-    panel.style.removeProperty('display');
-    if (getComputedStyle(panel).display === 'none') panel.style.display = 'block';
+/** Prepare geometry without opening a second visibility path. */
+export function preparePopupGeometry(trigger: HTMLElement, panel: HTMLElement, host: HTMLElement, boundaryHost = host): boolean {
+    if (!ownsSurfaceGeometry(panel) || !popupGeometryInputs(trigger, panel, host, boundaryHost)) return false;
     writeGeometryStyle(panel, 'box-sizing', 'border-box');
-    if (getComputedStyle(panel).position !== 'absolute') writeGeometryStyle(panel, 'position', 'fixed');
-    if (getComputedStyle(panel).zIndex === 'auto') writeGeometryStyle(panel, 'z-index', '1000');
-    writeGeometryStyle(panel, 'max-width', 'calc(100vw - 8px)');
-    writeGeometryStyle(panel, 'max-height', 'min(var(--_cem-popup-max-height, 100vh), calc(100vh - 8px))');
+    writeGeometryStyle(panel, 'position', 'fixed');
+    writeGeometryStyle(panel, 'inset', 'auto');
+    writeGeometryStyle(panel, 'margin', '0');
     writeGeometryStyle(panel, 'overflow', 'auto');
-    // Initially visible offscreen examples keep their natural containing-block
-    // position. Explicit activation still requests fitting, as before.
-    const natural = getComputedStyle(panel).position === 'absolute' && !host?.hasAttribute('anchor') && !boundaryHost?.hasAttribute('boundary');
-    const anchorBox = trigger.getBoundingClientRect(), view = trigger.ownerDocument.defaultView;
-    if (natural && view && (anchorBox.bottom <= 0 || anchorBox.top >= view.innerHeight || anchorBox.right <= 0 || anchorBox.left >= view.innerWidth)) return true;
-    if (host?.hasAttribute('anchor') || boundaryHost?.hasAttribute('boundary') || cssAnchorPolicy(panel) || getComputedStyle(panel).position !== 'absolute') return positionPopup(trigger, panel, column, host, boundaryHost);
     return true;
-}
-export function hidePopup(panel: HTMLElement): void {
-    if (!ownsSurfaceGeometry(panel)) return;
-    if (!panel.hidden) panel.hidden = true;
-    panel.style.removeProperty('display');
-    releasePopupGeometry(panel);
 }
 export interface CemSurfaceGeometryLease {
     readonly valid: boolean;

@@ -19,6 +19,8 @@ function declare(root: HTMLElement, runtime: CemElementRuntime, declarationTag: 
 export const NativeFocusGeometryAndLiveEligibility: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
         const root = required<HTMLElement>(canvasElement, 'section');
         for (const fallback of [false, true]) {
             const scope = createCemDeclarationScope({ document });
@@ -91,18 +93,18 @@ export const NativeFocusGeometryAndLiveEligibility: Story = {
                 surface.setAttribute('interaction-scope', 'inner');
                 await waitFor(() => expect(panel.hidden).toBe(true));
                 surface.removeAttribute('interaction-scope'); await userEvent.click(trigger); await expect(panel.hidden).toBe(false);
-                // Default absolute panels keep declaration positioning until
-                // activation/resize, and follow their container during scrolling.
+                // Native popovers remain in the top layer and refit on viewport events.
                 surface.setAttribute('open', 'false'); await waitFor(() => expect(panel.hidden).toBe(true));
                 surface.removeAttribute('anchor'); surface.removeAttribute('boundary');
-                panel.style.position = 'absolute'; panel.style.left = '11px'; panel.style.top = '17px'; panel.style.display = 'block';
+                panel.style.position = 'absolute'; panel.style.left = '11px'; panel.style.top = '17px';
                 surface.setAttribute('open', 'true'); await waitFor(() => expect(panel.hidden).toBe(false));
-                await expect(panel.style.left).toBe('11px');
-                window.dispatchEvent(new Event('resize'));
-                await waitFor(() => expect(panel.style.left).not.toBe('11px'));
+                await expect(panel.matches(':popover-open')).toBe(true);
+                await expect(getComputedStyle(panel).position).toBe('fixed');
+                await expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(3);
                 const fittedLeft = panel.style.left, fittedTop = panel.style.top;
-                window.dispatchEvent(new Event('scroll'));
-                await expect(panel.style.left).toBe(fittedLeft); await expect(panel.style.top).toBe(fittedTop);
+                window.dispatchEvent(new Event('resize')); window.dispatchEvent(new Event('scroll'));
+                await waitFor(() => expect(panel.style.left).toBe(fittedLeft));
+                await expect(panel.style.top).toBe(fittedTop);
                 surface.setAttribute('open', 'false');
                 await waitFor(() => expect(getComputedStyle(panel).display).toBe('none'));
                 surface.remove(); await waitFor(() => expect(panel.style.left).toBe('11px'));
@@ -114,6 +116,8 @@ export const NativeFocusGeometryAndLiveEligibility: Story = {
 export const MenuFocusBoundaryInheritanceAndCleanup: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
         const root = required<HTMLElement>(canvasElement, 'section'), scope = createCemDeclarationScope({ document });
         const suffix = crypto.randomUUID(), menu = `cem-geometry-menu-${suffix}`, declarationTag = `declaration-${suffix}`;
         const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope }); runtime.install(window);

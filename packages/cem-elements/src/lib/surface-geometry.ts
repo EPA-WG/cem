@@ -17,6 +17,7 @@ interface GeometryObserver {
 }
 interface GeometryState {
     styles: WeakMap<HTMLElement, Map<string, StyleClaim>>;
+    requests: WeakMap<HTMLElement, Map<string, { value: string; applied: StyleValue[] }>>;
     placements: WeakMap<HTMLElement, { saved: string | null; applied: string }>;
     owners: WeakMap<HTMLElement, HTMLElement>;
     targets: WeakMap<HTMLElement, Map<HTMLElement, Element[]>>;
@@ -30,9 +31,10 @@ interface GeometryState {
 const GEOMETRY = Symbol.for('cem.surface-geometry.v1');
 const environment = globalThis as typeof globalThis & { [GEOMETRY]?: GeometryState };
 const state = environment[GEOMETRY] ??= {
-    styles: new WeakMap(), placements: new WeakMap(), owners: new WeakMap(),
+    styles: new WeakMap(), requests: new WeakMap(), placements: new WeakMap(), owners: new WeakMap(),
     targets: new WeakMap(), observers: new WeakMap(), leases: new WeakMap(), anchorBindings: new WeakMap(), anchorNames: new WeakMap(),
 };
+state.requests ??= new WeakMap();
 state.anchorBindings ??= new WeakMap(); state.anchorNames ??= new WeakMap();
 function readStyle(panel: HTMLElement, name: string): StyleValue {
     return { value: panel.style.getPropertyValue(name), priority: panel.style.getPropertyPriority(name) };
@@ -46,6 +48,14 @@ function properties(name: string): string[] {
 }
 export function writeGeometryStyle(panel: HTMLElement, name: string, value: string): void {
     let claims = state.styles.get(panel);
+    let requests = state.requests.get(panel);
+    // CSSOM canonicalizes shorthands (for example 0px 0px to 0px).
+    // An unchanged owned request must not emit another host style mutation.
+    const request = requests?.get(name);
+    if (request?.value === value && properties(name).every((property, index) => {
+        return claims?.has(property) && same(readStyle(panel, property), request.applied[index]);
+    })) return;
+    if (!requests) { requests = new Map(); state.requests.set(panel, requests); }
     if (!claims) { claims = new Map(); state.styles.set(panel, claims); }
     const saved = properties(name).map(property => {
         const current = readStyle(panel, property), previous = claims.get(property);
@@ -54,6 +64,7 @@ export function writeGeometryStyle(panel: HTMLElement, name: string, value: stri
     const current = readStyle(panel, name);
     if (current.value !== value || current.priority) panel.style.setProperty(name, value);
     for (const entry of saved) claims.set(entry.property, { saved: entry.saved, applied: readStyle(panel, entry.property) });
+    requests.set(name, { value, applied: properties(name).map(property => readStyle(panel, property)) });
 }
 export function restoreGeometryStyle(panel: HTMLElement, name: string): void {
     const claims = state.styles.get(panel);
@@ -66,7 +77,7 @@ export function restoreGeometryStyle(panel: HTMLElement, name: string): void {
         }
         claims?.delete(property);
     }
-    if (!claims?.size) state.styles.delete(panel);
+    if (!claims?.size) { state.styles.delete(panel); state.requests.delete(panel); }
 }
 export function writeGeometryPlacement(panel: HTMLElement, placement: string): void {
     const current = panel.getAttribute('data-placement'), previous = state.placements.get(panel);

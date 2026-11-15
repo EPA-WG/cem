@@ -1,5 +1,6 @@
 import { isDomInstance } from './dom-realm.js';
 import { hasCemSurfaceOwner, nativeSurfaceVisible } from './surface-session.js';
+import { restoreSurfaceFocus } from './surface-references.js';
 
 type Root = Document | ShadowRoot;
 type Invoker = HTMLButtonElement | HTMLInputElement;
@@ -9,12 +10,26 @@ interface Session {
     source: Invoker;
     parent?: Session;
     order: number;
+    policy?: ReturnPolicy;
+    previousFocus?: Element | null;
     closing?: { inside: boolean; blocked: boolean; input: number };
 }
 interface Subscription { users: number; stop(): void }
 const ROOTS = Symbol.for('cem.native-invoker-focus.v1');
 const environment = globalThis as typeof globalThis & { [ROOTS]?: WeakMap<Root, Subscription> };
 const roots = environment[ROOTS] ??= new WeakMap();
+interface ReturnPolicy { host: HTMLElement; restore: boolean }
+const POLICIES = Symbol.for('cem.native-invoker-return-policies.v1');
+const policyEnvironment = globalThis as typeof globalThis & { [POLICIES]?: WeakMap<HTMLElement, ReturnPolicy> };
+const policies = policyEnvironment[POLICIES] ??= new WeakMap();
+
+/** Framework semantic policy, independent of component tags and visibility. */
+export function registerCemNativeInvokerReturnPolicy(owner: HTMLElement, host: HTMLElement) {
+    if (policies.has(owner)) throw new TypeError('Native invoker return policy already registered');
+    const policy: ReturnPolicy = { host, restore: true }; policies.set(owner, policy);
+    return { reset() { policy.restore = true; }, suppress() { policy.restore = false; },
+        release() { if (policies.get(owner) === policy) policies.delete(owner); } };
+}
 
 /** Read the native relationship, including IDL element references and shadow scopes. */
 function route(node: unknown): Route | undefined {
@@ -54,8 +69,6 @@ export function connectCemNativeInvokerFocus(root: Root): () => void {
     if (!subscription) {
         const abort = new view.AbortController(), options = { capture: true, signal: abort.signal };
         const sessions = new Map<HTMLElement, Session>();
-        let observer: MutationObserver;
-        let reconcile: (records: MutationRecord[]) => void;
         let live = true, order = 0, input = 0;
         let intent: { kind: 'pointer' | 'tab' | 'escape' | 'activation'; target: Node | null } | undefined;
         let activation: { source: Invoker; binding: Route } | undefined;
@@ -102,7 +115,7 @@ export function connectCemNativeInvokerFocus(root: Root): () => void {
                 const parent = [...sessions.values()].filter(session => nativeSurfaceVisible(session.owner)
                     && (session.owner.contains(source) || session.owner.contains(owner.parentNode)))
                     .sort((a, b) => b.order - a.order)[0];
-                const session: Session = { owner, source, parent, order: ++order };
+                const session: Session = { owner, source, parent, order: ++order, policy: policies.get(owner), previousFocus: active(root) };
                 sessions.set(owner, session);
                 // beforetoggle is cancelable; its capture phase cannot assume admission.
                 afterDispatch(() => {
@@ -132,10 +145,18 @@ export function connectCemNativeInvokerFocus(root: Root): () => void {
             // successive child invokers that have themselves become hidden.
             for (let parent = session.parent; parent; parent = parent.parent) if (parent.closing && !nativeSurfaceVisible(parent.owner)) return;
             const focused = active(root);
+            if (session.policy !== policies.get(owner)) return;
+            if (session.policy) {
+                if (session.policy.restore && session.policy.host.isConnected
+                    && (!focused || focused === session.source || focused === session.previousFocus || focused === document.body || focused === document.documentElement || owner.contains(focused))) {
+                    restoreSurfaceFocus(session.policy.host, session.source);
+                }
+                return;
+            }
             if (focused === session.source) return; // Preserve correct native restoration.
             if (!focused || focused === document.body || focused === document.documentElement || owner.contains(focused)) session.source.focus();
         }, options);
-        reconcile = records => {
+        const reconcile = (records: MutationRecord[]) => {
             if (!sessions.size) return;
             const changed = new Set<MutationRecord>();
             const after = new Map<Node, Map<string, string | null>>();
@@ -155,7 +176,7 @@ export function connectCemNativeInvokerFocus(root: Root): () => void {
                 if (removed || rebound || !owner.isConnected || !session.source.isConnected || route(session.source)?.target !== owner || hasCemSurfaceOwner(owner)) sessions.delete(owner);
             }
         };
-        observer = new view.MutationObserver(reconcile);
+        const observer = new view.MutationObserver(reconcile);
         observer.observe(root, { subtree: true, childList: true, attributes: true, attributeOldValue: true,
             attributeFilter: ['id', 'popovertarget', 'popovertargetaction', 'commandfor', 'command', 'popover', 'disabled', 'type'] });
         subscription = { users: 0, stop: () => { live = false; abort.abort(); observer.disconnect(); for (const timer of timers) view.clearTimeout(timer); timers.clear(); sessions.clear(); activation = undefined; intent = undefined; } };

@@ -77,7 +77,13 @@ surface owners keep their focus policy. The
 [runtime contract](../packages/cem-elements/README.md#native-invoker-focus-return)
 records source/target lifetime fences, scoped teardown and native-only support
 limits. The native `cem-action` examples consume the service declaratively;
-legacy composite-menu/popup migration remains a separate task.
+the legacy popup and composite-menu controllers now share native auto-popover
+bindings as well. Their generic semantics retain keyboard navigation, typed focus
+and geometry policies, leaf/task dismissal and recovery fencing. Panel visibility
+is read from the native owner, including unrelated-popup/modal dismissal; the
+compatibility `open`/`hidden` projection is no longer an independent overlay.
+Native controller migration does not complete the remaining capability coupling
+audit.
 
 Keep browser-native invocation, return-focus handling and semantic menu keyboard
 navigation as separate contracts. Verify pointer/keyboard invocation, nested

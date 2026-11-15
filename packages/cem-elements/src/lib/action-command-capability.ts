@@ -2,6 +2,7 @@ import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import { isDomInstance } from './dom-realm.js';
 import { interactionReference as reference, nativeInteractionReference as nativeReference } from './interaction-reference.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
+import { nativePopupBinding } from './native-popup-binding.js';
 import { captureCemSurfaceInvocation, type CemSurfaceInvocation } from './surface-invocation.js';
 
 /** Transient browser invocation metadata; portable CEM context stays in its typed channel. */
@@ -207,6 +208,7 @@ function checkpointAction(host: HTMLElement) {
     if (!state || state.abort.signal.aborted || state.error || !host.isConnected || !button || state.root !== host.getRootNode()) return;
     if (host.hasAttribute('interestfor') || button.hasAttribute('interestfor')) return;
     const route = resolve(host);
+    const native = nativePopupBinding(button);
     if (route.code || route.target && (!compatible(route.target, route.command) || button.type !== 'button')) return;
     if (route.target) {
         const unique = nativeReference(button, route.target.id);
@@ -217,9 +219,9 @@ function checkpointAction(host: HTMLElement) {
         } else if (button.hasAttribute('popovertarget')) {
             if (button.getAttribute('popovertarget') !== route.target.id || button.popoverTargetElement !== route.target) return;
         } else return;
-    } else if (button.hasAttribute('commandfor') || button.hasAttribute('popovertarget')
-        || button.popoverTargetElement || 'commandForElement' in button && (button as HTMLButtonElement & { commandForElement: Element | null }).commandForElement) return;
-    return { state, button, route };
+    } else if (button.hasAttribute('commandfor') || !native && (button.hasAttribute('popovertarget') || button.popoverTargetElement)
+        || 'commandForElement' in button && (button as HTMLButtonElement & { commandForElement: Element | null }).commandForElement) return;
+    return { state, button, route, native };
 }
 export function cemActionCommandCheckpoint(host: HTMLElement, endpoint: (node: HTMLElement) => CheckpointEndpoint | undefined) {
     const inspected = checkpointAction(host); if (!inspected) return;
@@ -239,6 +241,6 @@ export function prepareCemActionCommandGuard(host: HTMLElement) {
     const form = saved.button.form, signature = formState();
     return () => { const value = checkpointAction(host); return !!value && value.state === saved.state && value.button === saved.button
         && value.route.target === saved.route.target && value.route.descriptor === saved.route.descriptor
-        && value.route.command === saved.route.command && value.route.contextKey === saved.route.contextKey && value.state.wired === wired
+        && value.route.command === saved.route.command && value.route.contextKey === saved.route.contextKey && value.state.wired === wired && value.native === saved.native
         && invocations.get(saved.button) === invocation && saved.button.form === form && formState() === signature; };
 }

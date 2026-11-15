@@ -58,7 +58,17 @@ export const NestedInteraction = meta.story({
         const triggers = root.querySelectorAll<HTMLButtonElement>(':scope > [part="composite"] > cem-menu-item > button');
         const file = triggers[0]; const edit = triggers[1];
         const panel = file.parentElement!.querySelector('cem-menu') as HTMLElement;
+        let scriptedHides = 0;
+        for (const popup of root.querySelectorAll<HTMLElement>('[slot="submenu"]')) {
+            for (const method of ['showPopover', 'togglePopover'] as const) Object.defineProperty(popup, method, {
+                configurable: true, value: () => { throw new Error('Opening must use the native invoker'); },
+            });
+            const hide = popup.hidePopover;
+            Object.defineProperty(popup, 'hidePopover', { configurable: true, value() { scriptedHides++; hide.call(popup); } });
+        }
         expect(root.querySelector('[part="composite"]')?.getAttribute('role')).toBe('menubar');
+        expect(panel.popover).toBe('auto');
+        expect(file.popoverTargetElement).toBe(panel);
         expect(panel.hidden).toBe(true);
         expect(file.getAttribute('aria-expanded')).toBe('false');
         expect(file.getAttribute('tabindex')).toBe('0');
@@ -76,6 +86,7 @@ export const NestedInteraction = meta.story({
         await userEvent.keyboard('{Escape}');
         expect(document.activeElement).toBe(file);
         expect(panel.hidden).toBe(true);
+        expect(scriptedHides).toBe(0); // Escape is owned by the native popover stack.
         await page.getByRole('menuitem', { name: 'File', exact: true }).click();
         await whenCemRendered(file.parentElement!);
         expect(getComputedStyle(panel).position).toBe('fixed');
@@ -86,7 +97,9 @@ export const NestedInteraction = meta.story({
         await userEvent.keyboard('{Enter}');
         expect(edit.getAttribute('aria-expanded')).toBe('false');
         await page.getByRole('menuitem', { name: 'File', exact: true }).click();
+        scriptedHides = 0;
         await userEvent.click(canvasElement.querySelector('section > button')!);
+        expect(scriptedHides).toBe(0); // Outside light-dismiss is native, too.
         expect(panel.hidden).toBe(true);
         expect(document.activeElement?.textContent).toBe('Outside');
         file.focus(); await userEvent.keyboard('{ArrowDown}{Tab}');
@@ -110,6 +123,10 @@ export const NestedInteraction = meta.story({
         await new Promise(resolve => setTimeout(resolve, 20));
         file.focus(); await userEvent.keyboard('{End}');
         expect(document.activeElement).toBe(help);
+        file.focus(); await userEvent.keyboard('{ArrowDown}');
+        panel.hidden = true;
+        await waitFor(() => expect(panel.matches(':popover-open')).toBe(false));
+        expect(file.getAttribute('aria-expanded')).toBe('false');
     },
 });
 
@@ -149,6 +166,12 @@ export const EmptySubmenus = meta.story({
             trigger.focus(); await userEvent.keyboard('{ArrowDown}');
             expect(document.activeElement?.getAttribute('role')).toBe('menu');
             expect(trigger.getAttribute('aria-expanded')).toBe('true');
+            const focused = document.activeElement as HTMLElement;
+            focused.blur();
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(document.activeElement).toBe(document.body);
+            expect(trigger.popoverTargetElement?.matches(':popover-open')).toBe(true);
+            focused.focus();
             await userEvent.keyboard('{Escape}');
             expect(document.activeElement).toBe(trigger);
             expect(trigger.getAttribute('aria-expanded')).toBe('false');

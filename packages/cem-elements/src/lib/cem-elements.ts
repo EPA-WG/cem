@@ -175,6 +175,7 @@ import { CEM_ACTION_CONTROL_CAPABILITY, cemActionControlCheckpoint, prepareCemAc
 import { CEM_ACTION_COMMAND_CAPABILITY, cemActionCommandCheckpoint, prepareCemActionCommandGuard } from './action-command-capability.js';
 import { watchCemControlNames } from './control-name-diagnostics.js';
 import { connectCemNativeInvokerFocus } from './native-invoker-focus.js';
+import { preserveNativePopupAttribute } from './native-popup-binding.js';
 import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
@@ -879,19 +880,19 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'popup': {
         behavior: CEM_POPUP_CAPABILITY,
-        behaviorIdentity: 'cem-elements-popup-v4',
+        behaviorIdentity: 'cem-elements-popup-v5',
     },
     'action-control': {
         behavior: CEM_ACTION_CONTROL_CAPABILITY,
-        behaviorIdentity: 'cem-elements-action-control-v1',
+        behaviorIdentity: 'cem-elements-action-control-v2',
     },
     'action-command': {
         behavior: CEM_ACTION_COMMAND_CAPABILITY,
-        behaviorIdentity: 'cem-elements-action-command-v3',
+        behaviorIdentity: 'cem-elements-action-command-v4',
     },
     'composite-menu': {
         behavior: CEM_COMPOSITE_MENU_CAPABILITY,
-        behaviorIdentity: 'cem-elements-composite-menu-v4',
+        behaviorIdentity: 'cem-elements-composite-menu-v5',
     },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,
@@ -5811,6 +5812,7 @@ export class CemElementRuntime {
             preserveNode: (node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
             preserveElementAttribute: (current, desired, attribute) =>
                 (this.placementCoordinator?.preservesId(current, desired, attribute) ?? false)
+                || preserveNativePopupAttribute(current, attribute)
                 || (preserveRenderedAttribute?.(instance, current, desired, attribute) ?? false),
             preserveElementChildren: (current) =>
                 (behavior?.preserveRenderedChildren?.(instance, current) ?? false) ||
@@ -8784,6 +8786,7 @@ export class CemElementRuntime {
         const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
         const preserveElementAttribute = (current: Element, desired: Element, attribute: Attr) =>
             (this.placementCoordinator?.preservesId(current, desired, attribute) ?? false)
+            || preserveNativePopupAttribute(current, attribute)
             || (preserveRenderedAttribute?.(instance, current, desired, attribute) ?? false);
         const mergeOptions = {
             preserveNativeCheckedState: this.nativeCheckedPreservations.get(instance),

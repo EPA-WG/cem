@@ -635,10 +635,35 @@ for the current native work and the conditional diagnostic items on recurrence.
           arbitrary native popup content and declarative CEM actions. Keep one
           browser-owned visibility path, stacking and light dismissal; the generic
           focus supplement must not call visibility methods or cancel activation.
-    - [ ] Migrate legacy popup/composite-menu visibility contracts to native
+    - [x] Migrate legacy popup/composite-menu visibility contracts to native
           invoker markup. Reconcile retained keyboard/typeahead, ARIA, geometry
           and semantic focus ownership without a second visibility controller;
           the generic focus foundation does not migrate those contracts itself.
+      - [x] Add native-route assertions to the dropdown and recursive menu stories;
+            preserve navigation/typeahead, one-level Escape, focus policy, form/link
+            activation, disabled controls and retained identities on real popovers.
+      - [x] Exercise native popup/menu rebinding, detached parent-item targets,
+            task handoff, geometry/checkpoint recovery and scope cleanup in the
+            existing framework fixtures; retain their original contracts except
+            the obsolete absolute/non-top-layer visibility assumption.
+      - [x] Add a native edge-placement geometry fixture proving rejected CSS
+            anchors settle without repeated owned style writes, while queued
+            author transforms still invalidate the geometry witness.
+      - [x] Add an external native-button dropdown gallery example with retained
+            input and complete the `trigger-for` inventory; verify Escape return,
+            retained edits and authored hidden closure on a native submenu.
+      - [x] Disambiguate trusted hover in the two-theme action contrast fixture
+            by its original sample and verify the exact native button identity;
+            retain every existing pointer, focus, contrast and animation assertion.
+      - [x] Verify transient focus loss to the document body does not trigger a
+            second popup/submenu close; retain actual outside-control and Tab
+            dismissal in dropdown and empty-submenu stories.
+      - [x] Verify a provider-backed action used as an external native popup
+            invoker can be checkpointed; reject a forged/rebound native route
+            through its original action guard, without granting IDs authority.
+      - [x] Verify the migrated popup/menu source, isolated package and bundled
+            galleries in Chromium and Firefox, including themes and native
+            dismissal; retain the no-authored-component-JS publication gate.
     - [x] Add generic invoker return-focus handling in `cem-elements`: use native
           invoker/target relationships and the actual opening source, cover any
           popup content, and preserve correct native restoration. Do not branch
@@ -667,7 +692,7 @@ for the current native work and the conditional diagnostic items on recurrence.
           coupling. Remove any such dependency by expressing the component
           declaratively over generic native APIs. Generic interaction-pattern
           capabilities are allowed; their names alone do not establish a violation.
-    - [ ] Keep semantic menu navigation/typeahead separate from popup visibility
+    - [x] Keep semantic menu navigation/typeahead separate from popup visibility
           and generic focus return. When required behavior lacks a known generic
           declarative expression, stop and ask the owner for research instead of
           adding component-specific JavaScript anywhere in the stack.
@@ -692,8 +717,35 @@ for the current native work and the conditional diagnostic items on recurrence.
     bundle and package checks pass (59 declarations, 497 tokens, 329 packed
     files); lint has zero errors and 180 existing warnings. No production
     component JavaScript, local token defaults or timeout increases were added.
-    Legacy popup/menu migration, the broader coupling audit, existing whole-suite
+    This receipt covers the initial foundation. The subsequent popup/menu
+    migration receipt follows; the broader coupling audit, existing whole-suite
     stalls and WebKit/assistive-technology evidence remain open below.
+
+    Native popup/menu migration verified 2026-11-16: the focused regression group
+    passes 51/51 stories (22 actions, eight menu/dropdown cases and 21 generic
+    focus/reference/task/geometry cases). The selected checkpoint group passes
+    all 23 recovery stories, including independent/typed/cross-runtime submenus,
+    fresh-owner popup geometry and provider-action route revocation in worker
+    and fallback modes. Native HTML owns activation, nesting, Escape and outside
+    dismissal; arrow/typeahead, leaf/Tab/task semantics and authored focus policies
+    remain generic runtime contracts. Compatibility `open`/`hidden` reflects
+    actual native state, including unrelated modal entry closing auto-popovers.
+    Geometry fitting now avoids repeated equivalent CSS writes and repeated
+    rejected CSS alternatives without draining author mutations or weakening
+    readiness witnesses. Popup/menu/action capability identities were renewed.
+    Transient blur to the document body no longer requests a legacy close; actual
+    outside-control focus and Tab still dismiss. The action contrast fixture now
+    disambiguates its two intentional same-name samples and checks exact button
+    identity; its pointer/contrast/animation assertions remain intact.
+    Runtime build, typecheck, lint and package checks pass; component declarative,
+    state-matrix, style, catalog, playground, bundle and package checks pass
+    (59 declarations, 497 tokens, 329 component package files). Lint passes with
+    warnings. No production component JS, token defaults or timeout increases
+    were added. The focused popup/menu delivery gate passes source, isolated
+    package archives and bundled pages in Chromium 148.0.7778.96 and Firefox
+    150.0.2, including six themes, nested native focus return, retained external
+    input edits and the script-free native invocation baseline. WebKit and
+    assistive-technology evidence remain outside this receipt.
 
     Inventory scope: canonical `packages/cem-components/src/components/*/*.xhtml`
     declarations, root/template `capability` attributes, their explicit
@@ -775,7 +827,10 @@ for the current native work and the conditional diagnostic items on recurrence.
         progress and distinguish runtime/worker cleanup from runner/host issues;
         do not increase timeouts or claim a fully green 415-test run. A shell
         wall-clock discontinuity was also observed during the verbose attempt;
-        its relationship to the stall is unproven.
+        its relationship to the stall is unproven. The separate two-theme action
+        contrast fixture's ambiguous trusted-hover locator was repaired during
+        native-popup verification on 2026-11-16; its focused group now passes 51/51.
+        That locator fix does not resolve or explain the earlier whole-suite stalls.
 
   - [ ] MW-05: define native table/sort-header composition and migration; preserve
         header/cell association, focus, row identity and result announcements.

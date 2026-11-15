@@ -1,3 +1,4 @@
+import { prepareCemActionCommandGuard } from './action-command-capability.js';
 import { prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
 import { captureCheckpointControls } from './checkpoint-controls.js';
 import { isolatedOwnerReplacement } from './checkpoint-owner-replacement.fixtures.js';
@@ -770,6 +771,7 @@ export const SettledSurfacesAndTransientSessionRefusal: Story = {
                 await f.runtime.whenRenderSettled(popup); await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners[0].island).toContain('popup');
                 popup.setAttribute('open', 'true'); await f.runtime.whenRenderSettled(popup);
+                await new Promise(requestAnimationFrame);
                 await waitFor(async () => f.coordinator.capture()); expect(decode(f.coordinator).owners[0].island).toContain('reacquire');
                 popup.setAttribute('open', 'false'); await f.runtime.whenRenderSettled(popup); await waitFor(async () => f.coordinator.capture());
                 const surface = await f.create(declarationTemplate(dialogDeclaration), 'cem-ml', root, '<p>Dialog content</p>', 'native-surface');
@@ -1158,6 +1160,8 @@ export const SubmenuAndCompletedTaskCheckpointFallback: Story = {
 };
 
 async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fallback: boolean, crossRuntime = false) {
+    if (import.meta.env.MODE !== 'test') return;
+    const { userEvent } = await import('vitest/browser');
     await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
     root.setAttribute('interaction-scope', '');
     let duringSeal: (() => void) | undefined;
@@ -1188,7 +1192,10 @@ async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fal
             { 'parent-item': `#${launcher.id}`, anchor: '@dock', 'focus-target': '@entry', 'return-focus': '@return', 'anchor-lost': 'freeze' });
         await f.runtime.whenRenderSettled(submenu);
         const entry = submenu.querySelector<HTMLButtonElement>('button:nth-of-type(2)')!;
-        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        const capture = async () => {
+            await Promise.all([f.runtime.whenRenderSettled(menu), f.runtime.whenRenderSettled(submenu), producer.runtime.whenRenderSettled(targets)]);
+            await waitFor(async () => { await f.coordinator.capture(); });
+        };
         const policyIsland = () => decode(f.coordinator).owners.find(owner => owner.instanceId === f.runtime.readInstanceSnapshot(submenu).instanceId)!.island;
         await capture(); expect(submenu.hidden).toBe(true);
         expect(policyIsland()).toContain('recompute'); expect(policyIsland()).toContain('boundaryOwner');
@@ -1272,6 +1279,8 @@ export const ExplicitSubmenuGeometryAndFocusCheckpointFallback: Story = {
 };
 
 async function typedSubmenuCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    if (import.meta.env.MODE !== 'test') return;
+    const { userEvent } = await import('vitest/browser');
     await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
     const f = fixture(root, fallback);
     try {
@@ -3431,6 +3440,7 @@ async function isolatedWidgetResume(base: string, load: (url: string) => Promise
         dialog.showModal(); input.focus(); input.value = 'Unsubmitted é😀'; input.setSelectionRange(2, 8, 'backward');
         // Await actual native events; a timer cannot prove select/toggle tasks settled.
         await Promise.all([shown, selected]);
+        check(!popup.querySelector('[popover]')?.matches(':popover-open'), 'unrelated modal must dismiss the auto-popup');
         await runtime.whenRenderSettled(surface); await capture();
         const owners = [tree, tabs, nav, menu, popup, surface, producer, consumer];
         const nodes = owners.map(owner => [...owner.querySelectorAll('[data-cem-render-node-id]')]);
@@ -3470,7 +3480,7 @@ async function isolatedWidgetResume(base: string, load: (url: string) => Promise
         check(input.value === 'Unsubmitted é😀' && dialog.open && dialog.matches(':modal') && document.activeElement === input
             && input.selectionStart === 2 && input.selectionEnd === 8 && input.selectionDirection === 'backward', 'resume lost modal/edit/focus/selection');
         check(tree.getAttribute('selected-values') === 'b' && (tabs as any).selectedIndex === 1 && nav.querySelector('[aria-current="page"]'), 'tree/tabs/navigation state lost');
-        check(popup.getAttribute('open') === 'true' && actions === 0, 'popup state lost or lifecycle action replayed');
+        check(popup.getAttribute('open') === 'false' && !popup.querySelector('[popover]')?.matches(':popover-open') && actions === 0, 'native auto-popup dismissal lost or lifecycle action replayed');
         check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === beforeSequence[index]
             && owner.dataRevision === before.receipt.owners[index].dataRevision), 'resume manufactured input or a canonical revision');
         const fresh = placements.checkpoint(consumerId, consumer, (node: HTMLElement) => coordinator.endpoint(node), () => true)!;
@@ -4095,8 +4105,10 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
                     check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === before.owners[index].acceptedEventSequence), 'resume manufactured input');
                 }
             }
+            const nativeWithdrawal = negative && (scenario.endsWith('trigger') || scenario.endsWith('controller'));
+            if (nativeWithdrawal) check(panel?.hidden && !panel.matches(':popover-open'), 'revoked native popup still visible');
             check(writes === 0 && input.value === 'Edited é😀' && input.selectionStart === 2 && input.selectionEnd === 7
-                && input.selectionDirection === 'backward' && document.activeElement === retainedFocus, 'storage replay or lost draft/focus/selection');
+                && input.selectionDirection === 'backward' && document.activeElement === (nativeWithdrawal ? input : retainedFocus), 'storage replay or lost draft/focus/selection');
             if (!scenario.endsWith('trigger')) {
                 check(nodes.every(node => node.isConnected), 'theme/editor nodes replaced');
                 check(currentNodes().every((node, index) => node === nodes[index]), 'theme/editor control identities changed');
@@ -4280,4 +4292,35 @@ export const LateNativeSelectionRecovery: Story = { render: () => '<section aria
 
 export const SuggestionsLateNativeSelectionCapture: Story = { render: () => '<section aria-label="Suggestions native selection acknowledgment"></section>',
     play: async ({ canvasElement }) => activeSuggestionsCheckpointContract(canvasElement, false, true),
+};
+
+export const NativePopupProviderActionProof: Story = {
+    render: () => '<section aria-label="Native popup provider action proof"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        root.setAttribute('interaction-scope', 'provider-popup');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const action = await f.create(declarationTemplate(actionDeclaration), 'cem-ml', root, 'Open provider popup', 'action-command', { 'interaction-name': 'provider' });
+                await f.runtime.whenRenderSettled(action);
+                const popup = await f.create(declarationTemplate(dropdownDeclaration), 'cem-ml', root, '<input aria-label="Provider note" value="Retained">', 'popup', { 'trigger-for': '@provider', open: 'false' });
+                await f.runtime.whenRenderSettled(popup);
+                const button = action.querySelector('button')!;
+                const panel = popup.querySelector<HTMLElement>('[part=popup]')!;
+                await waitFor(() => expect(button.popoverTargetElement).toBe(panel));
+                await waitFor(async () => f.coordinator.capture());
+                button.click();
+                expect(panel.matches(':popover-open')).toBe(true);
+                await Promise.all([f.runtime.whenRenderSettled(action), f.runtime.whenRenderSettled(popup)]);
+                await waitFor(async () => f.coordinator.capture());
+                const guard = prepareCemActionCommandGuard(action);
+                expect(guard()).toBe(true);
+                button.setAttribute('popovertarget', 'forged-provider-target');
+                expect(guard()).toBe(false);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await waitFor(() => expect(panel.matches(':popover-open')).toBe(false));
+            } finally { f.dispose(); }
+        }
+    },
 };

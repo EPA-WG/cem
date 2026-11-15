@@ -91,6 +91,8 @@ export const ExplicitInputsWorkerFallbackReplacementAndDisposal: Story = {
 export const TypedPopupAndIndependentSubmenuEndpoints: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
         const root = required<HTMLElement>(canvasElement, 'section');
         const scope = createCemDeclarationScope({ document }); const suffix = crypto.randomUUID();
         const declarationTag = `cem-provider-declaration-${suffix}`, card = `cem-provider-card-${suffix}`, popup = `cem-provider-popup-${suffix}`, menu = `cem-provider-menu-${suffix}`;

@@ -231,11 +231,16 @@ export const ContrastContours = meta.story({
         ['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(intent => `<cem-action variant="${intent}">${intent}</cem-action>`).join('')
     }</section>`).join(''),
     play: async ({ canvasElement }) => {
-        const native = import.meta.env.MODE === 'test' ? (await import('vitest/browser')).userEvent : null;
+        const driver = import.meta.env.MODE === 'test' ? await import('vitest/browser') : null;
+        const native = driver?.userEvent;
         for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-action')) {
             await whenCemRendered(host);
             const button = host.querySelector('button') as HTMLButtonElement;
             const section = host.parentElement as HTMLElement;
+            // Both contrast samples intentionally have identically named controls.
+            const target = driver?.page.getByRole('button', { name: button.textContent!.trim(), exact: true })
+                .nth([...canvasElement.querySelectorAll('section')].indexOf(section));
+            if (target) expect(target.element()).toBe(button);
             const probe = document.createElement('span');
             probe.style.backgroundColor = 'var(--cem-palette-comfort)';
             section.append(probe);
@@ -251,14 +256,14 @@ export const ContrastContours = meta.story({
             await expect(parseFloat(contour().paddingTop)).toBe(1);
             await expect(colorContrast(surface, contour().backgroundColor)).toBeGreaterThanOrEqual(3);
             if (native) {
-                await native.hover(button);
+                await native.hover(target!);
                 await expect(parseFloat(contour().paddingTop)).toBe(2);
                 button.focus();
                 await native.keyboard('[Space>]');
                 await expect(parseFloat(contour().paddingTop)).toBe(3);
                 await expect(getComputedStyle(button).backgroundColor).toBe(surface);
                 await native.keyboard('[/Space]');
-                await native.unhover(button);
+                await native.unhover(target!);
             }
             host.setAttribute('pending', 'true');
             await whenCemRendered(host);

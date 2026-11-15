@@ -1,11 +1,13 @@
 import type { CheckpointEndpoint, CheckpointMenuRole, CheckpointPopup } from './checkpoint-interactions.js';
 import { registerCemPopupRelay, containsCemMenuChain } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
-import { focusSurface, restoreSurfaceFocus, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
+import { focusSurface, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
-import { checkpointPopupGeometry, hidePopup, positionPopup, showPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
+import { checkpointPopupGeometry, positionPopup, preparePopupGeometry, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
 
-interface State { relayRevision: number; releaseRelay?: () => void; abort?: AbortController; observer?: MutationObserver; trigger?: HTMLElement; panel?: HTMLElement; open: boolean; releaseReferences?: () => void; releaseGeometry?: () => void; geometryReady?: boolean; authoredBase?: boolean; generatedBase?: { node: HTMLElement; hidden: HTMLElement['hidden'] }; external?: { trigger: HTMLElement; attributes: Map<string, string | null> }; authoredDisabled?: boolean; authoredHasPopup?: string; }
+import { CemNativePopupBinding } from './native-popup-binding.js';
+
+interface State { settled?: () => void; native?: CemNativePopupBinding; projected?: string; relayRevision: number; releaseRelay?: () => void; abort?: AbortController; observer?: MutationObserver; trigger?: HTMLElement; panel?: HTMLElement; open: boolean; releaseReferences?: () => void; releaseGeometry?: () => void; geometryReady?: boolean; authoredBase?: boolean; generatedBase?: { node: HTMLElement; hidden: HTMLElement['hidden'] }; external?: { trigger: HTMLElement; attributes: Map<string, string | null> }; authoredDisabled?: boolean; authoredHasPopup?: string; }
 const states = new WeakMap<HTMLElement, State>();
 let sequence = 0;
 const popups = new Set<HTMLElement>();
@@ -48,44 +50,52 @@ function setAttribute(node: Element, name: string, value: string | null): void {
     if (node.getAttribute(name) !== value) node.setAttribute(name, value);
 }
 function synchronize(host: HTMLElement): void {
-    const state = stateFor(host);
-    const previousPanel = state.panel;
-    const wasOpen = state.open;
-    state.trigger = selectedTrigger(host);
-    state.panel = host.querySelector<HTMLElement>(':scope > [part~="popup"]') ?? undefined;
-    const { trigger, panel } = state;
-    if (previousPanel && previousPanel !== panel) releasePopupGeometry(previousPanel);
-    if (!trigger || !panel) { if (panel) hidePopup(panel); if (wasOpen) state.relayRevision++; state.open = false; return; }
-    if (!panel.id) panel.id = `cem-popup-panel-${++sequence}`;
+    const state = stateFor(host), trigger = selectedTrigger(host);
+    const panel = host.querySelector<HTMLElement>(':scope > [part~="popup"]') ?? undefined;
+    if (state.trigger !== trigger || state.panel !== panel) {
+        state.native?.disconnect(); state.native = undefined;
+        if (state.panel) releasePopupGeometry(state.panel);
+        state.trigger = trigger; state.panel = panel; state.projected = undefined;
+    }
+    if (!trigger || !panel) { if (panel) panel.hidden = true; state.open = false; return; }
     if (!trigger.id) trigger.id = `cem-popup-trigger-${++sequence}`;
     const disabled = host.hasAttribute('disabled') || !!state.authoredDisabled || state.external?.attributes.get('aria-disabled') === 'true';
     if (!state.external && trigger instanceof HTMLButtonElement && trigger.disabled !== disabled) trigger.disabled = disabled;
     setAttribute(trigger, 'aria-disabled', String(disabled));
+    const initial = !state.native;
+    if (!state.native) state.native = new CemNativePopupBinding(host, trigger, panel, {
+        admitted: () => !host.hidden && !host.hasAttribute('disabled') && !trigger.matches(':disabled,[aria-disabled="true"]'),
+        prepare: () => preparePopupGeometry(trigger, panel, host),
+        changed(open) {
+            const previous = state.open; state.open = open;
+            state.projected = String(open); setAttribute(host, 'open', state.projected);
+            setAttribute(trigger, 'aria-expanded', state.projected);
+            if (open) {
+                state.geometryReady = positionPopup(trigger, panel, false, host);
+                if (!state.geometryReady) state.native?.request(false);
+            } else { if (previous) state.relayRevision++; releasePopupGeometry(panel); state.geometryReady = false; }
+            state.settled?.();
+        },
+        entered: () => { if (state.open) focusSurface(host, panel); },
+        closing: () => { state.relayRevision++; },
+    });
+    reportInteractionReference(host, state.native.valid ? undefined : 'interaction-control-unsupported', 'native-invoker');
     setAttribute(trigger, 'aria-controls', panel.id);
     setAttribute(trigger, 'aria-haspopup', panel.querySelector('[role="menu"],[role="menubar"]') ? 'menu' : state.authoredHasPopup ?? null);
     setAttribute(panel, 'aria-labelledby', trigger.id);
-    state.open = host.getAttribute('open') !== 'false' && !host.hasAttribute('disabled') && !host.hidden;
+    const requested = host.getAttribute('open') !== 'false' && !disabled && !host.hidden;
+    if (initial || disabled || host.hidden || state.projected !== (host.getAttribute('open') ?? 'true')) {
+        state.projected = host.getAttribute('open') ?? 'true';
+        state.native.request(requested);
+    }
+    else state.native.sync();
+    state.open = state.native.open;
     setAttribute(trigger, 'aria-expanded', String(state.open));
-    if (state.open) {
-        const ready = !wasOpen || previousPanel !== panel || panel.hidden ? showPopup(trigger, panel, false, host) :
-            host.hasAttribute('anchor') || host.hasAttribute('boundary') || getComputedStyle(panel).position !== 'absolute' ? positionPopup(trigger, panel, false, host) : true;
-        if (ready) state.geometryReady = true;
-        else if (!wasOpen || !state.geometryReady || host.getAttribute('anchor-lost') !== 'freeze') {
-            state.open = false; host.setAttribute('open', 'false'); hidePopup(panel); setAttribute(trigger, 'aria-expanded', 'false');
-        }
-    } else hidePopup(panel);
-    if (wasOpen && !state.open) state.relayRevision++;
 }
 function setOpen(host: HTMLElement, open: boolean, restore = false): void {
     const state = stateFor(host);
-    if (host.hasAttribute('disabled') && open) return;
-    host.setAttribute('open', String(open));
     synchronize(host);
-    if (state.open && state.panel && state.trigger) {
-        positionPopup(state.trigger, state.panel, false, host);
-        focusSurface(host, state.panel);
-    }
-    else if (restore) restoreSurfaceFocus(host, state.trigger);
+    state.native?.request(open, open, restore);
 }
 export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
     beforeRender(host, context) {
@@ -94,10 +104,11 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
         stateFor(host).authoredDisabled = base?.kind === 'element' && Object.hasOwn(base.attributes, 'disabled');
         stateFor(host).authoredHasPopup = base?.kind === 'element' ? base.attributes['aria-haspopup'] : undefined;
     },
-    connected(host) {
+    connected(host, context) {
         if (!host.ownerDocument.defaultView) return;
         const state = stateFor(host);
         if (state.abort) return;
+        state.settled = () => context?.runtime.checkpointInteractionSettled(host);
         state.abort = new AbortController();
         popups.add(host);
         state.releaseRelay = registerCemPopupRelay({ host, panel: () => state.panel, launcher: () => state.trigger,
@@ -105,77 +116,58 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
             active: () => host.isConnected && state.open && host.getAttribute('open') !== 'false' && !!state.panel && !state.panel.hidden,
             dismiss: () => setOpen(host, false),
         });
-        state.releaseReferences = observeInteractionReferences(host, () => synchronize(host));
-        const options = { signal: state.abort.signal };
-        host.addEventListener('click', event => {
-            synchronize(host);
-            if (state.trigger?.contains(event.target as Node) && !state.external) {
-                event.preventDefault();
-                if (host.hasAttribute('disabled')) { event.stopImmediatePropagation(); return; }
-                setOpen(host, !state.open, state.open);
-            }
-        }, { ...options, capture: true });
+        state.releaseReferences = observeInteractionReferences(host, () => { synchronize(host); position(); });
+        const abort = state.abort, options = { signal: abort.signal };
         host.addEventListener('keydown', event => {
             if (event.defaultPrevented) return;
-            if (event.key === 'Escape' && state.open) { event.preventDefault(); event.stopPropagation(); setOpen(host, false, true); }
-            else if (event.key === 'Tab' && state.open) setOpen(host, false);
+            if (event.key === 'Tab' && state.open) setOpen(host, false);
             else if (event.target === state.trigger && event.key === 'ArrowDown') { event.preventDefault(); setOpen(host, true); }
         }, options);
         host.addEventListener('cem-popup-dismiss', () => setOpen(host, false, true), options);
         host.addEventListener('focusout', event => {
-            // Native focusout can precede activeElement moving to relatedTarget.
             if (containsCemMenuChain(host, event.relatedTarget as Node | null) || event.relatedTarget === state.trigger) return;
-            queueMicrotask(() => {
-                if (state.open && !containsCemMenuChain(host, host.ownerDocument.activeElement) && host.ownerDocument.activeElement !== state.trigger) setOpen(host, false);
-            });
+            host.ownerDocument.defaultView?.setTimeout(() => {
+                const active = host.ownerDocument.activeElement;
+                // Reconciliation/blur can leave focus on the document, without
+                // an outside destination. Native light-dismiss owns that case.
+                if (state.abort === abort && !abort.signal.aborted && state.open && active
+                    && active !== host.ownerDocument.body && active !== host.ownerDocument.documentElement
+                    && !containsCemMenuChain(host, active) && active !== state.trigger) setOpen(host, false);
+            }, 0);
         }, options);
-        host.ownerDocument.addEventListener('click', event => {
-            synchronize(host);
-            if (!state.external || !state.trigger?.contains(event.target as Node)) return;
-            event.preventDefault();
-            if (host.hasAttribute('disabled') || state.trigger.matches(':disabled,[aria-disabled="true"]')) return;
-            setOpen(host, !state.open, state.open);
-        }, { ...options, capture: true });
         host.ownerDocument.addEventListener('keydown', event => {
             if (state.external && event.target === state.trigger && event.key === 'ArrowDown' && !state.trigger?.matches(':disabled,[aria-disabled="true"]')) { event.preventDefault(); setOpen(host, true); }
         }, options);
-        for (const eventName of ['pointerdown', 'click']) host.ownerDocument.addEventListener(eventName, event => {
-            if (state.open && !containsCemMenuChain(host, event.target as Node) && !state.trigger?.contains(event.target as Node)) setOpen(host, false);
-        }, { ...options, capture: true });
         const view = host.ownerDocument.defaultView;
         const position = () => {
-            if (!state.open) return;
-            synchronize(host);
-            if (state.open && state.trigger && state.panel && getComputedStyle(state.panel).position === 'absolute' &&
-                !host.hasAttribute('anchor') && !host.hasAttribute('boundary') &&
-                !positionPopup(state.trigger, state.panel, false, host) && host.getAttribute('anchor-lost') !== 'freeze') setOpen(host, false);
+            if (state.open && state.trigger && state.panel
+                && !positionPopup(state.trigger, state.panel, false, host) && host.getAttribute('anchor-lost') !== 'freeze') setOpen(host, false);
+            state.settled?.();
         };
         state.releaseGeometry = observePopupGeometry(host, position);
         view.visualViewport?.addEventListener('resize', position, options);
         view.visualViewport?.addEventListener('scroll', position, options);
         view.addEventListener('resize', position, options);
-        // Absolute panels follow their containing block during scrolling. Re-clamping
-        // their coordinates on every scroll would pin them to the viewport edge.
-        view.addEventListener('scroll', () => {
-            if (host.hasAttribute('anchor') || host.hasAttribute('boundary') || state.panel && getComputedStyle(state.panel).position !== 'absolute') position();
-        }, { ...options, capture: true });
+        view.addEventListener('scroll', position, { ...options, capture: true });
         state.observer = new MutationObserver(records => {
             synchronize(host);
-            if (records.some(record => record.attributeName === 'dir')) position();
+            if (records.some(record => ['dir', 'anchor', 'boundary', 'anchor-lost', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary'].includes(record.attributeName ?? ''))) position();
         });
         state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'disabled', 'hidden', 'dir', 'trigger-for', 'data-cem-node-ref-trigger-for', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost', 'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary'] });
     },
     rendered(host) { synchronize(host); },
     preserveRenderedAttribute(_host, _current, _desired, attribute) {
         const state = stateFor(_host);
-        return (_current === state.panel || _current === state.trigger) && ['id', 'aria-controls', 'aria-haspopup', 'aria-expanded', 'aria-labelledby', 'hidden', 'style'].includes(attribute.name);
+        return (_current === state.panel || _current === state.trigger) && ['id', 'aria-controls', 'aria-haspopup', 'aria-expanded', 'aria-labelledby', 'hidden', 'style', 'popover', 'popovertarget', 'popovertargetaction', 'type'].includes(attribute.name);
     },
     disconnected(host) {
         const state = stateFor(host);
+        state.settled = undefined;
         state.releaseRelay?.(); state.releaseRelay = undefined;
         state.abort?.abort(); state.abort = undefined; state.observer?.disconnect();
         state.releaseReferences?.(); state.releaseReferences = undefined;
         state.releaseGeometry?.(); state.releaseGeometry = undefined;
+        state.native?.disconnect(); state.native = undefined; state.projected = undefined;
         if (state.panel) releasePopupGeometry(state.panel); state.geometryReady = false; popups.delete(host); releaseExternal(host);
     },
 };
@@ -184,12 +176,10 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
 export function cemPopupCheckpoint(instance: HTMLElement, resolve?: (node: HTMLElement) => CheckpointEndpoint | undefined) {
     const state = states.get(instance);
     if (!instance.isConnected || !state?.abort || state.abort.signal.aborted || !state.panel || !state.trigger
-        || !popups.has(instance) || !state.trigger.isConnected || !state.panel.isConnected
+        || !popups.has(instance) || !state.native?.valid || state.native.open !== state.open || !state.trigger.isConnected || !state.panel.isConnected
         || instance.querySelector(':scope > [part~="popup"]') !== state.panel || state.open && !state.geometryReady) return undefined;
-    // Natural absolute panels follow their containing block on scroll. Explicit
-    // viewport/reference geometry instead requires a current clamping witness.
-    if (state.open && (state.external || instance.hasAttribute('anchor') || instance.hasAttribute('boundary') || getComputedStyle(state.panel).position !== 'absolute')
-        && !checkpointPopupGeometry(state.trigger, state.panel, false, instance)) return undefined;
+    // Every open native owner needs current geometry, including fallback fitting.
+    if (state.open && !checkpointPopupGeometry(state.trigger, state.panel, false, instance)) return undefined;
     const trigger = state.trigger.getAttribute('data-cem-render-node-id'), panel = state.panel.getAttribute('data-cem-render-node-id');
     if (!trigger || !panel) return undefined;
     const endpoint = (node: HTMLElement) => {

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
-import { createCemSurfaceGeometryLease, fitNativeSurface, releasePopupGeometry, observePopupGeometry } from './popup-controller.js';
+import { checkpointPopupGeometry, positionPopup, preparePopupGeometry, createCemSurfaceGeometryLease, fitNativeSurface, releasePopupGeometry, observePopupGeometry } from './popup-controller.js';
 import { connectCemNativeSurface } from './native-surface.js';
 
 export default { title: 'CEM Elements/Surface Geometry Leases', tags: ['test'] } satisfies Meta;
@@ -228,5 +228,28 @@ export const CssAnchorsFollowNestedScrollWithoutPixelUpdates: Story = {
             anchor.style.width = '120px'; await frames();
             expect(Math.abs(panel.getBoundingClientRect().left - anchor.getBoundingClientRect().left)).toBeLessThan(1);
         } finally { lease.release(); panel.hidePopover(); }
+    },
+};
+
+export const NativeEdgeFallbackSettlesAndKeepsAuthorMutations: Story = {
+    render: () => `<section><button type="button" popovertarget="edge-popup" style="position:fixed;left:0;top:0;width:80px;height:40px">Open edge</button><div id="edge-popup" popover="auto" style="${cssAnchorPolicy};width:100px;height:50px">Panel</div></section>`,
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'section'), trigger = required(host, 'button'), panel = required(host, '[popover]');
+        const fit = () => positionPopup(trigger, panel, false, host);
+        const release = observePopupGeometry(host, fit);
+        try {
+            expect(preparePopupGeometry(trigger, panel, host)).toBe(true);
+            trigger.click(); expect(panel.matches(':popover-open')).toBe(true);
+            expect(fit()).toBe(true);
+            await waitFor(() => expect(checkpointPopupGeometry(trigger, panel, false, host)).toBe(true));
+            expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(3);
+            trigger.style.transform = 'translateX(20px)';
+            await Promise.resolve();
+            expect(checkpointPopupGeometry(trigger, panel, false, host)).toBe(false);
+            // Fitting must retain the author mutation queued before its owned writes.
+            expect(fit()).toBe(true);
+            expect(checkpointPopupGeometry(trigger, panel, false, host)).toBe(false);
+            await waitFor(() => expect(checkpointPopupGeometry(trigger, panel, false, host)).toBe(true));
+        } finally { releasePopupGeometry(panel); release(); if (panel.matches(':popover-open')) panel.hidePopover(); }
     },
 };

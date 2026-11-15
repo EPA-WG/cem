@@ -32,6 +32,7 @@ export function focusSurface(host: HTMLElement, surface: HTMLElement, fallback?:
         if (!valid) target = undefined;
     } else reportInteractionReference(host, undefined, 'focus-target');
     target ??= [...surface.querySelectorAll<HTMLElement>('[autofocus]')].find(focusable) ?? fallback ?? firstPopupControl(surface);
+
     if (focusable(target) && surface.contains(target)) target.focus();
 }
 export function restoreSurfaceFocus(host: HTMLElement, invoker?: HTMLElement): void {
@@ -44,5 +45,5 @@ export function restoreSurfaceFocus(host: HTMLElement, invoker?: HTMLElement): v
         reportInteractionReference(host, focusable(target) ? undefined : 'interaction-return-focus-invalid', 'return-focus');
         if (!focusable(target)) target = invoker;
     } else reportInteractionReference(host, undefined, 'return-focus');
-    if (focusable(target)) target.focus();
+    if (focusable(target) && !target.matches(':focus')) target.focus();
 }

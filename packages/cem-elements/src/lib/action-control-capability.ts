@@ -1,5 +1,6 @@
 import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
+import { nativePopupBinding } from './native-popup-binding.js';
 
 const aborts = new WeakMap<HTMLElement, AbortController>();
 /** Native action controls with disabled links and optional projected disclosure. */
@@ -31,10 +32,11 @@ function checkpointActionControl(host: HTMLElement) {
     const submenus = host.querySelectorAll<HTMLElement>(':scope > [slot="submenu"]');
     if (!abort || abort.signal.aborted || !host.isConnected || controls.length !== 1 || submenus.length > 1) return;
     const control = controls[0];
-    if (!control.matches('button,a') || control.matches('[commandfor],[popovertarget],[interestfor]')
-        || (control as HTMLButtonElement).popoverTargetElement
+    const native = nativePopupBinding(control);
+    if (!control.matches('button,a') || control.matches('[commandfor],[interestfor]')
+        || !native && (control.hasAttribute('popovertarget') || (control as HTMLButtonElement).popoverTargetElement)
         || 'commandForElement' in control && (control as HTMLButtonElement & { commandForElement: Element | null }).commandForElement) return;
-    return { abort, control, submenu: submenus[0] };
+    return { abort, control, submenu: submenus[0], native };
 }
 export function cemActionControlCheckpoint(host: HTMLElement, endpoint: (node: HTMLElement) => CheckpointEndpoint | undefined) {
     const inspected = checkpointActionControl(host); if (!inspected) return;
@@ -50,5 +52,5 @@ export function prepareCemActionControlGuard(host: HTMLElement) {
         button.formAction, button.formMethod, button.formTarget, button.formEnctype, button.formNoValidate]); };
     const signature = formState();
     return () => { const value = checkpointActionControl(host); return !!value && value.abort === saved.abort && value.control === saved.control
-        && value.submenu === saved.submenu && (value.control as HTMLAnchorElement).href === href && (value.control as HTMLButtonElement).form === form && formState() === signature; };
+        && value.submenu === saved.submenu && value.native === saved.native && (value.control as HTMLAnchorElement).href === href && (value.control as HTMLButtonElement).form === form && formState() === signature; };
 }
