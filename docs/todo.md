@@ -612,6 +612,126 @@ for the current native work and the conditional diagnostic items on recurrence.
     No local token defaults, component behavior or timeout increases were added.
     See the audit's [MW-04 closure](../packages/cem-components/docs/modern-web-guidance-audit.md#mw-04-icon-control-naming-closure).
 
+  - [ ] **Owner priority: remove all production browser JavaScript dependencies.**
+        Clarified 2026-11-15: this means zero browser JavaScript, including the
+        shared `cem-elements` runtime, not just zero component-authored scripts.
+        Earlier permission to put imperative UI behavior in `cem-elements` must
+        not be used as a workaround for this requirement. Do not resume UI
+        implementation with JavaScript adapters, listeners, polyfills, injected
+        handlers, runtime method calls or shipped module/worker bootstrap code.
+    - [x] Inventory all 59 canonical component declarations and explicit imported
+          component dependencies. No production JS/TS files are authored in the
+          component folders (colocated test stories excluded), but **all 59 use
+          the JavaScript CEM runtime**. Of these, 28 declare a JavaScript behavior
+          capability and two more inherit such behavior through composition:
+          `cem-accordion` and `cem-theme-switch`. See the complete table below.
+    - [x] Stop and revert the uncommitted JavaScript-based native-submenu prototype
+          from this session. It is not an accepted zero-JavaScript implementation.
+          Keep its patch outside the repository for research reference only;
+          do not ship it or resume its JavaScript implementation.
+    - [ ] **RESEARCH REQUIRED — hard stop on implementation.** Ask the owner to
+          research/share a verified zero-JavaScript design for nested menus:
+          declarative invocation, native keyboard navigation/typeahead, one-level
+          Escape, sibling/nested dismissal, focus entry/return, Tab exit, outside
+          activation, logical external-parent relationships and RTL behavior.
+          Native HTML command/popover attributes alone have not been verified
+          here to replace that whole contract across the required browsers.
+    - [ ] Research and agree the zero-JavaScript execution model before migration:
+          build/server rendering to native HTML/CSS, browser-native interactions,
+          server-driven state/actions and supported-browser/feature limits.
+          Do not silently replace missing native features with JavaScript or
+          remove existing behavior without an explicit product decision.
+    - [ ] Remove the shared browser dependency for **every component below**:
+          runtime/custom-element registration, client compilation/rendering and
+          hydration, worker/bootstrap code, event/slice bindings, resource and
+          storage bindings, JavaScript-installed styles, diagnostics/observers,
+          form adapters and geometry/focus controllers. Build/server tooling and
+          verification scripts must be kept separate from production delivery;
+          their presence is not evidence of zero-JavaScript browser output.
+    - [ ] Replace each direct/composed behavior capability below with a verified
+          declarative/native or server-rendered design; stop and request owner
+          research for each behavior that cannot yet be expressed without JS.
+    - [ ] Audit Studio, Site and demo browser entry points and transitive imports
+          before claiming stack-wide zero-JavaScript delivery. Their current CEM
+          runtime use is not eliminated by changing component XHTML alone.
+    - [ ] Align `CLAUDE.md`, the declarative UI principle, component contracts and
+          publication gates with the clarified requirement. Verify production
+          pages without executing browser JavaScript and reject shipped scripts,
+          inline event handlers, `javascript:` URLs, module/worker bootstrap and
+          hidden transitive JavaScript requirements. Preserve actual keyboard,
+          accessibility, form and theme contracts or record an agreed limitation.
+
+    Inventory scope: canonical `packages/cem-components/src/components/*/*.xhtml`
+    declarations, root/template `capability` attributes, their explicit
+    `{cem-element @tag=...}` dependencies and the shared capability registry in
+    `packages/cem-elements/src/lib/cem-elements.ts`. The table names source owners,
+    not copied/generated artifacts. “None declared” and “—” do **not** mean
+    JavaScript-free: generic rendering, event/resource bindings and diagnostics
+    still depend on the browser runtime. This is a component inventory, not a
+    completed audit of every application entry point or shared runtime module.
+
+    | Component — all require removal of the common browser runtime dependency | Direct JS behavior capability/source | Additional JS behavior through composition |
+    | --- | --- | --- |
+    | [cem-accordion](../packages/cem-components/src/components/cem-accordion/cem-accordion.xhtml) | None declared | [disclosure-panel](../packages/cem-elements/src/lib/disclosure-panel-capability.ts) |
+    | [cem-action](../packages/cem-components/src/components/cem-action/cem-action.xhtml) | [action-command](../packages/cem-elements/src/lib/action-command-capability.ts) | — |
+    | [cem-alert](../packages/cem-components/src/components/cem-alert/cem-alert.xhtml) | None declared | — |
+    | [cem-app-bar](../packages/cem-components/src/components/cem-app-bar/cem-app-bar.xhtml) | None declared | — |
+    | [cem-autocomplete](../packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.xhtml) | [editable-choice](../packages/cem-elements/src/lib/editable-choice-capability.ts) | — |
+    | [cem-avatar](../packages/cem-components/src/components/cem-avatar/cem-avatar.xhtml) | None declared | — |
+    | [cem-badge](../packages/cem-components/src/components/cem-badge/cem-badge.xhtml) | None declared | — |
+    | [cem-card](../packages/cem-components/src/components/cem-card/cem-card.xhtml) | None declared | — |
+    | [cem-checkbox](../packages/cem-components/src/components/cem-checkbox/cem-checkbox.xhtml) | [checkable-control](../packages/cem-elements/src/lib/checkable-control.ts) | — |
+    | [cem-chip](../packages/cem-components/src/components/cem-chip/cem-chip.xhtml) | None declared | — |
+    | [cem-data-view](../packages/cem-components/src/components/cem-data-view/cem-data-view.xhtml) | None declared | — |
+    | [cem-datepicker](../packages/cem-components/src/components/cem-datepicker/cem-datepicker.xhtml) | [calendar-input](../packages/cem-elements/src/lib/calendar-input-capability.ts) | — |
+    | [cem-dialog](../packages/cem-components/src/components/cem-dialog/cem-dialog.xhtml) | [native-surface](../packages/cem-elements/src/lib/native-surface.ts) | — |
+    | [cem-dialog-shell](../packages/cem-components/src/components/cem-dialog-shell/cem-dialog-shell.xhtml) | [native-surface](../packages/cem-elements/src/lib/native-surface.ts) | — |
+    | [cem-divider](../packages/cem-components/src/components/cem-divider/cem-divider.xhtml) | None declared | — |
+    | [cem-dropdown](../packages/cem-components/src/components/cem-dropdown/cem-dropdown.xhtml) | [popup](../packages/cem-elements/src/lib/popup-capability.ts) | — |
+    | [cem-expansion](../packages/cem-components/src/components/cem-expansion/cem-expansion.xhtml) | [disclosure-panel](../packages/cem-elements/src/lib/disclosure-panel-capability.ts) | — |
+    | [cem-field](../packages/cem-components/src/components/cem-field/cem-field.xhtml) | [form-control](../packages/cem-elements/src/lib/form-control-capability.ts) | — |
+    | [cem-fieldset](../packages/cem-components/src/components/cem-fieldset/cem-fieldset.xhtml) | None declared | — |
+    | [cem-grid](../packages/cem-components/src/components/cem-grid/cem-grid.xhtml) | None declared | — |
+    | [cem-icon](../packages/cem-components/src/components/cem-icon/cem-icon.xhtml) | None declared | — |
+    | [cem-icon-button](../packages/cem-components/src/components/cem-icon-button/cem-icon-button.xhtml) | None declared | — |
+    | [cem-list](../packages/cem-components/src/components/cem-list/cem-list.xhtml) | [native-list](../packages/cem-elements/src/lib/native-list-capability.ts) | — |
+    | [cem-media-preview](../packages/cem-components/src/components/cem-media-preview/cem-media-preview.xhtml) | [live-preview](../packages/cem-elements/src/lib/live-preview-capability.ts) | — |
+    | [cem-menu](../packages/cem-components/src/components/cem-menu/cem-menu.xhtml) | [composite-menu](../packages/cem-elements/src/lib/composite-menu-capability.ts) | [action-control](../packages/cem-elements/src/lib/action-control-capability.ts) |
+    | [cem-menu-item](../packages/cem-components/src/components/cem-menu-item/cem-menu-item.xhtml) | [action-control](../packages/cem-elements/src/lib/action-control-capability.ts) | — |
+    | [cem-nav](../packages/cem-components/src/components/cem-nav/cem-nav.xhtml) | [navigation-landmark](../packages/cem-elements/src/lib/navigation-landmark-capability.ts) | — |
+    | [cem-option](../packages/cem-components/src/components/cem-option/cem-option.xhtml) | None declared | — |
+    | [cem-option-group](../packages/cem-components/src/components/cem-option-group/cem-option-group.xhtml) | None declared | — |
+    | [cem-paginator](../packages/cem-components/src/components/cem-paginator/cem-paginator.xhtml) | [pagination](../packages/cem-elements/src/lib/pagination-capability.ts) | — |
+    | [cem-progress](../packages/cem-components/src/components/cem-progress/cem-progress.xhtml) | None declared | — |
+    | [cem-progress-spinner](../packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.xhtml) | [progress-status](../packages/cem-elements/src/lib/progress-status-capability.ts) | — |
+    | [cem-radio](../packages/cem-components/src/components/cem-radio/cem-radio.xhtml) | None declared | — |
+    | [cem-recovery-status](../packages/cem-components/src/components/cem-recovery-status/cem-recovery-status.xhtml) | None declared | — |
+    | [cem-select](../packages/cem-components/src/components/cem-select/cem-select.xhtml) | [choice-select](../packages/cem-elements/src/lib/choice-select-capability.ts) | — |
+    | [cem-sheet](../packages/cem-components/src/components/cem-sheet/cem-sheet.xhtml) | None declared | — |
+    | [cem-skeleton](../packages/cem-components/src/components/cem-skeleton/cem-skeleton.xhtml) | None declared | — |
+    | [cem-slider](../packages/cem-components/src/components/cem-slider/cem-slider.xhtml) | [range-input](../packages/cem-elements/src/lib/range-input-capability.ts) | — |
+    | [cem-sort-header](../packages/cem-components/src/components/cem-sort-header/cem-sort-header.xhtml) | [sort-action](../packages/cem-elements/src/lib/sort-action-capability.ts) | — |
+    | [cem-source-editor](../packages/cem-components/src/components/cem-source-editor/cem-source-editor.xhtml) | [plaintext-editor](../packages/cem-elements/src/lib/plaintext-editor-capability.ts) | — |
+    | [cem-stack](../packages/cem-components/src/components/cem-stack/cem-stack.xhtml) | None declared | — |
+    | [cem-step](../packages/cem-components/src/components/cem-step/cem-step.xhtml) | None declared | — |
+    | [cem-stepper](../packages/cem-components/src/components/cem-stepper/cem-stepper.xhtml) | [workflow-panels](../packages/cem-elements/src/lib/workflow-panels-capability.ts) | — |
+    | [cem-suggestions](../packages/cem-components/src/components/cem-suggestions/cem-suggestions.xhtml) | [suggestions](../packages/cem-elements/src/lib/suggestions-capability.ts) | — |
+    | [cem-surface](../packages/cem-components/src/components/cem-surface/cem-surface.xhtml) | None declared | — |
+    | [cem-switch](../packages/cem-components/src/components/cem-switch/cem-switch.xhtml) | None declared | — |
+    | [cem-tab](../packages/cem-components/src/components/cem-tab/cem-tab.xhtml) | None declared | — |
+    | [cem-table](../packages/cem-components/src/components/cem-table/cem-table.xhtml) | None declared | — |
+    | [cem-tabs](../packages/cem-components/src/components/cem-tabs/cem-tabs.xhtml) | [tab-panels](../packages/cem-elements/src/lib/tab-panels-capability.ts) | — |
+    | [cem-text](../packages/cem-components/src/components/cem-text/cem-text.xhtml) | None declared | — |
+    | [cem-text-field](../packages/cem-components/src/components/cem-text-field/cem-text-field.xhtml) | [form-control](../packages/cem-elements/src/lib/form-control-capability.ts) | — |
+    | [cem-textarea](../packages/cem-components/src/components/cem-textarea/cem-textarea.xhtml) | [form-control](../packages/cem-elements/src/lib/form-control-capability.ts) | — |
+    | [cem-theme-switch](../packages/cem-components/src/components/cem-theme-switch/cem-theme-switch.xhtml) | None declared | [action-control](../packages/cem-elements/src/lib/action-control-capability.ts), [composite-menu](../packages/cem-elements/src/lib/composite-menu-capability.ts), [popup](../packages/cem-elements/src/lib/popup-capability.ts) |
+    | [cem-timepicker](../packages/cem-components/src/components/cem-timepicker/cem-timepicker.xhtml) | [time-input](../packages/cem-elements/src/lib/time-input-capability.ts) | — |
+    | [cem-toast](../packages/cem-components/src/components/cem-toast/cem-toast.xhtml) | None declared | — |
+    | [cem-tooltip](../packages/cem-components/src/components/cem-tooltip/cem-tooltip.xhtml) | [native-surface](../packages/cem-elements/src/lib/native-surface.ts) | — |
+    | [cem-tree](../packages/cem-components/src/components/cem-tree/cem-tree.xhtml) | [tree-view](../packages/cem-elements/src/lib/tree-view-capability.ts) | — |
+    | [cem-tree-item](../packages/cem-components/src/components/cem-tree-item/cem-tree-item.xhtml) | None declared | — |
+    | [cem-workspace](../packages/cem-components/src/components/cem-workspace/cem-workspace.xhtml) | None declared | — |
+
   - [ ] Diagnose component whole-suite stalls between story files. The first
         all-component run passed 414/415 and exposed MW-01's stale passive-chip
         assertion, now repaired and verified in isolation. Two later full runs
