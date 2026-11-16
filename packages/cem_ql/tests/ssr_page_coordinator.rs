@@ -420,3 +420,18 @@ fn shared_page_observations_export_complete_rendered_and_payload_subtrees() {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(path, serde_json::to_string_pretty(&observations).unwrap()).unwrap();
 }
+
+#[test]
+fn retained_payload_headers_require_explicit_ssr_profile_support() {
+    for (root, template) in [("payload-item='entry'", ""), ("", "payload-item='entry'")] {
+        let source = owner(&format!("<cem-element tag='x-payload' {root}><template id='x-payload' type='text/cem-ml' {template}>{{p | Retained}}</template></cem-element><x-payload><entry>Original input</entry></x-payload>"));
+        let before = source.source_text.clone();
+        let c = control();
+        let errors = match prepare_inline_page(page(&source, "memory:output"), "payload-profile", &c) {
+            Err(errors) => errors,
+            Ok(mut coordinator) => coordinator.advance(&c).unwrap_err(),
+        };
+        assert!(errors.iter().any(|d| d.code == "cem.ssr.inline_declaration_unsupported" || d.code == "cem.ssr.inline_template_unsupported"));
+        assert_eq!(source.source_text, before);
+    }
+}

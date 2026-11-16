@@ -420,6 +420,14 @@ resolved URL, request ID, content-type hint and integrity metadata. It returns
 response and resolves nested imports and resource URLs. The reader should honor
 the abort signal and reject failed responses.
 
+Declarations may define immutable `payload-item`, `payload-group` and
+`payload-topology` metadata for generic retained-payload readers. The normalized
+`cem-retained-payload/1` contract is available as `context.payloadContract` during
+construction and the first behavior render, including source fragments and
+pinned compiled declarations. It classifies original retained names without
+creating source or recovery authority. Reader adoption and SSR profile support
+remain separate work; see the [retained-payload contract](../../docs/cem-retained-payload-contract.md).
+
 Render requests are batched per instance into the next task. Event listeners
 capture slice values and event metadata immediately, while `currentTarget` is
 available. Bubbling listeners, nested events, microtask follow-ups, behavior

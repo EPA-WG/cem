@@ -162,6 +162,7 @@ export interface CemMlTemplateArtifactPayloadKey {
 
 /** Native-validated build control metadata; contains no template/data AST. */
 export interface CemCompiledDeclarationMetadata {
+    payloadContract?: import('../../retained-payload-contract.js').CemRetainedPayloadContract;
     contract: 'cem-declaration-metadata/1';
     tag: string;
     declaredTag: string;

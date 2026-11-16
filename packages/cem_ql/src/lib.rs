@@ -35,6 +35,7 @@ pub mod rule_source_endpoint;
 pub mod debug_control;
 pub mod diagnostics;
 pub mod declaration_artifact;
+pub mod retained_payload_contract;
 #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod declaration_closure;
 #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]

@@ -160,3 +160,42 @@ fn compiled_css_build_preserves_xml_bases_and_fails_missing_dependencies() {
     assert_eq!(metadata.resource_base_url, "file:///app/shared/styles/");
     assert!(built.template.reload_pinned(&metadata.template).is_ok());
 }
+
+#[test]
+fn retained_payload_contract_is_pinned_and_legacy_headers_stay_unchanged() {
+    let source = "<cem-element tag='x-payload' payload-item='entry option' payload-group='section optgroup' payload-topology='grouped'><template id='x-payload' type='text/cem-ml'>{p | Retained}</template></cem-element>";
+    let built = build_declaration_artifact(source, "https://app.test/payload.xhtml", TemplateArtifactSourceMapMode::Prod, None).unwrap();
+    let metadata: serde_json::Value = serde_json::from_str(&built.metadata_json).unwrap();
+    assert_eq!(metadata["payloadContract"]["contract"], "cem-retained-payload/1");
+    assert_eq!(metadata["payloadContract"]["vocabularies"][1]["item"]["localName"], "option");
+    assert!(admit_declaration_metadata(&built.metadata_json, &built.metadata_hash).is_ok());
+    let bad = built.metadata_json.replace("\"localName\":\"entry\"", "\"localName\":\"*\"");
+    let hash = cem_ml::content_cache::ContentHash::from_blake3(bad.as_bytes()).header_value();
+    assert!(admit_declaration_metadata(&bad, &hash).is_err());
+    let plain = source.replace(" payload-item='entry option' payload-group='section optgroup' payload-topology='grouped'", "");
+    let plain = build_declaration_artifact(&plain, "https://app.test/payload.xhtml", TemplateArtifactSourceMapMode::Prod, None).unwrap();
+    assert!(!plain.metadata_json.contains("payloadContract"));
+}
+
+#[test]
+fn retained_payload_contract_rejects_ambiguous_or_split_headers() {
+    for (root, template) in [
+        ("payload-item='item'", "payload-item='other'"),
+        ("payload-item='item'", "payload-group='group'"),
+        ("payload-item='item item'", ""),
+        ("payload-item='item' payload-group='item' payload-topology='grouped'", ""),
+    ] {
+        let source = format!("<cem-element tag='x-payload' {root}><template id='x-payload' type='text/cem-ml' {template}>{{p | Retained}}</template></cem-element>");
+        assert!(build_declaration_artifact(&source, "https://app.test/payload.xhtml", TemplateArtifactSourceMapMode::Prod, None).is_err());
+    }
+}
+
+#[test]
+fn retained_payload_contract_decodes_header_references_before_name_validation() {
+    let source = "<cem-element tag='x-payload' payload-item='Q{urn:payload?a=1&amp;b=2}entr&#233;e'><template id='x-payload' type='text/cem-ml'>{p | Retained}</template></cem-element>";
+    let built = build_declaration_artifact(source, "https://app.test/payload.xhtml", TemplateArtifactSourceMapMode::Prod, None).unwrap();
+    let metadata = admit_declaration_metadata(&built.metadata_json, &built.metadata_hash).unwrap();
+    let item = &metadata.payload_contract.unwrap().vocabularies[0].item;
+    assert_eq!(item.namespace.as_deref(), Some("urn:payload?a=1&b=2"));
+    assert_eq!(item.local_name, "entrée");
+}

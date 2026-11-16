@@ -1503,6 +1503,27 @@ fn xml_entity_decode_attribute_value(
     ))
 }
 
+/// Decode an already-tokenized XML attribute literal through the same native
+/// decoder used by attribute AST/source maps. The caller owns input bounds.
+/// This performs no DTD lookup, document reconstruction or repeated expansion.
+pub fn xml_decode_attribute_literal(lexical_value: &str) -> Option<String> {
+    if !lexical_value.contains('&') {
+        return Some(lexical_value.to_string());
+    }
+    xml_entity_decode_attribute_value(
+        lexical_value,
+        XmlSourceRange {
+            start: XmlSourcePosition {
+                line: 1,
+                column: 1,
+                byte_offset: 0,
+            },
+            byte_length: lexical_value.len() as u64,
+        },
+    )
+    .map(|(value, _)| value)
+}
+
 /// Decode one predefined or numeric XML reference (without `&` / `;`).
 /// No DTD, external lookup or user-defined expansion is performed.
 pub fn xml_decode_entity_reference(reference: &str) -> Option<char> {
@@ -1823,6 +1844,25 @@ fn line_col(source: &str, byte_offset: usize) -> (u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xml_attribute_literal_metadata_uses_one_shared_decode_pass() {
+        assert_eq!(
+            xml_decode_attribute_literal("A&amp;B&#x1f34b;"),
+            Some("A&B🍋".into())
+        );
+        assert_eq!(
+            xml_decode_attribute_literal("&amp;#65;"),
+            Some("&#65;".into())
+        );
+        assert_eq!(
+            xml_decode_attribute_literal("literal"),
+            Some("literal".into())
+        );
+        for value in ["&external;", "&#0;", "&#xD800;", "&unfinished"] {
+            assert_eq!(xml_decode_attribute_literal(value), None);
+        }
+    }
 
     fn validate(source: &str) -> Vec<Diagnostic> {
         validate_xml_source_bytes(XmlSourceValidationRequest {

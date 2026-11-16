@@ -27,6 +27,8 @@ pub struct DeclarationArtifactMetadata {
     pub declared_tag: String,
     pub version: Option<String>,
     pub capability: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_contract: Option<crate::retained_payload_contract::RetainedPayloadContract>,
     pub scope: Option<String>,
     pub link_base: String,
     pub source_uri: String,
@@ -106,6 +108,7 @@ pub fn admit_declaration_metadata(
             "unsupported declaration metadata or compiler contract",
         ));
     }
+    if let Some(contract) = &metadata.payload_contract { contract.validate()?; }
     Ok(metadata)
 }
 
@@ -127,6 +130,13 @@ pub(crate) fn valid_tag(tag: &str) -> bool {
             "missing-glyph",
         ]
         .contains(&tag)
+}
+
+fn decoded_payload_header<'a>(attributes: impl Iterator<Item = (&'a String, &'a String)>) -> Result<BTreeMap<String, String>, String> {
+    attributes.filter(|(name, _)| crate::retained_payload_contract::HEADERS.contains(&name.as_str()))
+        .map(|(name, value)| cem_ml::validation::xml::xml_decode_attribute_literal(value)
+            .map(|decoded| (name.clone(), decoded)).ok_or_else(|| fail("invalid payload header character reference")))
+        .collect()
 }
 
 /// Compile one named canonical declaration. Source parsing belongs to the build.
@@ -163,6 +173,7 @@ pub fn build_declaration_artifact(
                     "scope",
                     "link-base",
                     "xml:base",
+                    "payload-item", "payload-group", "payload-topology",
                 ]
                 .contains(&name.as_str())
                     || root.insert(name, value.unwrap_or_default()).is_some()
@@ -187,7 +198,7 @@ pub fn build_declaration_artifact(
         || fragment
             .attributes
             .keys()
-            .any(|key| !["id", "type", "capability", "xml:base"].contains(&key.as_str()))
+            .any(|key| !["id", "type", "capability", "xml:base", "payload-item", "payload-group", "payload-topology"].contains(&key.as_str()))
         || !source[fragment.end_byte..].trim().eq("</cem-element>")
     {
         return Err(fail("unsupported declaration/template shape"));
@@ -199,6 +210,9 @@ pub fn build_declaration_artifact(
         .cloned();
     // Match runtime declaration precedence when a host supplies a capability.
     let capability = root.get("capability").cloned().or(capability);
+    let payload_owner = decoded_payload_header(root.iter())?;
+    let payload_template = decoded_payload_header(fragment.attributes.iter())?;
+    let payload_contract = crate::retained_payload_contract::RetainedPayloadContract::resolve(&payload_owner, &payload_template)?;
     let mut base = url::Url::parse(source_uri).map_err(|error| fail(error.to_string()))?;
     for value in [root.get("xml:base"), fragment.attributes.get("xml:base")]
         .into_iter()
@@ -249,6 +263,7 @@ pub fn build_declaration_artifact(
         declared_tag,
         version: root.get("version").cloned(),
         capability,
+        payload_contract,
         scope,
         link_base: root
             .get("link-base")

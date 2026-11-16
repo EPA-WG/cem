@@ -708,6 +708,35 @@ for the current native work and the conditional diagnostic items on recurrence.
       - [x] Add a focused choice delivery gate using the existing property,
             gallery and bundle assertions; verify source and isolated package
             archives in Chromium and Firefox with inherited/forced-color themes.
+      - [x] Define versioned declaration-owned retained-payload item/group
+            vocabularies and flat/grouped/recursive topology, including expanded
+            names, bounds, conflicts, ownership and source/compiled compatibility.
+      - [x] Add native metadata admission and unit fixtures for valid vocabularies,
+            invalid/ambiguous names, normalized identity, XML header references
+            and preserved old headers;
+            reject contract overrides on pinned compiled registration. Include a
+            native-built grouped fixture and keep unsupported SSR profiles closed
+            with a header-refusal fixture.
+      - [x] Add worker/fallback source-loading fixtures proving the immutable
+            contract exists before constructed/first normalization, follows only
+            its declaration owner and changes registration identity; cover fake
+            instance attributes, namespace/prefix matching and retained nodes.
+        Retained-payload foundation verified 2026-11-16: the versioned
+        [declaration contract](cem-retained-payload-contract.md) normalizes bounded
+        expanded names and atomic item/group/topology headers. Frozen metadata
+        is available during construction and first model normalization, including
+        pre-existing hosts and selected local/remote source fragments. Equivalent
+        names share registration identity; changed contracts do not. Native
+        compiled metadata pins and validates the contract and rejects wrapper
+        overrides. Header character references use the shared XML attribute
+        decoder once. The 43 unit cases, 14 source/compiled browser stories and
+        12 focused native cases pass, including encoded names, owner isolation,
+        namespace matching, malformed metadata and SSR profile refusal. Runtime
+        build, typecheck, lint and package checks and the 59-component declarative
+        gate pass; lint warnings remain. No component behavior/style, token
+        ownership, timeout or worker budget changed. This metadata foundation
+        does not migrate the six readers or enable annotated SSR/hydration.
+
       - [ ] Replace component-tag payload readers in choice-options, time-input,
             native-list, tab-panels, workflow-panels and tree-view with explicit
             generic retained-payload contracts; preserve grammar diagnostics,

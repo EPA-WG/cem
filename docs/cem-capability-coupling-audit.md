@@ -107,9 +107,10 @@ The completed checklist is in [TODO](todo.md).
 
 Replace the six component-aware readers, rather than merely renaming their
 string literals: [choice-options](../packages/cem-elements/src/lib/choice-options.ts),
-time-input, native-list, tab-panels, workflow-panels and tree-view. Design an
-explicit retained-payload item/group contract available before the first model
-normalization. It must preserve native option/optgroup compatibility, strict
+time-input, native-list, tab-panels, workflow-panels and tree-view. The
+[versioned retained-payload item/group contract](cem-retained-payload-contract.md)
+is now available before the first model normalization in source and compiled
+declarations. Reader adoption remains open and must preserve native option/optgroup compatibility, strict
 authoring diagnostics, recursive topology, original source maps/owners and
 checkpoint behavior. Components should declare their vocabulary through that
 generic contract. A configurable selector must not grant a DOM node data or

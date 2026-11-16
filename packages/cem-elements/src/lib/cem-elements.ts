@@ -176,6 +176,7 @@ import { CEM_ACTION_COMMAND_CAPABILITY, cemActionCommandCheckpoint, prepareCemAc
 import { watchCemControlNames } from './control-name-diagnostics.js';
 import { connectCemNativeInvokerFocus } from './native-invoker-focus.js';
 import { preserveNativePopupAttribute } from './native-popup-binding.js';
+import { CEM_PAYLOAD_HEADER_NAMES, resolveRetainedPayloadContract, freezeRetainedPayloadContract, type CemRetainedPayloadContract } from './retained-payload-contract.js';
 import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
@@ -284,6 +285,7 @@ export interface DeclarationRegistrationIdentityInput {
     scopePolicyStamp?: string;
     /** Resolved named CSS scope; distinct from the logical processing scope. */
     sharedStyleScope?: string | null;
+    payloadContract?: CemRetainedPayloadContract | null;
 }
 
 export interface DeclarationRegistrationIdentityResult {
@@ -903,6 +905,8 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
 export type CemDeclarativeCapabilityName = keyof typeof CEM_DECLARATIVE_CAPABILITIES;
 
 export interface CemProducedElementBehaviorContext {
+    /** Immutable declaration vocabulary, available before construction/first model normalization. */
+    readonly payloadContract: CemRetainedPayloadContract | null;
     /** Accepted serialized state represents an existing instance, not a new initial request. */
     readonly resumed?: boolean;
     readonly runtime: CemElementRuntime;
@@ -941,6 +945,7 @@ interface SliceDeclaration {
 }
 
 interface CompiledDeclaration {
+    payloadContract: CemRetainedPayloadContract | null;
     pinnedDeclaration?: AdmittedCompiledDeclaration;
     linkBaseUrl: string | null;
     declarationElement: HTMLElement;
@@ -1328,6 +1333,7 @@ const DATA_ISLAND_CEM_ML_CONTENT_TYPE = 'text/cem-ml';
 const DATA_ISLAND_CEM_ML_SCHEMA = 'https://cem.dev/ns/cem-ml/1';
 const XSLT_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform';
 const ANONYMOUS_DECLARATION_ONLY_ATTRIBUTES = new Set([
+    ...CEM_PAYLOAD_HEADER_NAMES,
     'capability',
     'class',
     'hidden',
@@ -1707,6 +1713,7 @@ export function analyzeDeclarationRegistrationIdentity(
         templateLanguage: input.templateLanguage,
         behaviorIdentity: input.hasBehavior ? behaviorIdentity : null,
         ...(input.sharedStyleScope == null ? {} : { sharedStyleScope: input.sharedStyleScope }),
+        ...(input.payloadContract == null ? {} : { payloadContract: input.payloadContract }),
         ...(input.scopePolicyStamp && input.scopePolicyStamp !== DEFAULT_SCOPE_POLICY_STAMP
             ? { scopePolicyStamp: input.scopePolicyStamp } : {}),
     }).digest;
@@ -2181,6 +2188,9 @@ export class CemElementRuntime {
                     if (declarationElement.hasAttribute(name) && declarationElement.getAttribute(name)?.trim() !== expected)
                         throw new Error(`compiled declaration cannot override ${name}`);
                 }
+                if (CEM_PAYLOAD_HEADER_NAMES.some(name => declarationElement.hasAttribute(name))
+                    && JSON.stringify(resolveRetainedPayloadContract(payloadContractHeader(declarationElement))) !== JSON.stringify(metadata.payloadContract ?? null))
+                    throw new Error('compiled declaration cannot override payload contract');
             };
             current();
             const pin = metadata.template;
@@ -2469,7 +2479,17 @@ export class CemElementRuntime {
             ]);
             return Promise.resolve();
         }
+        let payloadContract: CemRetainedPayloadContract | null;
+        try {
+            payloadContract = pinnedDeclaration ? freezeRetainedPayloadContract(pinnedDeclaration.metadata.payloadContract)
+                : resolveRetainedPayloadContract(payloadContractHeader(declarationElement), payloadContractHeader(template));
+        } catch (error) {
+            this.recordDiagnostics(declarationElement, [declarationDiagnostic('cem-element.payload_contract_invalid',
+                error instanceof Error ? error.message : 'Invalid retained payload contract', tag)]);
+            return;
+        }
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
+            payloadContract,
             pinnedDeclaration,
             declarationTag: this.declarationTag,
             scopePolicyStamp: this.scopePolicyStamp,
@@ -3090,6 +3110,7 @@ export class CemElementRuntime {
 
     private behaviorContext(instance: HTMLElement): CemProducedElementBehaviorContext {
         return {
+            payloadContract: this.declarationForInstance(instance)?.payloadContract ?? null,
             runtime: this,
             resumed: this.hydrationSnapshots.has(instance),
             internals: this.elementInternals.get(instance) ?? null,
@@ -4216,7 +4237,7 @@ export class CemElementRuntime {
                         || declaration.declarationScope !== compiled.declarationScope
                         || this.initializedInstances.has(host) || directDataIslands(host).length !== 1
                         || host.firstElementChild !== memberIsland || declaration.mode !== 'cem-ml'
-                        || declaration.cemMlSource === null || declaration.behavior || declaration.pinnedDeclaration
+                        || declaration.cemMlSource === null || declaration.behavior || declaration.pinnedDeclaration || declaration.payloadContract
                         || declaration.linkBaseUrl
                         || (members.size > 1 && declaration.sourceRef?.kind !== 'inline')) {
                         throw new Error('cem.ssr.resume_profile_unsupported');
@@ -9264,6 +9285,7 @@ function compileInlineDeclaration(
         sourceText,
     });
     const registration = analyzeDeclarationRegistrationIdentity({
+        payloadContract: options.payloadContract,
         tag: producedTag,
         declarationVersion: options.declarationVersion,
         resolvedTemplateSource: registrationSource,
@@ -9288,6 +9310,7 @@ function compileInlineDeclaration(
         options,
     );
     return {
+        payloadContract: options.payloadContract,
         pinnedDeclaration: options.pinnedDeclaration,
         declarationElement,
         linkBaseUrl,
@@ -9410,6 +9433,7 @@ function extractDomDeclarationStylesheets(
 }
 
 interface InlineDeclarationCompileOptions {
+    payloadContract: CemRetainedPayloadContract | null;
     pinnedDeclaration?: AdmittedCompiledDeclaration;
     scopePolicyStamp: string;
     declarationTag: string;
@@ -10500,6 +10524,12 @@ function templateFromTarget(target: Element | null, document: Document, declarat
     if (sourceTemplate) {
         const template = document.importNode(sourceTemplate, true) as HTMLTemplateElement;
         const owner = sourceTemplate.parentElement;
+        if (owner?.localName === 'cem-element' || owner?.localName === declarationTag) {
+            const header = payloadContractHeader(owner);
+            resolveRetainedPayloadContract(header, payloadContractHeader(sourceTemplate));
+            if (!CEM_PAYLOAD_HEADER_NAMES.some(name => template.hasAttribute(name)))
+                for (const [name, value] of Object.entries(header)) template.setAttribute(name, value);
+        }
         if (!template.hasAttribute('capability')
             && (owner?.localName === 'cem-element' || owner?.localName === declarationTag)) {
             const capability = owner.getAttribute('capability');
@@ -10510,6 +10540,11 @@ function templateFromTarget(target: Element | null, document: Document, declarat
         return template;
     }
     return templateFromNodes([target], document);
+}
+
+function payloadContractHeader(element: Element): Record<string, string> {
+    return Object.fromEntries(CEM_PAYLOAD_HEADER_NAMES.filter(name => element.hasAttribute(name))
+        .map(name => [name, element.getAttribute(name) ?? '']));
 }
 
 function templateFromDocument(sourceDocument: Document, document: Document): HTMLTemplateElement | undefined {

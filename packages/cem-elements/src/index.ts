@@ -1,4 +1,6 @@
 export * from './lib/cem-elements.js';
+export { resolveRetainedPayloadContract, classifyRetainedPayloadElement,
+    type CemRetainedPayloadContract, type CemPayloadVocabulary, type CemPayloadName } from './lib/retained-payload-contract.js';
 export * from './lib/repository.js';
 export { openCemHttpResource, type CemHttpPostRequest } from './lib/http-resource-transport.js';
 export { bindCemGraphqlActions, readCemGraphqlQuery, type CemGraphqlActionOptions, type CemGraphqlActionRoute, type CemGraphqlGuard, type CemGraphqlQueryOptions, type CemGraphqlResponse } from './lib/graphql-actions.js';

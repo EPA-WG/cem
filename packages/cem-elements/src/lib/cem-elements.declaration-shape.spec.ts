@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { resolveRetainedPayloadContract } from './retained-payload-contract.js';
 
 import {
     CEM_DECLARATIVE_CAPABILITIES,
@@ -10,6 +11,15 @@ import {
 } from './cem-elements.js';
 
 describe('cem-element declarative capability contract', () => {
+    it('binds normalized retained payload vocabulary to registration identity', () => {
+        const base = { tag: 'x-contract', resolvedTemplateSource: '{p | Same body}', templateLanguage: 'cem-ml' as const, hasBehavior: false };
+        const identity = (header: Record<string, string>) => analyzeDeclarationRegistrationIdentity({ ...base,
+            payloadContract: resolveRetainedPayloadContract(header) }).registrationIdentity;
+        expect(identity({})).toBe(analyzeDeclarationRegistrationIdentity(base).registrationIdentity);
+        expect(identity({ 'payload-item': 'item' })).toBe(identity({ 'payload-item': 'Q{}item' }));
+        expect(identity({ 'payload-item': 'item' })).not.toBe(identity({ 'payload-item': 'different' }));
+        expect(identity({ 'payload-item': 'item' })).not.toBe(identity({ 'payload-item': 'item', 'payload-topology': 'recursive' }));
+    });
     it('owns reusable select behavior in cem-elements under a stable declaration identity', () => {
         expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['live-preview', 'progress-status', 'disclosure-panel', 'sort-action', 'pagination', 'native-list', 'navigation-landmark', 'tab-panels', 'workflow-panels', 'tree-view', 'plaintext-editor', 'time-input', 'range-input', 'calendar-input', 'editable-choice', 'checkable-control', 'suggestions', 'native-surface', 'form-control', 'popup', 'action-control', 'action-command', 'composite-menu', 'choice-select']);
         for (const name of ['live-preview', 'progress-status', 'disclosure-panel', 'sort-action', 'pagination', 'native-list', 'navigation-landmark', 'tab-panels', 'workflow-panels', 'tree-view'] as const) {

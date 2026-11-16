@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 execFileSync('cargo', ['build', '--locked', '--offline', '-p', 'cem-ql', '--example', 'compile_declaration_artifact'], { cwd: root, stdio: 'inherit' });
+for (const mode of ['worker', 'fallback']) execFileSync(`${root}dist/target/debug/examples/compile_declaration_artifact`, [
+    'packages/cem_ql/fixtures/retained-payload/contract.xhtml', `dist/artifacts/cem_ql/declarations/${mode}-payload`,
+    'https://app.test/retained-payload/contract.xhtml', 'prod', `cem-aot-payload-${mode}`,
+], { cwd: root, stdio: 'inherit' });
+if (process.argv.includes('--payload-only')) process.exit(0);
 for (const mode of ['worker', 'fallback']) {
     for (const [name, tag] of [['field', 'cem-text-field'], ['action', 'cem-action'], ['card', 'cem-card'], ['conflict', 'cem-text-field']]) {
         execFileSync(`${root}dist/target/debug/examples/compile_declaration_artifact`, [
