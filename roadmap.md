@@ -475,6 +475,52 @@ through the shared native tooling service and Language Server Protocol (LSP).
       malformed-input repair and disconnected operation. Publish installation and
       compatibility requirements and keep unsupported features explicit.
 
+### Chrome DevTools: linked CEM projections, source inspection and transformation stacks
+
+Goal: ship a Chrome DevTools extension for inspecting a `cem-element`'s
+transformed virtual DOM alongside the browser DOM. Back the virtual DOM view
+with the canonical retained CEM/render-plan projection and its committed native
+identities; reuse the existing source-map tooling service.
+
+- [ ] Add a CEM projection tree/panel with **View in browser DOM** on its context
+      menu. Add **View in CEM virtual DOM** from the browser Elements/DOM context
+      menu. Reveal and synchronize the corresponding nodes/ranges in both views,
+      including empty output, one-to-many projections, retained slots, nested
+      instances, frames and top-layer popup content. Validate the supported Chrome
+      extension hooks for context menus, selection and reveal; provide equivalent
+      panel actions where the host cannot expose a native menu hook.
+- [ ] Add **Inspect CEM data source** to both virtual and browser DOM context
+      menus. Jump to the original contributing source and exact byte/line/column
+      range, including transformation/template source, external files, positions
+      in HTTP request or response bodies, and the specific data-island event
+      entry when one contributed to the result. Retain request/source identity,
+      content type, original bytes/encoding, event sequence and revision so a
+      jump cannot silently land in a changed body or a different event.
+- [ ] Add **CEM transformation stacks** to both context menus. Navigate every
+      producing level through imports/conversions, queries, transformation rules
+      and final render projection. Show each frame's rule/template identity,
+      original source range, input/output context and generation/revision. Expose
+      contributing branches for merged values and fan-out rather than presenting
+      ambiguous provenance as one linear origin. Allow source/reveal navigation
+      at each level; distinguish this provenance view from the execution debugger.
+- [ ] Extend the shared versioned inspection protocol with retained logical-node,
+      browser-range, source and transformation-frame references. Resolve references
+      against their original native owners and committed generation; keep the
+      existing read-only, capability-limited development bridge and retention
+      policy. Report missing, retired or unavailable source bytes explicitly
+      instead of reconstructing provenance from rendered text or DOM IDs.
+- [ ] Integrate the same navigation in **IntelliJ IDEA** and **VS Code** through
+      their existing plugin/extension, LSP/DAP and source-view services: native
+      editor context actions, a CEM projection/stack tool window or webview,
+      bidirectional browser reveal, and read-only virtual documents for HTTP
+      bodies and data-island event entries. Share source identities, stack models
+      and byte-to-editor-position mappings; keep host adapters thin.
+- [ ] Verify shared fixtures across Chrome and both IDEs: chained rules, multiple
+      contributing inputs, namespaces, Unicode and CRLF/entity-decoded positions,
+      asynchronous HTTP input, data-island events, retained nodes, generation
+      recovery and stale/unavailable source frames. Inspection must preserve the
+      running page, focus/selection and original source/data ownership.
+
 ## Phase 2.8 - Native XSLT 3.x And 4.x Standards Engine
 
 Goal: implement standards-track XSLT as a first-class CEM transformation engine. XSLT 3.x establishes the stable
