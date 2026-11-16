@@ -32,6 +32,7 @@ const fieldsetOnly = process.argv.includes('--fieldset-only');
 const canonicalSourcesOnly = process.argv.includes('--canonical-sources-only');
 const navigationContentOnly = process.argv.includes('--navigation-content-only');
 const menusOnly = process.argv.includes('--menus-only');
+const choicesOnly = process.argv.includes('--choices-only');
 const passiveOnly = process.argv.includes('--passive-only');
 const passiveComponent = process.argv.find(value => value.startsWith('--passive-component='))?.slice('--passive-component='.length);
 const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar', 'cem-media-preview', 'cem-tree-item', 'cem-app-bar', 'cem-tab', 'cem-step'].filter(tag => !passiveComponent || tag === passiveComponent);
@@ -66,7 +67,7 @@ try {
     if (!['chromium', 'firefox', 'webkit'].includes(nativeBrowser)) throw new Error('Unknown native browser');
     if (iconsOnly && (navigationOnly || actionOnly || suggestionsOnly)) throw new Error('Choose one focused verification mode');
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
-    if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' && !nativeInvokersOnly && !menusOnly || evidenceOutput)) throw new Error('Browser selection requires --native-invokers-only, --menus-only or a native evidence mode; headed/output flags require a native evidence mode');
+    if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' && !nativeInvokersOnly && !menusOnly && !choicesOnly || evidenceOutput)) throw new Error('Browser selection requires --native-invokers-only, --menus-only, --choices-only or a native evidence mode; headed/output flags require a native evidence mode');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
     if (nativeInvokersOnly || actionOnly || menusOnly) await verifyNativeInvokerBaseline();
     let sourceViewerPages;
@@ -82,6 +83,7 @@ try {
     else if (!installedOnly && disclosureDataOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && layoutOnly) await verifyLayout(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && navigationContentOnly) await verifyNavigationContent(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && choicesOnly) await verifyChoices(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && menusOnly) await verifyMenus(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && timeRangeOnly) await verifyTimeRange(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && datepickerOnly) await verifyDatepicker(`${origin}/packages/cem-components/playgrounds/`);
@@ -143,6 +145,7 @@ try {
     else if (disclosureDataOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (layoutOnly) await verifyLayout(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (navigationContentOnly) await verifyNavigationContent(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (choicesOnly) await verifyChoices(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (menusOnly) await verifyMenus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (timeRangeOnly) await verifyTimeRange(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (datepickerOnly) await verifyDatepicker(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -200,6 +203,7 @@ try {
     else if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
     else if (layoutOnly) console.log(`Passive layout, content state, property controls, galleries and bundle verified from ${verifiedLocations}.`);
     else if (navigationContentOnly) console.log(`Navigation and content properties, galleries and bundle verified from ${verifiedLocations}.`);
+    else if (choicesOnly) console.log(`Choice properties, native keyboard/forms, themes, galleries and bundle verified in ${nativeBrowser} ${browser.version()} from ${verifiedLocations}.`);
     else if (menusOnly) console.log(`Native popup/menu invocation, focus, six themes, roles, properties, galleries and bundle verified in ${nativeBrowser} ${browser.version()} from ${verifiedLocations}.`);
     else if (timeRangeOnly) console.log(`Timepicker and slider properties, native forms, galleries and bundle verified from ${verifiedLocations}.`);
     else if (datepickerOnly) console.log(`Datepicker property controls, native forms, calendar, galleries and bundle verified from ${verifiedLocations}.`);
@@ -411,6 +415,12 @@ async function verifyActionGallery(page) {
     }), 'Native activation and theme projection must retain the unrelated demo owners');
 }
 
+async function verifyChoices(baseUrl) {
+    await verifySelect(new URL('cem-select.html', baseUrl).href);
+    await verifyGalleries(baseUrl, ['cem-select']);
+    await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
 async function verifySelect(url) {
     const page = await browser.newPage();
     const errors = [];
@@ -469,7 +479,21 @@ async function verifySelect(url) {
         await choose('Disabled', 'False');
         await page.waitForFunction(() => document.querySelector('#select-preview button')?.disabled === false);
         await choose('Visible rows', '4');
-        await host.getByRole('listbox', { name: 'Assignee' }).waitFor();
+        const listbox = host.getByRole('listbox', { name: 'Assignee' });
+        await listbox.waitFor();
+        await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        assert.equal(await listbox.evaluate(node => node.style.blockSize), '');
+        assert.equal(await listbox.evaluate(node => node.style.getPropertyValue('--_cem-choice-visible-rows')), '4');
+        const height = await listbox.evaluate(node => getComputedStyle(node).blockSize);
+        await page.emulateMedia({ forcedColors: 'active' });
+        // Enter through actual Tab navigation; modifier-only keys do not
+        // establish keyboard focus visibility consistently across engines.
+        await listbox.press('Shift+Tab'); await page.keyboard.press('Tab');
+        assert.deepEqual(await listbox.evaluate(node => ({ height: getComputedStyle(node).blockSize,
+            focus: node === document.activeElement && node.matches(':focus-visible'),
+            outline: getComputedStyle(node).outlineStyle, width: parseFloat(getComputedStyle(node).outlineWidth) > 0,
+        })), { height, focus: true, outline: 'solid', width: true });
+        await page.emulateMedia({ forcedColors: 'none' });
         await choose('Multiple', 'True');
         await waitAttribute('aria-multiselectable', 'true');
         await host.getByRole('option', { name: 'Grace Hopper' }).click();

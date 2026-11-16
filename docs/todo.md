@@ -692,6 +692,46 @@ for the current native work and the conditional diagnostic items on recurrence.
           coupling. Remove any such dependency by expressing the component
           declaratively over generic native APIs. Generic interaction-pattern
           capabilities are allowed; their names alone do not establish a violation.
+      - [x] Record a [source-linked audit](cem-capability-coupling-audit.md) of all
+            24 capability contracts and shared payload readers, separating
+            native/part contracts from actual
+            component-tag, private-class and theme-paint coupling.
+      - [x] Replace choice-select private class and radio-tag lookup with owned
+            `part` contracts and native radio inputs; leave row-height tokens in
+            declaration CSS and expose only a generic visible-row count.
+      - [x] Add independent choice fixtures with renamed host/radio tags and
+            classes in worker and fallback modes; verify pointer/keyboard
+            selection, FACE/reset, validation, listbox row geometry, mode-change
+            focus return, newer outside-focus destinations and teardown. Migrate
+            wrapper-validation fixtures and source-loaded form demo from the
+            private class to the public control part, retaining demo parity.
+      - [x] Add a focused choice delivery gate using the existing property,
+            gallery and bundle assertions; verify source and isolated package
+            archives in Chromium and Firefox with inherited/forced-color themes.
+      - [ ] Replace component-tag payload readers in choice-options, time-input,
+            native-list, tab-panels, workflow-panels and tree-view with explicit
+            generic retained-payload contracts; preserve grammar diagnostics,
+            original source identity, native options, hierarchy and recovery.
+
+        Audit checkpoint 2026-11-16: all 24 capability boundaries are reviewed in
+        the [audit report](cem-capability-coupling-audit.md). Seventeen use generic
+        native/part contracts; seven still depend on component payload tags in
+        six readers. Choice-control DOM lookup now uses owned parts/native radio
+        inputs, and declaration CSS owns row-height tokens. Deferred radio focus
+        awaits actual owned item renders and is fenced by the original connection,
+        control and focus destination. The capability identity is now v3. The
+        form demo and custom validation fixtures use the generic control part.
+        All 27 focused browser stories (including the five-sample form demo),
+        27 identity/form-source unit tests and four choice/form recovery stories
+        pass. Runtime build/typecheck/lint/package and component declarative,
+        state/style/catalog/playground/bundle/package checks pass; warnings remain.
+        The focused delivery gate passes source, isolated package archives and
+        bundle checks in Chromium 148.0.7778.96 and Firefox 150.0.2. Inherited
+        themes, forced-color row geometry and actual Tab focus entry pass.
+        No component JS, token defaults, timeout or worker-budget changes were
+        introduced. Payload migrations remain open; this is not whole-stack
+        coupling closure or a resolution of the earlier full-suite stalls.
+
     - [x] Keep semantic menu navigation/typeahead separate from popup visibility
           and generic focus return. When required behavior lacks a known generic
           declarative expression, stop and ask the owner for research instead of

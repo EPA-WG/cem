@@ -896,7 +896,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,
-        behaviorIdentity: 'cem-elements-choice-select-v2',
+        behaviorIdentity: 'cem-elements-choice-select-v3',
     },
 } as const satisfies Readonly<Record<string, Required<CemDeclarationRegistrationOptions>>>);
 

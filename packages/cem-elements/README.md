@@ -745,6 +745,19 @@ inherit the source's `calendar-input` capability. The [datepicker contract](../c
 and [shared worker/fallback plays](src/lib/calendar-input.stories.ts) specify the
 owner, keyboard, focus, event and lifecycle boundaries.
 
+Declarations using `capability="choice-select"` expose one owned
+`part="control"`, directly on the host or directly inside `part="root"`.
+Private classes and wrapper tag names do not select controls. Adaptive radio
+presentation uses native `input[type="radio"]` descendants of that control and
+`data-option-index` item owners. Deferred focus follows those original item
+renders, releases on disconnection and preserves newer outside focus.
+A control with `part="control listbox"` receives only the dimensionless private
+`--_cem-choice-visible-rows` count; declaration CSS owns the row-height token and
+computes its block size. The capability does not set a pixel/token-based height.
+The payload reader's remaining component-tag coupling is tracked in the
+[capability audit](../../docs/cem-capability-coupling-audit.md); the native `option`
+and `optgroup` authoring path remains available.
+
 Declarations may opt into `capability="editable-choice"` for a single editable
 combobox whose submitted option identity differs from its visible label. The
 host owns form association; its unnamed `input[part~=control][role=combobox]`
@@ -1065,7 +1078,7 @@ count Unicode codepoints. In this validity dialect, false, null/missing, empty
 strings, zero and the string `"false"` select the fallback; ordinary CEM-QL
 queries use null/empty-sequence coalescing and retain false and zero.
 
-Choice declarations provide a focusable `.cem-select__control` or a wrapper
+Choice declarations provide a focusable `[part~="control"]` or a wrapper
 with focusable children. The shared choice capability uses that control, or
 its first usable HTML descendant, as the native
 [validation anchor](https://html.spec.whatwg.org/multipage/custom-elements.html#dom-elementinternals-setvalidity).

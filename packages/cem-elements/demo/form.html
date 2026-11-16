@@ -313,7 +313,7 @@
 {attribute @name=label | Fruit}
 {slice @name=groups}
 {slice @name=value}
-{fieldset @class=cem-select__control |
+{fieldset @part=control |
     {legend | {$datadom.attributes.label}}
     {cem:for-each @select="datadom.slices.groups" @as=group |
         {cem:for-each @select="$group.options" @as=option |

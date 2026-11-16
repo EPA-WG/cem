@@ -29,7 +29,7 @@ describe('cem-element declarative capability contract', () => {
         expect(CEM_DECLARATIVE_CAPABILITIES['native-surface'].behaviorIdentity).toBe('cem-elements-native-surface-v6');
         expect(CEM_DECLARATIVE_CAPABILITIES['form-control'].behaviorIdentity).toBe('cem-elements-form-control-v4');
         expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behaviorIdentity).toBe(
-            'cem-elements-choice-select-v2',
+            'cem-elements-choice-select-v3',
         );
         expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behavior.formAssociated).toBe(true);
     });

@@ -152,6 +152,10 @@
             padding-block: var(--cem-stroke-standard);
           }
 
+          [part~='control']:where([part~='listbox']) {
+            block-size: calc(var(--cem-list-row-height) * var(--_cem-choice-visible-rows));
+          }
+
           [part~='option'],
           [part~='group-label'] {
             align-items: center;

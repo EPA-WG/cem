@@ -41,7 +41,7 @@ export const WrapperValidationFocus: Story = {
     play: async ({ canvasElement }) => {
         const { runtime, form, choice, submit } = await mount(canvasElement, 'wrapper', `
 {slice @name=blockFirst | false}
-{fieldset @class=cem-select__control |
+{fieldset @part=control |
     {legend | Fruit}
     {button @type=button @disabled=true | Disabled}
     {button @type=button @hidden=true | Hidden}
@@ -98,9 +98,9 @@ export const ReplacedValidationAnchor: Story = {
         const { runtime, choice, submit } = await mount(canvasElement, 'replacement', `
 {cem:choose |
     {cem:when @test='datadom.slices.mode == "dropdown"' |
-        {button @type=button @class=cem-select__control | Choose fruit}}
+        {button @type=button @part=control | Choose fruit}}
     {cem:otherwise |
-        {div @class=cem-select__control @tabindex=-1 | Choose fruit}}
+        {div @part=control @tabindex=-1 | Choose fruit}}
 }`);
         const first = choice.querySelector('button');
         expect(first).not.toBeNull();

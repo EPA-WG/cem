@@ -56,6 +56,7 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
             '<cem-element tag="cem-form-fruit-choice">',
             '<template capability="choice-select" type="text/cem-ml">',
             'button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }',
+            '{fieldset @part=control |',
             '@data-option-index="{$option.index}"',
             '@aria-label="{$option.label}" @title="{$option.label}"',
             '{$if option.value { option.value } else { option.label }}',

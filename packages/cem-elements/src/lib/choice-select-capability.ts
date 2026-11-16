@@ -52,6 +52,7 @@ interface SelectState {
     listboxId: string;
     labelId: string;
     connected: boolean;
+    connection?: object;
     warnedPayloadSignature: string;
     onClick?: EventListener;
     onMouseDown?: EventListener;
@@ -89,7 +90,7 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         const state = stateFor(instance);
         state.context = context;
         if (state.connected) return;
-        state.connected = true;
+        state.connected = true; state.connection = {};
 
         state.onClick = (event) => handleClick(instance, state, event);
         state.onMouseDown = (event) => {
@@ -154,23 +155,30 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         // The first render and conditional control replacement need a live
         // anchor from the committed DOM, not the preceding render's control.
         synchronizeForm(instance, state);
-        const listbox = instance.querySelector<HTMLElement>('.cem-select__listbox');
-        if (listbox) {
-            listbox.style.blockSize = `calc(var(--cem-list-row-height) * ${reflectedSize(instance)})`;
+        const listbox = controlFor(instance);
+        if (listbox?.matches('[part~="listbox"]')) {
+            // Semantic row count only; declaration CSS owns dimensions and tokens.
+            const rows = String(reflectedSize(instance));
+            if (listbox.style.getPropertyValue('--_cem-choice-visible-rows') !== rows)
+                listbox.style.setProperty('--_cem-choice-visible-rows', rows);
         }
         if (state.refocus) {
             state.refocus = false;
             const focus = () => state.radio
-                ? instance.querySelector<HTMLElement>('cem-radio[checked] input:not(:disabled)')
-                    ?? instance.querySelector<HTMLElement>('cem-radio input:not(:disabled)')
+                ? controlFor(instance)?.querySelector<HTMLElement>('input[type="radio"]:checked:not(:disabled)')
+                    ?? controlFor(instance)?.querySelector<HTMLElement>('input[type="radio"]:not(:disabled)')
                 : controlFor(instance);
             const control = focus();
             if (control) control.focus({ preventScroll: true });
             else if (state.radio) {
-                const active = instance.ownerDocument.activeElement;
-                instance.ownerDocument.defaultView?.requestAnimationFrame(() => {
-                    if (state.connected && instance.ownerDocument.activeElement === active) focus()?.focus({ preventScroll: true });
-                });
+                const active = instance.ownerDocument.activeElement, owner = controlFor(instance), context = state.context, connection = state.connection;
+                // A declarative radio wrapper may still be rendering its native
+                // input. Follow its owned item renders, not a guessed frame count.
+                const items = [...(owner?.querySelectorAll<HTMLElement>('[data-option-index]') ?? [])];
+                void Promise.all(items.map(item => context?.runtime.whenRenderSettled(item))).then(() => {
+                    if (state.connected && state.radio && state.connection === connection && controlFor(instance) === owner
+                        && instance.ownerDocument.activeElement === active) focus()?.focus({ preventScroll: true });
+                }, () => undefined);
             }
         }
         if (state.expanded || state.mode !== 'dropdown') {
@@ -192,7 +200,7 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
     disconnected(instance) {
         const state = stateFor(instance);
         if (!state.connected) return;
-        state.connected = false;
+        state.connected = false; state.connection = undefined;
         if (state.onClick) instance.removeEventListener('click', state.onClick);
         if (state.onMouseDown) instance.removeEventListener('mousedown', state.onMouseDown);
         if (state.onKeyDown) instance.removeEventListener('keydown', state.onKeyDown);
@@ -409,7 +417,7 @@ function handleClick(instance: HTMLElement, state: SelectState, event: Event): v
         }
         return;
     }
-    if (target?.closest('.cem-select__control') && state.mode === 'dropdown') {
+    if (target && controlFor(instance)?.contains(target) && state.mode === 'dropdown') {
         if (state.expanded) commitPreview(instance, state, true);
         else openDropdown(instance, state);
     }
@@ -652,7 +660,7 @@ function isDisabled(instance: HTMLElement, state: SelectState): boolean {
 }
 
 function controlFor(instance: HTMLElement): HTMLElement | null {
-    return instance.querySelector<HTMLElement>('.cem-select__control');
+    return instance.querySelector<HTMLElement>(':scope > [part~="control"], :scope > [part~="root"] > [part~="control"]');
 }
 
 function validationAnchorFor(instance: HTMLElement): HTMLElement | undefined {
