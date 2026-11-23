@@ -1,0 +1,22 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns svg = "http://www.w3.org/2000/svg"
+@default transform
+{module |
+    {template @name=main |
+        {body |
+            @default html
+            {label |
+                {svg:svg @aria-hidden=true @viewBox="0 0 16 16" |
+                    @default svg
+                    {path @d="M2 8h12"}
+                }
+                Name:
+                {input @name=name}
+    }   }   }
+    {template @name=footer |
+        {body |
+            @default html
+            {p | Default namespaces are scoped.}
+}   }   }
