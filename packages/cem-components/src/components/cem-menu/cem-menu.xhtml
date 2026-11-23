@@ -1,3 +1,39 @@
+<!--
+Difference b/w tabs and menu.
+* tabs switch the content in target area
+* menu triggers popover with sub-menu or dialogs.
+
+# Similarity
+Items allows to use arrow keys navigation and serve a single tabstop for items in menubar.
+The <input type=radio> is the only mechanism for declarative native arrow navigation.
+
+To support the popover <button popovertarget=dialog-id> has to be presented as only declarative popover mechanism.
+Click/ENTER/SPACE on the radio should trigger the popover for a button. In order to have the focus back when popup closed,
+the button should have the focus before the popup opened. i.e. sequence is
+* click/enter/space on radio
+* button.focus()
+* button.click()
+* the popup appeared
+* eventually popup closed by ESC
+* button receives focus
+* giving focus back to associated radio - radio.focus().
+
+The button receives focus only for 1st level of menu, the deep enclosed sub-menus do not get the focus back, even the ESC
+sequence is properly handles encapsulation stack.
+
+Q1. How to make sure the popup closure will lead to focus associated radio ( perhaps via button )?
+Q2. What is declarative markup good enough for popup appearance and catching the focus back disregarding of enclosure depth?
+* ? @popovertarget to trigger the sibling <button> render AND Click/ENTER/SPACE handler
+Q3. What is styling and can/should it be done inline
+Q4. Should popovertarget be handled by cem-element as generic pattern?
+
+Q5. why on ESC closing dialog id="page-options"  the host dialog id="export-options"  resets radio selection to 1st?
+    Instead of keeping the last selected
+
+Q6. Is there event for popover source when popup is closed?
+
+
+-->
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-menu" capability="composite-menu">
   <template id="cem-menu" type="text/cem-ml">
     {cem-element @tag=cem-menu-item @capability=action-control @src="../cem-menu-item/cem-menu-item.xhtml#cem-menu-item"}

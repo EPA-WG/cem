@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Radio menu prototype</title>
+    <style>
+    </style>
+</head>
+<body>
+This is proof of concept for cem-menu component implementation.
+<div method="dialog" >
+
+    <label ><input type="radio" name="Q"/> A</label>
+    <label ><input type="radio" name="Q"/> Open Dialog
+        <button command="show-popover" commandfor="my-dialog1" type="button">Open Dialog</button>
+    </label>
+    <dialog id="my-dialog1"  popover style="position-area: bottom;" >
+        <menu>
+
+            <label ><input type="radio" name="W"/> A</label>
+            <label ><input type="radio" name="W"/> submenu2
+                <button command="show-popover" commandfor="my-dialog2" type="button">Open Dialog2</button>
+            </label>
+            <dialog id="my-dialog2"  popover style="position-area: bottom;" >
+                <menu>
+
+                    <p>Dialog is open!</p>
+                    <button command="hide-popover" commandfor="my-dialog2" type="button">Close</button>
+                </menu>
+            </dialog>
+            <label ><input type="radio" name="W"/> C </label>
+            <button command="hide-popover" commandfor="my-dialog1" type="button">Close</button>
+        </menu>
+    </dialog>
+    <label ><input type="radio" name="Q"/> C </label>
+</div>
+
+<script>
+    [...document.querySelectorAll('label')].map( l=>
+    {   l.addEventListener('keydown', event=>
+        {
+            if (event.key !== 'Enter' && event.key !== ' ' ) return;
+            event.preventDefault(); // when "Enter" is pressed to stop the browser from looking for a parent form to submit.
+            const b = l.querySelector('button');
+            b.focus();
+            b.click();
+        })
+    });
+
+    [...document.querySelectorAll('dialog')].map( d=>d.addEventListener('toggle', (event) => {
+        if (event.newState === 'closed') {
+            event.preventDefault();
+            d.toggleSource?.parentElement.focus();
+        }else{
+            d.toggleSource = event.source;
+            // debugger
+        }
+    }));
+</script>
+</body>
+</html>
