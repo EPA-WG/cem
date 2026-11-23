@@ -41,6 +41,103 @@ physical-device/spoken AT acceptance.
 Amsterdam presentation delivery is accepted and archived. Use the SSR follow-ups
 for the current native work and the conditional diagnostic items on recurrence.
 
+## Native HTML menu experiment
+
+- [x] Add and verify `css-menu.html`: three radio-group levels, adjacent nested auto-popover dialogs, and focus-routed hidden submit invocation on Enter.
+      Verified in Chromium and Firefox: both submenu branches, native arrow wrap
+      within each group, leaf Enter, nested Escape/focus return, outside dismissal,
+      and forced-color rendering without script errors. System colors inherit
+      browser light/dark and forced-color settings; no public theme tokens added.
+      Submit buttons do not invoke popovertarget natively: the submit handler calls
+      showPopover with the focused radio as source to preserve parent popovers.
+      Anchor positioning has a viewport-clamped script fallback. Requires native
+      Popover support; this source-only radio experiment is not a full ARIA menu.
+      Declarative gate remains blocked by pre-existing css-only-menu.html script
+      and cem-menu-experiment.js inventory changes; the new page has a separately
+      hash-pinned script exception.
+
+- [x] Add the owner's requested experimental label-click bridge on the HTML
+      page: labels immediately before popover buttons forward activation with
+      `button.click()`, preserving native radio selection and avoiding the
+      label's forwarded control click causing a duplicate toggle. Test pointer,
+      tap, programmatic label activation, keyboard behavior and disabled targets
+      in Chromium/Firefox, retain a JS-disabled baseline, and constrain the
+      existing source-only exception to this one approved script; verify that
+      altered/extra scripts and inline handlers remain rejected.
+  - [x] Restore Escape focus to the actual native popover source button after
+        label-driven or direct invocation. Keep native one-level dismissal,
+        preserve newer outside focus, and refuse removed/disabled/rebound sources;
+        verify nested and root Escape in Chromium/Firefox, with the JS-disabled
+        baseline and modal comparison retained.
+
+    Verified 2026-11-17 in Chromium 148 and Firefox 150, with mouse and touch:
+    matching label/control clicks invoke the adjacent button exactly once after
+    native radio selection, including repeated and programmatic label activation.
+    Native arrow selection and unchecked-radio Space activation also emit control
+    clicks and open Page setup; no activation-key interception was added.
+    Escape returns to the actual native source button, preserves the parent popup,
+    and then returns to its parent opener on the next Escape. Native visibility
+    remains browser-owned. Cancelled Escape and newer outside focus are respected;
+    disabled, removed, hidden and rebound source buttons receive no restoration.
+    HTTP/file opening, JS-disabled direct-button behavior and the native modal
+    comparison pass without script errors or runtime imports. The source-only
+    exception and CSP pin exactly this label/Escape script; the declarative gate
+    passes and rejects altered/extra scripts and inline handlers. Production
+    declarations and generic runtime modules are unchanged. Internal close and
+    complete ARIA menu navigation remain outside this experiment's added behavior.
+
+- [x] Add `css-only-menu.html` beside `cem-menu` as an isolated HTML/CSS
+      prototype: label-wrapped radios for top-level arrow selection, permitted
+      `menuitemradio` semantics, rich label content, nested auto-popovers wrapped
+      in dialogs, and a separate native modal comparison. Keep production menu
+      behavior unchanged; the initial baseline loads no browser JavaScript.
+  - [x] Verify with JavaScript disabled in Chromium and Firefox: radio focus and
+        checked-state accessibility, real invoker activation, nested/sibling and
+        outside dismissal, one-level Escape, actual focus return, modal inertness,
+        narrow layout, inherited theme and forced colors. Record unsupported
+        menu semantics/focus behavior rather than implementing a JS workaround.
+  - [x] Suppress sibling radio selection decoration while a submenu invoker has
+        focus or its popup is open, retaining the true checked value and visible
+        keyboard focus. Add a radio beside Page setup in the shared entry group
+        and try its `popovertarget="page-options"` attribute without JS.
+    - [x] Verify keyboard/pointer radio selection versus actual popup invocation,
+          decoration restoration, checked-state accessibility, inherited themes,
+          forced colors and narrow layout in Chromium and Firefox with JS disabled.
+      Verified 2026-11-16: sibling SVG checked decoration yields to the focused
+      Page setup invoker and stays suppressed while its child popup has focus;
+      the original checked/accessibility state is unchanged. Decoration returns
+      when the submenu closes and SVG regains focus. Light/dark and forced-color
+      checks preserve genuine invoker/radio focus outlines; forced colors use a
+      Canvas-colored border because a transparent border can become visible.
+      The adjacent Page setup radio shares the explicit entry-selection group,
+      keeps its checked state through popup dismissal, and is cleared by selecting
+      SVG again. Its requested experimental `popovertarget` is ignored for arrow,
+      click, Space and Enter activation in Chromium 148 and Firefox 150; only the
+      real button invokes the popover and does not automatically check the radio.
+      Both JS-disabled browser passes, accessibility snapshots, narrow/inherited
+      theme checks and the declarative gate pass. No browser script was added;
+      nested focus-return limitations are unchanged.
+  - [x] Verify that the single source-only HTML companion allowance still rejects
+        embedded scripts and other unapproved component-folder companions.
+
+    Verified 2026-11-16 in Chromium 148.0.7778.96 and Firefox 150.0.2 with
+    JavaScript disabled and no script requests/errors: native arrow selection,
+    label names and checked `menuitemradio` accessibility state, keyboard
+    invocation, nested/sibling/outside dismissal and one-level Escape work.
+    Nested Escape leaves focus on the body in both engines; internal hide can
+    leave focus on a hidden button or the body. Root-only Escape restores its
+    invoker, but cannot repair focus already lost by nested dismissal. Real
+    modal invocation blocks outside focus and restores its opener on Escape and
+    form close; that modality is unsuitable for nonmodal menus. Shared tokens
+    respond to light/dark mode and inherited overrides; forced-color keyboard
+    outlines and 375px layouts pass. The declarative gate passes and still
+    rejects embedded scripts and unapproved companion files. The prototype is
+    source-only, excluded from package exports/files; production declarations,
+    behavior, theme definitions and worker/time budgets are unchanged. Radio
+    selection cannot invoke a popover; the separate buttons and incomplete menu
+    keyboard model are documented. This is evidence for review, not acceptance
+    of zero-JS nested focus return or physical screen-reader behavior.
+
 ## Studio project build command
 
 - [x] Add a **Copy CLI** button on Studio's project page beside **Cancel build**.

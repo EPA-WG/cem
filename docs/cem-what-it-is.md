@@ -20,6 +20,10 @@ CEM is:
   constraints, references, diagnostics and behavior contracts. Schemas are
   documents that the same toolchain can inspect, validate and transform.
 
+- **HTML parser** based on HTML schema grammar restores partial HTML into DOM tree.
+
+- **Custom HTML validator** extends HTML with custom constrains validation. As domain refs, special ADA rules, image sizes.
+
 - **A structured markup and data syntax.** CEM-ML combines namespaced nodes,
   attributes and mixed content with typed values, references, expressions and
   content-type scopes. It encompasses XML/HTML-style structures and vocabularies

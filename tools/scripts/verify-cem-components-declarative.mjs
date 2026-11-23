@@ -7,6 +7,7 @@ import {
     statSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -210,10 +211,31 @@ if (!existsSync(componentRoot)) {
                 `${slash(relative(repoRoot, folder))} has forbidden standalone CSS: ${standaloneStyles.join(', ')}; embed component styles in the CEM-ML declaration`,
             );
         }
+        // Owner-requested, source-only research page; not a component/export.
+        // Only its approved label-click/Escape-focus script is exempt from the script ban.
+        const researchPrototype = tag === 'cem-menu' ? 'css-only-menu.html' : null;
+        if (researchPrototype && existsSync(join(folder, researchPrototype))) {
+            let prototypeSource = readText(join(folder, researchPrototype));
+            const bridge = prototypeSource.match(/<script>([\s\S]*?)<\/script>/i);
+            if (bridge && createHash('sha256').update(bridge[1]).digest('base64') === 'Ck1F9rABBIN9CWcyxKMpvhVNnxR6DR4HXDYaWGGRPu8=') {
+                prototypeSource = prototypeSource.replace(bridge[0], '');
+            }
+            rejectImperativeMarkup(slash(relative(repoRoot, join(folder, researchPrototype))), prototypeSource);
+        }
+        // Owner-requested alternative radio/hidden-submit research prototype.
+        const radioPrototype = tag === 'cem-menu' ? 'css-menu.html' : null;
+        if (radioPrototype && existsSync(join(folder, radioPrototype))) {
+            let source = readText(join(folder, radioPrototype));
+            const script = source.match(/<script>([\s\S]*?)<\/script>/i);
+            if (script && createHash('sha256').update(script[1]).digest('base64') === 'UwmMmADLXsdye4qIQJz48pt0gYYtXWmC/7RC66FqlJk=') {
+                source = source.replace(script[0], '');
+            }
+            rejectImperativeMarkup(slash(relative(repoRoot, join(folder, radioPrototype))), source);
+        }
         const unexpectedFiles = readdirSync(folder, { withFileTypes: true })
             .filter((child) => child.isFile())
             .map((child) => child.name)
-            .filter((name) => name !== `${tag}.xhtml` && name !== `${tag}.stories.ts`);
+            .filter((name) => name !== `${tag}.xhtml` && name !== `${tag}.stories.ts` && name !== researchPrototype && name !== radioPrototype);
         if (unexpectedFiles.length > 0) {
             fail(
                 `${slash(relative(repoRoot, folder))} contains files outside the XHTML + CSF Next component contract: ${unexpectedFiles.join(', ')}`,
