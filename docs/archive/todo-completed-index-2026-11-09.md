@@ -4,6 +4,11 @@ The [pre-cleanup checklist](https://github.com/EPA-WG/cem/blob/75feef62968959c45
 preserves 65 completed entries along with their fixtures and measurements.
 The [active checklist](../todo.md) records remaining execution work.
 
+The [2026-11-23 snapshot](todo-snapshot-2026-11-23.md) preserves the next 106
+completed entries, including application/command/localization design proposals,
+native menu experiments, Studio delivery and component audit fixes. Its
+unchecked entries are historical; the active checklist retains those 47 tasks.
+
 ## Studio and release
 
 - [October 31 checklist](todo-snapshot-2026-10-31.md)

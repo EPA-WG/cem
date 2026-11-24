@@ -478,6 +478,11 @@ Known deferrals stay outside this trigger:
 
 ## Component Docs
 
+- [Application orchestration proposal](./docs/application.md),
+  [resource-backed command proposal](./docs/command.md), and
+  [localization proposal](./docs/localization.md) — coordinated design for
+  `cem-application`, focused command routing, parameter dialogs and localized
+  resources. These documents describe future APIs, not shipped capabilities.
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.
 - [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted

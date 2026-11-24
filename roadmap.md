@@ -1830,7 +1830,7 @@ project/schema and transformation-graph contracts.
       against native CLI and Studio, including independent identities, invalid
       path/pipeline repair, cancellation, publication failure, keyboard and
       accessibility behavior and themes. Native/Studio verification and offline
-      Studio creation are recorded in [the completed TODO](docs/todo.md#studio-project-build-command).
+      Studio creation are recorded in [the completed TODO](docs/archive/todo-snapshot-2026-11-23.md#studio-project-build-command).
 
 ### Schema constraints UI flow
 
