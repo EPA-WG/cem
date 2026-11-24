@@ -5,6 +5,11 @@ localization registry is currently implemented. This proposal complements
 [application.md](application.md) and [command.md](command.md); it preserves the
 existing CEM native import, resource lifecycle and data-island boundaries.
 
+**Insulation revision — 2026-11-24:** app contexts and mutable preferences are
+private by default. A host can admit inheritance/sharing for selected families;
+native CEM implicit per-property inheritance operates inside the chosen context,
+without an added generic `inherit` or `inherited` flag.
+
 ## Stable resources, replaceable presentation
 
 Keep semantic resource identity independent of language, package path and
@@ -18,15 +23,26 @@ and installed shortcuts agree after a language switch.
 
 Localization resources are properties of the same native CEM context used by
 the [virtual application](application.md#native-context-and-downward-authority).
-The top-level app matches the page. Embedded apps can inherit the container's
-admitted inputs or use an insulated resource/context set. Resource inheritance
-does not create a shared mutable catalog or allow a child to change its parent.
+The top-level app matches the page. Each embedded app starts with an insulated
+resource/context set; the host may explicitly admit selected container inputs
+or shared resource families. Structural nesting does not grant ambient fallback
+to parent resources or mutable preferences. Within the selected app context,
+ordinary CEM scope properties inherit implicitly and local admitted overrides
+follow their native rules. Resource inheritance does not create a shared mutable
+catalog or allow a child to change its parent.
+
+Named scopes bind native context/group descriptors. A scope name or matching
+vendor/package is not membership authority; the host admits access separately.
+Common-vendor apps may share immutable catalogs or specifically granted mutable
+preference providers without sharing every context family. Sharing catalog bytes
+does not share evaluated module singletons, app settings, storage or handlers.
+Effective resource/override generations and lifecycle gates remain per app.
 
 The container can replace the entire child resource set, selected resources or
 schema-declared values, such as a command's name, description or shortcut
 defaults. Retain the container's override layer and provenance separately from
-child-owned resources. Insulated mode excludes ambient parent fallback, but
-still honors explicit container overrides and ancestor restrictions. Semantic
+child-owned resources. Insulated contexts exclude ambient parent fallback, but
+still honor explicit container overrides and ancestor restrictions. Semantic
 overrides are validated native-context inputs; they are not translator powers.
 Changing a schema/handler through an admitted override changes semantic revision;
 changing only presentation changes the resource generation.
@@ -35,8 +51,10 @@ Apply partial overrides according to the resource schema. Missing inherits the
 selected underlying value; explicit empty/removal has a declared meaning.
 Replace a complete plural/message unit, preserving placeholder compatibility;
 do not deep-merge translated fragments or implicitly execute an overridden
-reference. Resolve definitions/overlays before message lookup, using the same
-native context/import/reference machinery as other resources. A child's update
+reference. Missing values inherit only from an admitted underlying layer, never
+from a private external app merely because it is a structural ancestor. Resolve
+definitions/overlays before message lookup, using the same native
+context/import/reference machinery as other resources. A child's update
 never edits the parent's retained tree. Caches retain app context/grant and
 override-generation identity even when source bundles are shared.
 
@@ -46,6 +64,13 @@ that a child with only Japanese/English resources can display French; use that
 app's declared available default and retain diagnostic provenance. An insulated
 app can still read browser/host preferences through its admitted environment
 provider. Neither case grants it write access to the browser/container settings.
+All browser preference observation and settings persistence pass through guarded
+`cem-elements` providers. App code uses local resource/service names and ordinary
+keys such as `locale` or `theme`; partition selection belongs to the framework,
+not a manually authored app prefix or wrapper component. An inherited environment
+request is separate from a shared mutable settings provider: selecting one does
+not admit the other. Light-DOM and iframe hosts expose the same app-local
+localization/theme API; frame transport and browser restrictions are host details.
 
 This is inspired by native systems, with important distinctions:
 
@@ -221,7 +246,8 @@ host/ancestor restrictions:
 
 1. Container-owned override of this app's requested locale/preferences, if set.
 2. Explicit application UI-language setting for this instance/subtree.
-3. Inherited container environment preferences when the binding uses inheritance.
+3. Container/group environment preferences only when that family is explicitly
+   admitted as an inherited/shared input.
 4. Host-provided per-application/OS or browser `navigator.languages` preferences
    through the admitted environment provider when automatic selection applies.
 5. The app's packaged default locale, which must be in its supported set.
@@ -271,9 +297,10 @@ the key. Optional resources can use a schema-declared neutral omission policy.
 ## Environment theme variations
 
 UI theme variations follow the same preference/availability pattern as locale:
-container override, explicit app setting, inherited environment when enabled,
-browser/host preferences, then the app's declared available default. App manifests
-declare supported variations and their mapping to existing CEM theme semantics;
+container override, explicit app setting, expressly admitted inherited/shared
+environment, browser/host preferences, then the app's declared available default.
+App manifests declare supported variations and their mapping to existing CEM
+theme semantics;
 automatic selection cannot assume every app provides every brand variation.
 Keep requested and effective values/provenance separate.
 
@@ -287,8 +314,11 @@ preference signals through the admitted provider and existing CEM theme contract
 A container may align child appearance or permit an independent app theme.
 Changing a child choice affects that subtree's managed projection only. It must
 not set page-global theme state, install an unscoped replacement stylesheet or
-redefine theme-owned token defaults. An insulated provider is distinct from
-physical CSS security: the light-DOM guarantees/limits remain in application.md.
+redefine theme-owned token defaults. Guarded CEM projection applies theme values
+to their owning app context in either hosting form; a child cannot acquire global
+style mutation through resource inheritance. Hybrid unmanaged styles/scripts
+require the stronger host boundary described in application.md; they are not
+the default authoring model for a CEM-only app.
 
 Respect forced colors, keyboard focus, reduced motion and applicable accessibility
 constraints even when an explicit app theme is selected. A fallback variation
@@ -378,6 +408,9 @@ profile and locale, with resolver/base identity, active registry/security policy
 and relevant admission/grant context in the cache identity. Reusing cached bytes
 or a retained tree in another scope still requires fresh admission; cached
 content never confers fetching, execution or reference-crossing authority.
+Immutable source/artifact reuse does not share mutable resolved views, evaluated
+module state or settings. A named shared context still requires current
+membership and provider grants; naming a cache entry cannot admit a new member.
 Cache resolved views additionally by definition revision,
 fallback chain, format/profile inputs and user-binding revision. Application
 instance/context eligibility is not reusable global translation state. Release
@@ -402,6 +435,10 @@ Before implementation adoption, verify:
   child-only settings; unavailable locale/theme choices select declared app
   defaults without upward mutation. Stopped apps defer resource/theme work until
   explicit activation/start and use the latest revision without event replay.
+- Private-by-default preferences, rejected named-group self-membership and
+  separately admitted catalog/environment/settings sharing. App-local keys and
+  resource APIs behave equivalently in light-DOM and iframe hosts without author
+  wrappers, prefixes or ambient browser-state fallback.
 - A language switch updates name, description, shortcut display/installation,
   mnemonic and accessible metadata for the same command ID together.
 - Open edited dialogs, selection and focus survive; new keyboard layout and

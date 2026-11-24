@@ -5,6 +5,12 @@ this document. Companion documents: [application.md](application.md) and
 [localization.md](localization.md). Existing native invoker commands and
 `host-command` bindings retain their current contracts.
 
+**Insulation revision — 2026-11-24:** every application starts with a private
+command/context environment. Inheritance, shared services and named-group
+membership are explicit host-admitted relationships. Within that selected
+environment, existing native CEM per-property scope inheritance still applies;
+this proposal adds no generic `inherit` or `inherited` syntax.
+
 ## Command identity and model
 
 A command is a semantic operation with a stable resource ID. Buttons, menu
@@ -122,10 +128,33 @@ permission, target or busy state changes.
 ## Commands across application boundaries
 
 The [virtual application contract](application.md) adds a manager and native
-context to each app. Resource/context inheritance does not merge handlers or
-permit unhandled commands to escape. Command identity is interpreted inside the
-target app's effective resource/override generation; two instances can expose
-the same ID with different local state and implementations.
+context to each app. Insulation is the default: a child does not obtain parent
+handlers, services, mutable state or execution-group membership from structural
+AST/DOM ancestry. The host may admit particular resource/context families or
+shared provider bindings. Resource inheritance never merges handlers or permits
+unhandled commands to escape. Command identity is interpreted inside the target
+app's effective resource/override generation; two instances can expose the same
+ID with different local state and implementations.
+
+A named scope identifies a native context/group binding, not a permission to
+join it. Resolving a scope name, matching a vendor/package name, or sharing
+immutable command definitions cannot confer endpoint access. Group membership,
+mutable provider sharing and command export permissions are separate admitted
+relationships. Native implicit property lookup applies inside the selected app
+context; it does not make missing local handlers fall through to an external
+container. A trusted shared execution group may share expressly admitted mutable
+services; that does not merge instance-local command state, invocation IDs or
+lifecycle gates.
+
+Declarative applications invoke generic `cem-elements` capabilities; that
+framework is the guarded browser API boundary. App authors need no extra wrapper
+component, prefixed global names or frame-specific command implementation to
+obtain isolation. The same logical command, context, parameter and result API
+applies to embedded light-DOM and iframe hosts. The host chooses native event
+delivery or an admitted message transport without changing command authority.
+An actual cross-origin/sandboxed frame adds browser enforcement for hybrid apps
+that include executable code outside the CEM-only contract; it is not a default
+prerequisite for a declarative CEM microapplication.
 
 | Route | Admission and execution owner |
 | --- | --- |
@@ -152,19 +181,26 @@ for the parent's management command merely by using the same ID.
 
 A bridge declares source and destination app identities, exported endpoint and
 schema, allowed direction/effect, and admitted context/placement relationships.
-Validate both sides, current generations and application admission epochs. Allocate a new local invocation
-ID at a crossing, retaining an origin/correlation link; keep a bounded hop/path
-record and reject loops. Correlate one result back through the same bridge and
-release private/native parameter references after completion. Do not forward
+Validate both sides, current generations and application admission epochs.
+Allocate a new local invocation ID at a crossing, retaining an origin/correlation
+link; keep a bounded hop/path record and reject loops. Correlate one result back
+through the same bridge and release private/native parameter references after
+completion. Do not forward
 events, references or grants verbatim merely because the ID string matches.
 Crossing a browser frame additionally uses its admitted host message transport.
+Authenticate the current endpoint and bound schema/capabilities, not a payload's
+claimed app, scope or vendor name. Browser transport restrictions remain in
+force; inability to preserve a required activation capability produces an
+explicit unavailable result, never a direct ambient API fallback.
 
 Raw `cem-command` execution stops at its owning app boundary. Runtime declarative
 observers in other apps must not capture it as their own island event; exported
-safe notifications use an explicit bridge. Same-document capture listeners can
-still observe light-DOM events, so this is CEM admission/ownership insulation,
-not a confidentiality guarantee against arbitrary script. Sensitive values
-remain outside public event detail under the protected parameter contract below.
+safe notifications use an explicit bridge. The framework admits capture only to
+the request's owning app and authorized observers; unrelated CEM apps cannot
+install an arbitrary document listener to bypass that rule. Unmanaged script in
+a hybrid same-document host is outside the CEM-only guard and requires the
+appropriate stronger host boundary. Sensitive values remain outside public
+event detail under the protected parameter contract below.
 
 Local routing remains focused-context based within the identified running app.
 Cross-app focus-to-activation and keyboard ownership are **TBD**, as recorded in
@@ -231,6 +267,12 @@ depend on asynchronous slice rendering, a worker or a promise completing. An
 ordinary declarative handler may run asynchronously when no such activation is
 needed; otherwise return `activation-unavailable` and provide a fresh explicit
 gesture instead of silently retrying the gated API.
+
+The host service receives the invocation's admitted app/provider identity and
+uses the app's effective storage, location and other capabilities. It must not
+select the containing page's ambient browser objects because the target shares
+a document with the manager. The application contract owns provider binding;
+command handlers consume the same local service names in either hosting form.
 
 Capture listeners can veto a request, but generic observers must not rewrite its
 ID, target or parameters. Runtime invocation ownership is held in an internal
@@ -509,3 +551,7 @@ context writes, allowlisted parent services, sibling isolation, bridge-loop
 refusal, same-ID/different-instance state, stopped-app refusal without replay,
 and stale-generation rejection after pause/load/clone. MDI manager commands are
 tested independently from business handlers and TBD focus-selection behavior.
+Verify private defaults, denied self-joining of a named group, admitted
+per-family sharing without handler leakage, and equivalent command API outcomes
+in light-DOM and iframe hosts. Guarded framework service calls must never fall
+back to another app's browser/provider state.

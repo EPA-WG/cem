@@ -481,9 +481,10 @@ Known deferrals stay outside this trigger:
 - [Application orchestration proposal](./docs/application.md),
   [resource-backed command proposal](./docs/command.md), and
   [localization proposal](./docs/localization.md) — coordinated design for
-  virtual/embedded `cem-application` contexts, downward container overrides,
-  application management/lifecycle, portable instance state, command routing,
-  parameter dialogs and environment-aware localized/theme resources. Focus and
+  insulation-first virtual/embedded apps, native scope/property bindings,
+  guarded browser APIs with `embed-page` parity, downward container overrides,
+  management/lifecycle, portable state, commands, parameter dialogs and
+  environment-aware localized/theme resources. Focus and
   active-app selection remain TBD; these are future APIs, not shipped capabilities.
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.

@@ -12,6 +12,9 @@ unchecked entries are historical; the active checklist retains those 47 tasks.
 - [Virtual application proposal revision](todo-completed-virtual-application-design-2026-11-23.md)
   — embedded native contexts, downward overrides, app management and portable
   instance-state design; focus/active-app selection remains TBD.
+- [Insulation-first application revision](todo-completed-application-insulation-design-2026-11-24.md)
+  — private app defaults, native scope candidates, guarded browser services,
+  `embed-page` storage parity and equivalent iframe/embedded APIs.
 
 ## Studio and release
 

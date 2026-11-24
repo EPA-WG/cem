@@ -13,11 +13,21 @@ authority, application management and portable-state goals. This revision
 supersedes the earlier description as only a command/localization region.
 Focus-to-activation policy remains **TBD**; the contracts below do not select it.
 
+**Owner revision — insulation-first and guarded APIs, 2026-11-24:** each app
+starts with a private admitted environment. Browser services are available to
+CEM app code only through `cem-elements` guardrails; app code receives no
+unrestricted browser API. This replaces the earlier inherited-by-default mode
+and the suggestion that CEM-only virtualization necessarily requires a separate
+browser realm. Native scope syntax and implicit property inheritance are the
+primary candidate, with explicit cross-app bindings and `embed-page` insulation
+parity as described below. These are proposed contracts, not implementation
+or security-conformance receipts.
+
 ## Purpose
 
 `cem-application` represents one virtual application. The top-level instance
-matches the page; embedded instances represent microapplications that can inherit
-the container context or run with their own context, storage and logical URL.
+matches the page; embedded instances start with their own context, storage and
+logical URL and can explicitly inherit/share selected container-provided inputs.
 The container can override an embedded app's context; an embedded app cannot
 override its container or siblings. Inheritance is a choice of inputs, never
 upward write authority.
@@ -37,23 +47,85 @@ and checkpoint semantics instead of inventing a parallel application engine.
 
 ## Insulation and browser boundaries
 
-The intended iframe analogy is independent application context and lifecycle.
-Within admitted declarative CEM execution, an insulated app has private service
-bindings and state and cannot modify its parent's context. Light-DOM composition
-does not create a new browser document, JavaScript global, origin, custom-element
-registry or security sandbox. Arbitrary same-document JavaScript and unmanaged
-global CSS remain outside that virtual insulation guarantee.
+Insulation is the default app contract, enforced where CEM elements expose
+browser services. Every storage, location, network, document/DOM, event,
+stylesheet and host-service operation must carry its admitted app context and
+permissions. No direct `window`, native `Storage`, host DOM owner or equivalent
+escape capability is given to CEM app code. The trusted generic runtime may use
+native browser APIs internally; it must not leak that authority to consumers.
 
-Untrusted executable apps require an actual sandboxed browsing context/origin or
-an equivalent host isolation adapter. That adapter can expose the same CEM app
-management protocol. A real iframe's browser permissions, focus and accessibility
-boundaries must still be respected; it is not implemented by a wrapper attribute.
-[HTML iframe model](https://html.spec.whatwg.org/multipage/iframe-embed-object.html#the-iframe-element).
+The runtime supplies app-local state, singleton services, logical globals and
+unprefixed resource/storage names. These patterns are encouraged within the
+app's environment: authors should not manually prefix keys or coordinate with
+unrelated vendors to prevent host side effects. App-local globals mean values
+owned by the admitted app execution context, not assignments to the host page's
+`globalThis`. Components remain declarative under the existing UI principle.
 
-Even same-origin iframes do not inherently provide private local storage.
-"Own storage" below means an application-scoped broker/provider, not a claim
-that a custom-element subtree changes browser storage ownership.
-[HTML Web Storage](https://html.spec.whatwg.org/multipage/webstorage.html).
+This complete mediation makes CEM-only app virtualization possible without
+wrapping native JavaScript globals or requiring a separate browser realm per
+app. A named scope alone is insufficient: the generic capabilities must apply
+its context at every effect and retained state/event boundary. Missing guardrails
+refuse the operation rather than silently exposing an ambient browser API.
+
+Insulation also supports independent dependency versions, singleton lifetimes,
+tests, tenant/account state, save/clone, and pause/offload. Immutable source or
+compiled resources can be reused without joining mutable execution state.
+Isolation does not promise unlimited CPU/memory or an independent physical
+process; execution budgets and shared-runtime ownership still apply.
+
+App-private version support is an implementation requirement, not an existing
+consequence of naming a scope. The current browser declaration contract has
+document-global public-tag uniqueness and rejects incompatible definitions.
+Add generic context-aware declaration/export routing, or use a suitable host
+document boundary, before admitting conflicting app versions. Keep existing
+collision checks; never silently reuse another app's incompatible constructor.
+Do not expose raw `customElements` as a way around the private declaration
+contract. [Current declaration boundary](../../../docs/cem-element-design.md).
+
+### Iframe and embedded behavior parity
+
+The same CEM microapplication must observe the same logical API behavior when
+run in an iframe or embedded in a `cem-application` container, given equivalent
+admitted settings/capabilities. Both deployments use CEM browser-service
+guardrails. Switching placement must not change storage key visibility, named
+scope sharing, logical navigation, resource lookup or command authority.
+The actual DOM ancestry, browser origin and permission/activation constraints
+still differ; adapters preserve the contract without inventing unavailable
+browser permissions. Focus/active-app policy remains TBD in both deployments.
+
+An iframe on a different origin can add browser-enforced separation for a hybrid
+CEM+JavaScript app. An ordinary same-origin iframe supplies a separate document
+and JavaScript global but does not itself enforce the intended parent-DOM and
+shared-storage boundary; the CEM application security layer is still required.
+Additional sandbox origin restrictions are a separate browser policy, not a
+substitute for app service virtualization.
+[HTML iframe model](https://html.spec.whatwg.org/multipage/iframe-embed-object.html#the-iframe-element),
+[Web Storage](https://html.spec.whatwg.org/multipage/webstorage.html).
+
+For hybrid code, every app-visible service still needs the admitted facade;
+unrestricted same-page JavaScript that can reach the host's native objects is
+outside that profile. This is not permission to add JavaScript to production
+`cem-components`. Cross-origin adapters use admitted messages/ports for the same
+manager/services rather than exposing raw host objects. Parent overrides remain
+policy/context inputs; they do not require arbitrary access to child memory.
+
+### Insulation parity reference: `embed-page`
+
+Retain [EPA-WG/embed-page](https://github.com/EPA-WG/embed-page) as the concrete
+insulation-parity reference. At reviewed commit
+`dde611e450ef7d901df6054a6545250e0862af49`, both storage adapters prefix native
+keys with `<EPA>{scopeIdentity}</EPA>`. Default instance identity is private;
+`named` uses `name || id`; page/host/domain modes derive the identity from the
+virtual location. Reads/writes/removals use the prefix, and enumeration/clearing
+are scope-filtered. [Adapter](https://github.com/EPA-WG/embed-page/blob/dde611e450ef7d901df6054a6545250e0862af49/embed-page.js#L49-L97),
+[prefix selection](https://github.com/EPA-WG/embed-page/blob/dde611e450ef7d901df6054a6545250e0862af49/embed-page.js#L455-L467).
+
+Its [storage tests](https://github.com/EPA-WG/embed-page/blob/dde611e450ef7d901df6054a6545250e0862af49/demo/storage.html.test.js#L30-L67)
+assert private local/session reads and writes, shared values and peer-only
+notifications in named scopes, and unchanged host keys. This is existing
+reference evidence, not a claim that CEM already implements the adapters or
+that every edge case has been verified. CEM adopts the behavior at its element
+capability boundary; it does not need the project's native-JavaScript wrappers.
 
 ## Native context and downward authority
 
@@ -73,21 +145,17 @@ and [native namespace scopes](../../../docs/cem-ml-stack-design.md).
 | Services | Storage, logical location/history, clipboard/network/host endpoints | Grant private, inherited or explicitly shared providers; revoke/rebind under a new context revision |
 | Runtime | Budgets, lifecycle admission, scheduling priority, checkpoint/export policy and diagnostic boundaries | Manage descendants within enclosing host limits |
 
-Two context composition modes are proposed:
+Every app starts from its declared context/defaults and private storage/location
+providers. There is no ambient fallback to parent-app resources/services.
+Standard browser/environment preferences remain available through an admitted
+read-only provider. Ancestor policy ceilings and explicit container overrides
+always apply; insulation cannot escape host authority.
 
-- **`inherit`**, the default for embedded apps: use the container's admitted
-  context inputs and resource mappings, augmented by app-local values where the
-  relevant native lookup contract allows. Local state remains instance-owned.
-  Inherited storage/URL providers may be shared, so writes can have explicitly
-  shared effects; sharing must be visible in the effective context.
-- **`insulated`**: start from the app's declared context/defaults and private
-  storage/location providers; do not fall through to ambient parent resource or
-  service values. Standard browser/environment preferences remain available
-  through an admitted read-only provider. Ancestor policy ceilings and explicit
-  container overrides still apply. Insulation cannot escape host authority.
-
-Allow selected families to be explicitly inherited, private or supplied by the
-container in either mode. A binding to a shared store is a deliberate exception
+Compose selected families through explicit native/scoped bindings supplied or
+approved by the container. Declare whether each inherited input is a read-only
+value, resource view or shared mutable service. No whole-app `context-mode` or
+generic inheritance flag is needed, and sharing never disables guardrails.
+A binding to a shared store is a deliberate exception
 to private storage, not accidental fallback. A child can propose a different
 local module map/namespace set for its own frame; it cannot rewrite any ancestor
 frame. The parent can approve, replace or restrict that proposal.
@@ -99,6 +167,69 @@ constrain or override a descendant's effective inputs; an intermediate app
 cannot cancel an enclosing mandatory restriction. Parent ownership does not
 automatically issue cross-scope node or DOM-placement grants: keep
 [directed source/placement admission](../../../docs/cem-element-granted-placements-design.md).
+
+### Scope syntax and property inheritance: primary candidate
+
+Reuse native CEM scope ownership and existing host-bound typed properties.
+A `cem-application` instance owns a native context frame; it need not require
+an extra anonymous wrapper, repeated explicit parent references or an authored
+context-root ID. Anonymous typed scopes and schema/namespace properties retain
+their existing meanings. A module-map `{scope @prefix=...}` is a URL-prefix
+mapping entry, not an application group or a general insulation switch.
+
+There is no general authored `inherit`/`inherited` flag in current CEM-ML.
+Ordinary scope properties inherit implicitly when omitted; a local declaration
+overrides within its scope, and scope exit restores the enclosing relationship.
+The native code also distinguishes an omitted policy from an explicit default.
+[Scope syntax](../../../docs/cem-ml-syntax.md#schema-scoping-a),
+[policy representation](../../../packages/cem_ml/src/schema/reference_policy.rs).
+
+For virtual apps, first establish the private admitted app environment, then
+apply that native inheritance inside it. An omitted app property inherits the
+effective value in this environment; it does not reopen ambient parent-app
+lookup. Inheritance from another app is an explicit admitted binding, not a
+change to native lexical rules. Explicit invalid/pending bindings remain
+invalid/pending rather than falling back to inherited authority. Empty/reset
+values keep their schema-defined meanings; no generic null/empty inheritance
+sentinel is introduced here.
+
+Keep source-document URI, resolution base and app location/history distinct.
+The former two already have native context machinery. App location/storage
+providers and their cross-app bindings are a proposed generic consumer contract,
+not new parser keywords. If undoing a local default later requires an explicit
+inherit/reset marker, define its per-property schema semantics separately;
+this proposal does not present such a marker as existing syntax.
+
+### Named groups and virtual sets
+
+A named application scope can serve as a handle for a host-admitted native
+environment/group. Its naming/lookup consumer is proposed work, separate from
+module-map prefix scopes and public named CSS membership. Resolve a local name
+to an immutable admitted group/provider identity; matching strings alone never
+authorize joining a vendor's environment.
+
+| Virtual set | Private default | Explicit host-approved sharing |
+| --- | --- | --- |
+| Native context | App-owned bindings and source context | Selected schema/namespace/default-resource inputs |
+| Execution state | App-local globals, evaluated modules and singleton instances | Deliberate trusted execution/service group with defined lifetime |
+| Modules/resources | App's admitted resolution context | Immutable code/compiled artifact/catalog reuse without shared mutable evaluation state |
+| Storage | App-private local/session partitions | Selected named store with separate read/write/subscribe rights |
+| Location/history | App-private navigation provider | Container-selected route projection or shared navigation service |
+| Environment | Read-only browser/host preference inputs | Selected container locale/theme settings |
+| Host capabilities | Only declared admitted endpoints | Specific command/network/clipboard/service grants |
+
+Common-vendor apps can share selected sets while keeping other sets private.
+Vendor/package identity, user/tenant context and group membership are checked by
+the container; self-declared vendor strings, CDN origin, DOM ancestry or a group
+name do not supply permission. Joining a shared execution group is stronger than
+sharing a resource map or store. A member cannot erase group state or retire
+shared physical owners on close while peers remain. Parent restrictions remain
+effective across all groups, and revocation advances admission epochs.
+
+Browser same-origin policy is an enforcement input, not the grouping algorithm.
+Same-origin apps may have distinct CEM sets; different-origin frames may share a
+narrow provider through an admitted bridge. CEM does not relax browser-origin
+rules to implement named sharing or infer vendor trust from an origin match.
 
 ### Resolution and resource overrides
 
@@ -143,9 +274,10 @@ are not a mechanism for installing arbitrary subtree environments.
 ### Storage and URL providers
 
 The top-level app normally binds its location provider to page navigation and
-its storage provider to a page/application partition. An insulated child gets
-an independent logical URL/history and stable storage partition. An inherited
-child can share a provider or receive a scoped projection supplied by the parent.
+its storage provider to a page/application partition. Every embedded child gets
+an independent logical URL/history and stable storage partition by default.
+A child can explicitly share a provider or receive a scoped projection supplied
+by the parent.
 Make those relationships explicit rather than sharing through DOM ancestry.
 
 Keep source-document URI, resource resolver base and logical app route URL
@@ -158,14 +290,81 @@ children do not directly write `window.location` or global history.
 Every CEM-managed storage/location reader and writer must resolve through the
 effective provider, including subscriptions, forms, resource loaders and host
 services. Missing or denied private providers fail explicitly, without falling
-back to ambient origin storage/page location. Storage partitions are keyed by
-stable provider/instance identity, never a mutable instance name or title.
-Cookies, origin-level IndexedDB/network credentials and arbitrary third-party
-JavaScript do not become partitioned just by naming an app. Their isolation
-requires an appropriate host adapter or a stricter execution boundary.
+back to ambient origin storage/page location. Private partitions are keyed by
+stable provider/instance identity; explicitly named storage scopes resolve to
+stable admitted store identities. Manager names and localized titles are aliases,
+not an implicit instruction to select/move the app's persisted keys.
+Each other browser service, including cookies, IndexedDB and network credentials,
+requires its own admitted adapter/policy; Web Storage prefixing does not define
+their semantics automatically. Native origin ownership remains a browser fact;
+apps see their granted logical providers, not ambient native objects.
 
 These generic provider bindings are new work. Current document-global
 storage/location behavior cannot be described as already insulated.
+
+### Local/session storage virtualization
+
+Apply automatic partitioning inside the generic CEM storage capabilities. App
+declarations use ordinary keys such as `settings` or `draft`; no manual prefix
+or native API wrapper is required. The adapter selects the app-private or
+explicit named-scope store and maps each logical key into its backing keyspace.
+The same contract applies to local and session storage, with their different
+persistence/session lifetimes preserved.
+
+Use an unambiguous, versioned encoding of partition identity and logical key.
+Private identity is derived from admitted app/provider IDs; named stores have
+stable group/store IDs to which readable names resolve. Include storage kind
+and host/user/session boundaries as applicable. Do not copy `embed-page`'s
+timestamp-based instance prefix literally or derive authority from a raw user
+name, hostname or suffix. Rename/reparent/clone must not accidentally select
+another app's keys. Prefix computation stays within the adapter, including
+native imports/exports and checkpointed storage writers.
+
+| Operation | Required virtualized behavior |
+| --- | --- |
+| Read/write/remove | Translate every key exactly once; preserve empty keys/values and explicit missing values under the public storage contract |
+| Enumerate/count | Include only the admitted partition; expose logical keys without physical prefixes |
+| Clear | Remove only that partition's keys, never the whole backing origin store |
+| Notifications | Deliver only admitted same-partition changes; expose logical key, correct old/new values and a scoped storage identity, never a raw native `storageArea` |
+| Lifecycle | Validate instance/provider identity and admission epoch; paused/offline apps receive no delivery and restart reconciles current state without replay |
+| Rebind/revoke | Detach old subscriptions and invalidate pending writes; do not silently migrate data or keep access through stale handles |
+| Save/load/clone | Export only permitted partition state; restore after admission; clone private state into a fresh partition unless explicit shared-store grants say otherwise |
+
+Suppress duplicate outward storage events back to the writing app, and suppress
+no-op mutation events. This does not suppress dependency coherence: update the
+originating binding and refresh all other local readers of the same logical key
+inside that app, even though no writer-self storage event is emitted. A successful clear
+of a nonempty logical partition emits one scoped clear notification with null
+key/old/new values; clearing an empty partition emits no mutation event. Native
+external clear events with a null key invalidate/reconcile affected subscribed
+partitions rather than being dropped or exposing all origin keys. Correlate
+backing mutations and bridge notifications to prevent duplicate/looped delivery.
+Same-document peers need runtime notifications because native storage events
+alone do not deliver that interaction.
+
+Bind session storage to the admitted page/session provider as well as the app or
+named partition. Preserve reload behavior within that session and distinguish
+it from durable local storage. Loading/cloning in a new session reacquires its
+session provider; it must not silently upgrade session data into durable storage.
+Local cross-tab and session-only delivery retain their distinct boundaries.
+Quota/denial and backing-provider loss are explicit diagnostics. Native external
+changes use the same filtering as same-document peer changes; no app obtains
+unrelated physical key names. Define provider transport/revision details and
+verify these outcomes before implementation adoption.
+
+An iframe adapter can use an admitted message/host service when its native store
+is unavailable or in another origin. It must preserve the logical operation,
+partition and notification contract, not fall back to a wider native store.
+Equivalent logical scopes share data only through the configured provider; the
+same frame URL or readable scope name alone is not enough. Browser-denied storage
+is reported through the declared unavailable/failure contract unless a permitted
+provider supplies the service.
+
+The `embed-page` parity suite is the starting behavioral reference, not a list of
+edge cases already passed in CEM. Add acceptance for count/enumeration, empty
+keys, remove/clear, old/new values, writer/no-op suppression, scope collisions,
+cross-tab/session lifetimes, denied stores, epoch fences and rebind/rename/clone.
+This proposal adds no browser fixture or executable implementation.
 
 ## Ownership
 
@@ -183,9 +382,11 @@ storage/location behavior cannot be described as already insulated.
 Follow the [declarative UI principle](../../../docs/declarative-ui-principle.md):
 missing generic capabilities must be added to `cem-elements` before component
 UI work. The runtime must use generic provider contracts, without branching on
-`cem-application` or editor tag names. App-owned scripts may implement non-UI
-services; they must not manufacture visible UI, attach local keyboard handlers,
-or implement a competing dialog controller.
+`cem-application` or editor tag names. Trusted host adapters may implement non-UI
+services behind admitted runtime interfaces; this does not authorize app scripts
+to bypass provider bindings with direct browser globals. Neither those adapters
+nor hybrid app code may manufacture competing component UI, attach app-local
+UI behavior, or implement a separate dialog controller.
 
 ## Proposed application surface
 
@@ -195,7 +396,6 @@ native CEM values/references, never JSON text hidden in an attribute.
 | Input | Meaning |
 | --- | --- |
 | Application definition reference | Stable component/application resource identity and declared native context/defaults; not an instance name |
-| `context-mode` | Proposed `inherit` or `insulated`; per-family provider bindings can refine it |
 | Native context bindings | Typed module maps, namespace/schema frames, services and policy; use native context vocabulary rather than new string-encoded maps |
 | Container-owned context overrides | Admitted parent input targeting this instance; replace all or selected context/resource values; not child-writable policy |
 | `instance-name` | Optional manager-unique stable readable name; generated on first admission if omitted |
@@ -206,6 +406,7 @@ native CEM values/references, never JSON text hidden in an attribute.
 | `shortcut-profile` | Admitted platform profile; host-provided when available, otherwise an explicit web profile |
 | Theme preference | Automatic environment matching or explicit app setting through existing CEM theme vocabulary; no new token family |
 | Storage/location bindings | Typed inherited, private or container-supplied providers; logical URL is not necessarily the address bar |
+| Named virtual-set bindings | Typed admitted group/store/service identities; names are scoped handles, not permission to join |
 | `command-context` | Optional typed reference to the initial content context; otherwise learned from focus |
 | Default slot | Application contents, retaining native landmarks and component ownership |
 
@@ -236,7 +437,11 @@ Resource inheritance alone grants neither execution nor upward context writes.
    default locale/theme coverage before starting the app.
 2. Materialize the typed definitions and a coherent presentation generation.
    Until ready, resource-bound controls are unavailable and no shortcut is
-   intercepted. Normal native links, controls and browser editing still work.
+   intercepted. Passive fallback and manager-owned activation/close controls can
+   remain available; app processing stays gated. Native link/form navigation,
+   popups, downloads and network/storage effects must not execute as ambient
+   defaults before app/provider admission. Once ready, native editing/control
+   behavior continues under the app's ordinary interaction contract.
 3. Register generic handler/context providers and subscribe to their state.
    Multiple instances of an editor may handle the same command ID.
 4. Register one coordinated dispatch boundary through the shared runtime.
@@ -455,6 +660,14 @@ resource IDs. Moving an instance between managers requires explicit admission
 and collision handling; changing its DOM parent is not a context/ownership
 transfer protocol.
 
+The default private storage identity is allocated with the logical instance and
+retained on reload/save/load/resume; offload does not erase persisted entries.
+A selected named storage scope is a separate admitted binding, not the manager
+name implicitly reused as a prefix. Renaming an alias leaves the store unchanged;
+switching store membership requires explicit rebinding and fresh admission.
+Cloning allocates a fresh private namespace. Any retained shared named store is
+an explicit newly granted dependency, not cloned membership authority.
+
 Portable application state is a new native CEM schema/codec contract, separate
 from a page screenshot, rendered HTML export or a JavaScript object dump. It
 records definition/version and resource revisions, logical instance identity/name,
@@ -562,8 +775,11 @@ precedence within the container's permitted context. See
 Theme matching uses existing CEM theme/token contracts for light/dark,
 native/high-contrast and supported variations. Preserve browser forced colors
 and other accessibility requirements; a private theme setting is not permission
-to disable them. Actual arbitrary stylesheet insulation requires the stronger
-host boundary discussed above, not a parallel local token system.
+to disable them. Declarative scoped-style admission/projection must constrain
+styles and resource URLs to the owning app under the existing CSS/token rules.
+The guarded CEM profile does not expose a page-global style mutation API; hybrid
+unmanaged styles require their appropriate host boundary. No parallel local
+token system is introduced.
 [CSS color adjustment](https://www.w3.org/TR/css-color-adjust-1/).
 
 Prepare a new resource generation off the active projection, including strings,
@@ -618,8 +834,12 @@ download fallback. Cancellation remains distinct from an execution error.
 This proposal requires new shared capabilities; none are delivered here.
 
 1. Bind application frames to the native context tree and existing resolver,
-   namespace, import and grant contracts. Specify inherited/insulated provider
-   composition and downward overrides; add generic storage/location adapters.
+   namespace, import and grant contracts. Construct private roots with explicit
+   scoped family/group bindings and downward overrides; add guarded generic
+   browser-service adapters, local/session key/event virtualization and named
+   store admission. Do not add a general inheritance flag or raw API fallback.
+   Define context-aware declaration/version routing and preserve document-global
+   registration collision refusals until that capability is supported.
 2. Define instance/manager identity, lifecycle admission and operation-control
    integration, including ancestor stops and active/background scheduling.
    Resolve the explicitly TBD focus/activation UX before claiming keyboard flow.
@@ -636,6 +856,10 @@ This proposal requires new shared capabilities; none are delivered here.
 7. Only then add the declarative `cem-application` component and resource binding
    to actions/menu items, with colocated stories and property/gallery coverage.
 
+Verify `embed-page` insulation parity and equivalent logical APIs in embedded
+and iframe hosts throughout these stages. A cross-origin hybrid adapter is
+additional enforcement/transport work, not a prerequisite for CEM-only guardrails.
+
 Do not add per-component scripts to bypass a missing stage. Existing native
 invoker behavior must remain independently usable throughout migration.
 
@@ -647,11 +871,23 @@ Future implementation acceptance requires:
   menu, pointer context menu, keyboard and native-shell invocation.
 - An unhandled inner-application command never executes in the outer app;
   disposal/rebinding prevents late execution and publication.
-- Top-level/page and embedded inherited/insulated apps resolve native contexts
+- Top-level/page and embedded apps start private and resolve native contexts
   consistently in CLI/WASM/browser/SSR. Partial/all resource overrides propagate
   down only, retaining native CSS/non-CSS and namespace behavior.
+- Native property inheritance works inside the selected app environment, without
+  a generic `inherited` keyword, new delimiter or ambient parent lookup. Named
+  group membership/per-family sharing requires host admission.
 - Private storage and logical navigation never fall back to ambient providers;
   shared provider writes and page URL projections require explicit ownership.
+- Both local/session adapters automatically scope unprefixed keys; bindings to
+  the same admitted store identity share values/events while private stores/host
+  keys stay separate. Equal names in separate scopes confer no sharing.
+  Complete clear/enumeration/event, session/cross-tab, empty/no-op and denial
+  cases go beyond the reference suite's already demonstrated checks. Same-app
+  readers stay coherent without a duplicate writer-self storage event.
+- The same app produces equivalent service/resource/command outcomes with
+  equivalent grants in embedded and iframe hosts. Ordinary same-origin frames
+  still use the layer; cross-origin hybrid enforcement preserves its APIs.
 - Parent-to-child commands, child service requests and MDI management target the
   correct instance; resource inheritance and active selection confer no grants.
 - Active/background workloads obey budgets without starving control operations;
@@ -675,7 +911,9 @@ Future implementation acceptance requires:
   revisions without replaying invocations. Persist locale and user keybindings;
   never auto-resume a command with side effects from saved event state.
 
-This design leaves focus/active-app selection UX explicitly TBD. A strong
-untrusted-app sandbox, OS adapter, portable app-state codec/migration, physical
-offload, cross-process transport and durable undo engine require separate
-implementation/evidence. None is implied by the light-DOM context boundary.
+This design leaves focus/active-app selection UX explicitly TBD. Complete
+guardrail coverage, `embed-page` behavioral parity, hybrid browser enforcement,
+OS adapters, portable app-state codec/migration, physical offload, cross-process
+transport and durable undo require implementation/evidence. Existing runtime
+storage/location bindings are not already app-virtualized; this proposal records
+the insulation-first contract and its acceptance requirements.
