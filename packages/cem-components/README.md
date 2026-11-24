@@ -481,8 +481,10 @@ Known deferrals stay outside this trigger:
 - [Application orchestration proposal](./docs/application.md),
   [resource-backed command proposal](./docs/command.md), and
   [localization proposal](./docs/localization.md) — coordinated design for
-  `cem-application`, focused command routing, parameter dialogs and localized
-  resources. These documents describe future APIs, not shipped capabilities.
+  virtual/embedded `cem-application` contexts, downward container overrides,
+  application management/lifecycle, portable instance state, command routing,
+  parameter dialogs and environment-aware localized/theme resources. Focus and
+  active-app selection remain TBD; these are future APIs, not shipped capabilities.
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.
 - [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted

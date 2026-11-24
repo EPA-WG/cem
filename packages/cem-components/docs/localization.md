@@ -10,9 +10,42 @@ existing CEM native import, resource lifecycle and data-island boundaries.
 Keep semantic resource identity independent of language, package path and
 display text. A menu item references `file.save-as`; localization resolves its
 presentation for a locale, platform and binding profile. The command ID,
-parameter names/types, handler and operation do not change. All bound controls
-subscribe to the same resolved resource generation, so labels, accessible help
+parameter names/types, handler and operation do not change. Bound controls in
+each app subscribe to its resolved resource generation, so labels, accessible help
 and installed shortcuts agree after a language switch.
+
+## Virtual application context and container overrides
+
+Localization resources are properties of the same native CEM context used by
+the [virtual application](application.md#native-context-and-downward-authority).
+The top-level app matches the page. Embedded apps can inherit the container's
+admitted inputs or use an insulated resource/context set. Resource inheritance
+does not create a shared mutable catalog or allow a child to change its parent.
+
+The container can replace the entire child resource set, selected resources or
+schema-declared values, such as a command's name, description or shortcut
+defaults. Retain the container's override layer and provenance separately from
+child-owned resources. Insulated mode excludes ambient parent fallback, but
+still honors explicit container overrides and ancestor restrictions. Semantic
+overrides are validated native-context inputs; they are not translator powers.
+Changing a schema/handler through an admitted override changes semantic revision;
+changing only presentation changes the resource generation.
+
+Apply partial overrides according to the resource schema. Missing inherits the
+selected underlying value; explicit empty/removal has a declared meaning.
+Replace a complete plural/message unit, preserving placeholder compatibility;
+do not deep-merge translated fragments or implicitly execute an overridden
+reference. Resolve definitions/overlays before message lookup, using the same
+native context/import/reference machinery as other resources. A child's update
+never edits the parent's retained tree. Caches retain app context/grant and
+override-generation identity even when source bundles are shared.
+
+Inherited language/theme preferences are **requests**, matched against the
+child's own available choices. An inherited French preference does not imply
+that a child with only Japanese/English resources can display French; use that
+app's declared available default and retain diagnostic provenance. An insulated
+app can still read browser/host preferences through its admitted environment
+provider. Neither case grants it write access to the browser/container settings.
 
 This is inspired by native systems, with important distinctions:
 
@@ -183,13 +216,24 @@ The conceptual resource lookup inside that view is
 contract, not an added CEM-QL function or invocation syntax. The implementation
 must expose a concise declarative native binding before component adoption.
 
-Resolve requested languages in this order:
+Choose the highest-precedence applicable preference source first, within
+host/ancestor restrictions:
 
-1. Explicit application UI-language preference.
-2. Host-provided per-application/OS preferred UI languages, when the adapter can
-   supply them and the user selected automatic behavior.
-3. Browser `navigator.languages` preferences.
-4. Packaged application default locale.
+1. Container-owned override of this app's requested locale/preferences, if set.
+2. Explicit application UI-language setting for this instance/subtree.
+3. Inherited container environment preferences when the binding uses inheritance.
+4. Host-provided per-application/OS or browser `navigator.languages` preferences
+   through the admitted environment provider when automatic selection applies.
+5. The app's packaged default locale, which must be in its supported set.
+
+Match only that source's ordered list against available app resources, then use
+the app default if no entry matches. An unsupported explicit app/container choice
+does not select a lower-precedence browser/inherited preference. An explicit
+exact-match requirement instead diagnoses/refuses an unsupported configuration.
+`auto` selects the configured environment provider; a container can mandate that
+automatic policy instead of a child's saved setting. Do not silently fetch an
+unknown locale or force a missing resource. Explicit app settings replace
+automatic environment selection, but cannot replace the container override layer.
 
 `lang` on a document/element describes content language; it is not an OS setting
 and must not be mistaken for a persistent user preference. Set effective `lang`
@@ -224,19 +268,52 @@ If a required key is missing even in the default bundle, emit a stable
 do not render a misleading blank accessible action. Development tools can show
 the key. Optional resources can use a schema-declared neutral omission policy.
 
-## Reacting to language changes
+## Environment theme variations
+
+UI theme variations follow the same preference/availability pattern as locale:
+container override, explicit app setting, inherited environment when enabled,
+browser/host preferences, then the app's declared available default. App manifests
+declare supported variations and their mapping to existing CEM theme semantics;
+automatic selection cannot assume every app provides every brand variation.
+Keep requested and effective values/provenance separate.
+
+As with language, choose the preference source before matching its variations.
+If an explicit choice has no supported match, use the app default (or refuse an
+explicit exact-match requirement); do not substitute a lower-priority browser
+choice. Automatic policy uses the admitted environment provider.
+
+For automatic light/dark, contrast and native/system behavior, use the browser's
+preference signals through the admitted provider and existing CEM theme contracts.
+A container may align child appearance or permit an independent app theme.
+Changing a child choice affects that subtree's managed projection only. It must
+not set page-global theme state, install an unscoped replacement stylesheet or
+redefine theme-owned token defaults. An insulated provider is distinct from
+physical CSS security: the light-DOM guarantees/limits remain in application.md.
+
+Respect forced colors, keyboard focus, reduced motion and applicable accessibility
+constraints even when an explicit app theme is selected. A fallback variation
+uses the same semantic token ownership, not hard-coded colors introduced to
+imitate a missing theme. [CSS color adjustment](https://www.w3.org/TR/css-color-adjust-1/).
+
+## Reacting to language and theme changes
 
 Browsers expose preferred language changes through `languagechange` when the
 user agent's understanding changes. This is not guaranteed observation of all
 OS changes; preferences may also be privacy-limited. A native host adapter must
 supply notifications for stronger OS integration. Rechecking preferences on
 foregrounding is a useful resynchronization step, not a guarantee of real-time
-OS notification. Explicit application choices remain in force until cleared.
+OS notification. Explicit application choices remain in force until cleared or
+overridden by the admitted container context.
 [HTML language preferences](https://html.spec.whatwg.org/multipage/system-state.html#language-preferences).
 
-The proposed publication transaction is:
+For paused/offline/offloaded apps, the manager records only the latest relevant
+environment/context revision. Do not deliver language/theme/storage events,
+fetch replacement bundles, render, or fire locale callbacks in the stopped app.
+On explicit activation/start, prepare its current resources/theme under fresh
+admission before reopening business processing. Never replay missed preference
+events as a queue. Running apps use this transaction:
 
-1. Capture requested language/profile input revision and a new generation token.
+1. Capture requested language/theme/profile input revision and a new generation token.
 2. Load/import/validate the selected bundle and fallback dependencies through the
    existing resource lifecycle. Pin command definition/schema revisions.
 3. Resolve messages, direction, mnemonic groups, platform/keybinding defaults
@@ -321,6 +398,10 @@ Before implementation adoption, verify:
   placeholders, fallback cycles, script-sensitive lookup and unsupported tags.
 - Ordered browser/host preferences, explicit preference overrides and multiple
   independently localized applications; stale/failing bundle loads.
+- Container full/partial resource overrides, insulated fallback refusal and
+  child-only settings; unavailable locale/theme choices select declared app
+  defaults without upward mutation. Stopped apps defer resource/theme work until
+  explicit activation/start and use the latest revision without event replay.
 - A language switch updates name, description, shortcut display/installation,
   mnemonic and accessible metadata for the same command ID together.
 - Open edited dialogs, selection and focus survive; new keyboard layout and

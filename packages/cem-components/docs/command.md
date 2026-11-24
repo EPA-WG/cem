@@ -119,6 +119,67 @@ a pending/unavailable revision; keyboard dispatch never awaits it. Recheck state
 and document revision at commit, because a menu can remain open while selection,
 permission, target or busy state changes.
 
+## Commands across application boundaries
+
+The [virtual application contract](application.md) adds a manager and native
+context to each app. Resource/context inheritance does not merge handlers or
+permit unhandled commands to escape. Command identity is interpreted inside the
+target app's effective resource/override generation; two instances can expose
+the same ID with different local state and implementations.
+
+| Route | Admission and execution owner |
+| --- | --- |
+| Within one app | Retained local content context and nearest handler up to that app boundary |
+| Container chrome to embedded app | Explicit target instance and exported command endpoint; execute inside that child under its context/eligibility |
+| Embedded app to container service | Explicit allowlisted service request with typed parameters; container owns admission/execution and cannot be replaced by a child handler |
+| Application management | Container/page-host manager owns `app.activate`, next/previous/start/pause/close and state-management commands, targeting registered instance IDs |
+| Sibling app | Container-mediated exported endpoint; no direct ancestry fallback or automatic sibling discovery |
+
+For example, container File > Save can bind to an exported `file.save-as` endpoint
+of the manager-selected child. Pin the selected instance/generation/context when
+the invocation is admitted. If the active selection changes while its parameter
+dialog is open, do not silently save the newly selected app. If no eligible
+target/endpoint exists, report unavailable instead of trying every child or the
+container's own document handler.
+
+Conversely, a child may request an exported container service, such as opening a
+host-managed resource, without receiving permission to mutate the parent's
+resources, storage/navigation settings, module maps, locale/theme or app registry.
+An `app.activate` request from a child is still a request to the manager, not an
+assignment to `activeInstanceId`. The container may accept, reject or transform
+the request according to its admitted API. A child cannot export a replacement
+for the parent's management command merely by using the same ID.
+
+A bridge declares source and destination app identities, exported endpoint and
+schema, allowed direction/effect, and admitted context/placement relationships.
+Validate both sides, current generations and application admission epochs. Allocate a new local invocation
+ID at a crossing, retaining an origin/correlation link; keep a bounded hop/path
+record and reject loops. Correlate one result back through the same bridge and
+release private/native parameter references after completion. Do not forward
+events, references or grants verbatim merely because the ID string matches.
+Crossing a browser frame additionally uses its admitted host message transport.
+
+Raw `cem-command` execution stops at its owning app boundary. Runtime declarative
+observers in other apps must not capture it as their own island event; exported
+safe notifications use an explicit bridge. Same-document capture listeners can
+still observe light-DOM events, so this is CEM admission/ownership insulation,
+not a confidentiality guarantee against arbitrary script. Sensitive values
+remain outside public event detail under the protected parameter contract below.
+
+Local routing remains focused-context based within the identified running app.
+Cross-app focus-to-activation and keyboard ownership are **TBD**, as recorded in
+the application proposal. Management can have an explicit active-child reference
+without assuming every `focusin`, hover, load or restore selects it.
+
+Paused/offline/offloaded apps do not process business commands, shortcuts or
+event-to-slice captures, including commands arriving through an export bridge.
+Return unavailable at the manager; never queue the command to run on restart.
+Only activation/start/close reach the stopped instance's management control
+plane. Activation/start can prepare a runnable instance, but a subsequent business
+command is a fresh admitted request, not a replay of the request that woke it.
+Enclosing stopped apps also block descendant business admission. Save/clone of
+sealed state can be manager bookkeeping without invoking the stopped app.
+
 ## Focus-origin event routing
 
 Use **`cem-command`**, not native `command`, for application execution requests.
@@ -150,9 +211,10 @@ The following algorithm is proposed:
    stopping propagation, so ancestor declarative observers can record the same
    request without executing it. Unselected/duplicate handlers cannot execute.
 6. After dispatch returns, if `preventDefault()` was called anywhere on the
-   permitted route, cancel without executing. Otherwise recheck application and
-   target lifetime, document identity/revision, handler identity, eligibility,
-   authorization and semantic revision before starting the one claimed endpoint.
+   permitted route, cancel without executing. Otherwise recheck app/ancestor
+   running gates, application generation/admission epoch, target lifetime,
+   document identity/revision, handler identity, eligibility, authorization and
+   semantic revision before starting the one claimed endpoint.
    Dispatch listeners or a synchronous slice render may have changed them. No
    claim yields `unhandled`; `stopPropagation()` by itself is neither a claim nor
    success. Diagnostics expose interrupted routes.
@@ -189,13 +251,21 @@ Use camelCase detail fields and hyphenated event/attribute names, following
 | `cem-command-result` | Exactly one terminal outcome for an invocation, including cancellation before start or unhandled resolution |
 | `cem-command-state` | Contextual eligibility revision changed; no execution implied |
 
-Core detail fields are `invocationId`, `commandId`, `commandRevision`,
+Core detail fields are `invocationId`, `applicationInstanceId`,
+`applicationGeneration`, `applicationEpoch`, `commandId`, `commandRevision`,
 `contextId`, `source` (`keyboard`, `action`, `menu`, `palette`, `host`, `programmatic`),
 `resourceGeneration`, and `parameters`. Results add `status`, `code` and
 optional typed `value`; state notifications have a context/command/state revision
 instead of an invocation ID. `status` is `succeeded`, `cancelled`, `failed`,
 `unhandled`, or `unavailable`. Progress, if supported, is correlated by ID and
 bounded; it never substitutes for a terminal result.
+
+Cross-app requests add admitted source/destination and bridge correlation
+metadata. Names/titles are diagnostic presentation only; instance IDs plus fresh
+admission identify endpoints. Context overrides, pause, reparenting, load or clone
+invalidate stale endpoint tokens without transferring their authority. Check
+the admission epoch after dispatch and before any later async continuation or
+result publication, including same-worker pause/resume.
 
 The scalar envelope is an explicitly named API/control boundary and remains
 JSON-serializable under current conventions. For zero parameters use an empty
@@ -381,6 +451,11 @@ Use the following dispatch rules:
   native default action unless an eligible invocation is admitted; outer
   applications also skip nested application events even if those did not claim
   a shortcut.
+- Apply app/ancestor lifecycle admission first. Stopped apps do not process even
+  unclaimed shortcuts or reflect them into their islands. Manager activation,
+  start and close controls remain in the surviving control plane. The eventual
+  cross-app focus/active-selection policy determines the running keyboard owner;
+  this shortcut algorithm does not invent that policy.
 - Ignore IME composition, dead/process keys and AltGraph text entry. Normalize
   key/case/modifiers under the declared matcher; do not treat AltGraph as an
   accidental Control+Alt shortcut.
@@ -428,3 +503,9 @@ parameters; locale change during execution; sensitive-value redaction; no
 execution on rerender/SSR/hydration; and accessible names, shortcuts, state,
 focus, RTL/long labels, inherited themes and forced colors. These are future
 acceptance cases, not fixtures or tests delivered by this design-only change.
+
+Cross-app acceptance also requires exported-child Save targeting, denied upward
+context writes, allowlisted parent services, sibling isolation, bridge-loop
+refusal, same-ID/different-instance state, stopped-app refusal without replay,
+and stale-generation rejection after pause/load/clone. MDI manager commands are
+tested independently from business handlers and TBD focus-selection behavior.

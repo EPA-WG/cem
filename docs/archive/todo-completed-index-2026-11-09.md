@@ -9,6 +9,10 @@ completed entries, including application/command/localization design proposals,
 native menu experiments, Studio delivery and component audit fixes. Its
 unchecked entries are historical; the active checklist retains those 47 tasks.
 
+- [Virtual application proposal revision](todo-completed-virtual-application-design-2026-11-23.md)
+  — embedded native contexts, downward overrides, app management and portable
+  instance-state design; focus/active-app selection remains TBD.
+
 ## Studio and release
 
 - [October 31 checklist](todo-snapshot-2026-10-31.md)
