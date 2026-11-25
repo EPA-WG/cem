@@ -19,6 +19,11 @@ focus/active-app selection and runtime implementation remain future work.
 The [insulation-first revision](archive/todo-completed-application-insulation-design-2026-11-24.md)
 records native scope candidates, guarded browser APIs and `embed-page` parity;
 implementation and focus/active-app selection remain future work.
+The [command parameter form revision](../packages/cem-components/docs/command.md#nonmodal-parameter-forms)
+resolves proposal review item 1. Chromium and Firefox native dialog checks
+confirmed that the host could take focus, a sibling could be edited and a draft
+could be submitted in both light DOM and an iframe. CEM form selection and
+schema-driven generation still require implementation and acceptance tests.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).

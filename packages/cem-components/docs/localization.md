@@ -121,6 +121,13 @@ may share one message when their wording is truly identical.
 | language/direction metadata | The actual language and base direction of a value, including a fallback value |
 | translator context | Meaning, usage, constraints, screenshots/reference text, parameter meanings and notes; not visible UI |
 
+Both custom and schema-generated nonmodal forms read parameter display names,
+descriptions, option labels and messages from the command owner's localized view.
+For example, each translation of the content type field binds the same
+`contentType` key. The form resource lookup uses the stable command ID across
+languages. A language switch updates the open form's text and accessible title
+in place while retaining its draft, selected values, and original target.
+
 Additional application resources include window/document title templates, menu
 group names, empty/busy/error states, dialog text, date/number/list/unit
 formatting preferences and localized search collation. Locale-specific assets

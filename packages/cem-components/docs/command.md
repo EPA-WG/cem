@@ -355,7 +355,7 @@ An event/invocation revision can. Locale updates, rerender and hydration must
 not trigger execution. Multiple concurrent invocations also cannot be described
 by one meaningful active-command attribute; use the correlated collection.
 
-## Parameters and modal forms
+## Nonmodal parameter forms
 
 Command parameters are locale-neutral and schema-defined. Each has a stable
 name, type, required/optional status, optional default, constraints, cardinality
@@ -377,16 +377,35 @@ picker-issued capability, or a download. The adapter must not pretend a web page
 can freely write an arbitrary filesystem path. The command's source document is
 retained context, not an extra user-facing parameter.
 
-Use `command-dialog`/the command definition's `parameterDialog` reference to
-identify a dialog provider, rather than inventing `activecommand-parameters`.
-The schema and dialog reference are semantic resources; translations may change
-their labels but cannot select executable providers. A dialog resource resolves
-to one admitted local instance per invocation/context, with generated native
-IDs where necessary. Never globally locate the first dialog with a matching
-resource ID. Typed references follow the existing reference/grant rules;
-literal DOM IDs are only an explicit same-application compatibility boundary.
+The app that owns the selected execution endpoint also owns parameter collection.
+For a host menu invoking an exported child command, this is the child. Resolve
+the form in that instance's effective, admitted resource view after applying
+supplied values and defaults. Use the following precedence when a form is needed.
 
-The future dialog contract must declare one parameter form and explicit accepted
+1. Use an explicit `command-dialog` binding, otherwise the definition's
+   `parameterDialog` reference, when declared. Validate it in the owner's scope
+   under the existing typed reference and grant rules.
+2. Otherwise look up a **parameter-form resource with the same stable command ID**.
+   A template or a `cem-element` declaration can supply it. For example, two
+   editors can each supply their own form under `file.save-as`. Lookup uses the
+   resource kind and ID within the owning app. Translated names, global DOM IDs,
+   and the order of elements on the page play no part in selection.
+3. If that lookup completes with no custom resource, generate a form from the
+   pinned parameter schema. Use localized field names, descriptions and option
+   labels for presentation. Use schema keys, types, cardinality, constraints
+   and defaults for binding and validation. A bounded number such as
+   `percent` can use a number field and a MIME enum can use a choice control.
+   A destination requiring a picker needs an admitted picker capability.
+   If the generator cannot collect a required value, return `unavailable`
+   with `parameters-required` before opening the surface.
+
+A pending lookup waits for resolution. A denied, ambiguous, broken or
+schema-incompatible custom binding reports its failure. Generation applies
+only on confirmed absence, so a required custom workflow cannot silently change.
+Each invocation gets its own form session and draft. Both custom and generated
+forms use the same nonmodal surface and schema validation.
+
+The form provider declares one parameter form and explicit accepted
 submitters. A form may be nested through slots, but its native form owner and
 provider ownership must be unambiguous. An unrelated form inside task content
 cannot resolve the invocation.
@@ -396,13 +415,13 @@ cannot resolve the invocation.
    over defaults. If all required values now exist and no explicit confirmation
    policy applies, execute without opening a dialog. Required confirmation is a
    separate policy from missing parameters.
-2. If values are missing and a permitted dialog exists, create a draft seeded
-   from supplied values/defaults. Explicit values take precedence over defaults;
-   the user may edit them in this invocation. Without a resolver, return
-   `unavailable` with `parameters-required`; do not guess values or run partially.
-3. Open `cem-dialog mode="modal"` through its existing shared surface lifecycle.
-   Reset session acceptance and stale `returnValue` before opening. Opening
-   retains the content target and does not itself execute the command.
+2. When input is required, select the form as described above and seed its
+   draft with the supplied values and applicable defaults.
+3. Open `cem-dialog mode="nonmodal"` through the shared surface lifecycle
+   (native `dialog.show()`). Reset session acceptance and stale `returnValue`.
+   Only this invocation waits. The owner, container and siblings remain
+   interactive in embedded and iframe hosts. Retain the original invocation,
+   handler and content target even if focus or the manager's active app changes.
 4. Only an accepted native form submission can resolve parameters. Apply native
    constraint validation, capture the submitting button, construct the successful
    controls entry list, then validate/coerce against the command schema.
@@ -436,14 +455,12 @@ fail. Default policy closes the resolver after acceptance and reports a
 correlated command result elsewhere. A task that remains open through Save and
 shows service errors must explicitly declare that workflow, using the existing
 guarded surface lifecycle. Closing a dialog is never an operation-success signal.
-While a modal task is open, present its relevant status/errors within the
-reachable dialog, not in an inert background live region.
-
-Focus enters the named dialog appropriately and returns to the session's
-eligible invoker/content destination after cancellation or completion. Preserve
-newer deliberate focus and never focus removed/disabled targets. Reuse existing
-[dialog behavior](dialog-contract.md), including stable native owner identity;
-do not replace it with a custom focus trap or a new modal toggle path.
+Give the nonmodal form an accessible title that identifies the task and, where
+needed, the target document. Show field errors at the relevant controls.
+Focus may leave while the draft is open. On close, restore an eligible
+destination only if the form still owns focus. Preserve any newer deliberate
+focus in this or another app. Reuse the existing
+[nonmodal focus contract](dialog-contract.md#outside-focus-on-nonmodal-closure).
 
 ## Lifecycle, concurrency and effects
 
@@ -545,6 +562,13 @@ parameters; locale change during execution; sensitive-value redaction; no
 execution on rerender/SSR/hydration; and accessible names, shortcuts, state,
 focus, RTL/long labels, inherited themes and forced colors. These are future
 acceptance cases, not fixtures or tests delivered by this design-only change.
+
+Exercise explicit, same-ID and generated form selection. With a host menu and
+two children exporting `file.save-as`, confirm that only the selected child's
+form opens. Change active child and locale while editing, then submit or cancel.
+Verify one result for the original invocation and zero effects on the other
+child. Cover a missing custom form, duplicate or invalid bindings, unsupported
+required types, target closure and preservation of outside focus.
 
 Cross-app acceptance also requires exported-child Save targeting, denied upward
 context writes, allowlisted parent services, sibling isolation, bridge-loop

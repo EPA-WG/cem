@@ -488,8 +488,8 @@ For an ordinary shortcut, use current content focus. For command chrome, use its
 captured content origin. For an application-scoped command with no content
 origin, the application itself is the route origin. A focused native text field
 within a parameter dialog gets normal editing commands; only the already
-pending invocation retains its earlier target. Background application commands
-are blocked during a modal task unless explicitly classified as modal-safe.
+pending invocation retains its earlier target. The parameter form is nonmodal.
+Users can focus another editor or switch apps while the draft remains open.
 
 Provider identity and domain context are retained, rather than a translated
 label, list index, or arbitrary descendant of the generated DOM. Validate that
@@ -726,14 +726,14 @@ or an old active-app/focus claim automatically.
 ```mermaid
 sequenceDiagram
     participant I as Invoker or shortcut
-    participant A as Application
+    participant A as Owning application
     participant C as Focused context and ancestors
     participant D as Parameter dialog
     I->>A: Stable command ID and supplied parameters
     A->>C: Resolve handler and current state
     C-->>A: One eligible handler, or unavailable
     opt Required parameters are missing
-        A->>D: Open modal form with retained invocation context
+        A->>D: Open custom or schema-generated nonmodal form for the pinned target
         D-->>A: Valid accepted parameters, or cancellation
     end
     A->>C: Revalidate and route cem-command
@@ -747,11 +747,18 @@ are in [command.md](command.md). The application orchestrates; it does not execu
 every command in a document-global handler. A local editor can own Copy, its
 document owner Save As, and the application Preferences.
 
-Closing menus and opening a modal task must cooperate with the existing menu
-task relay and [surface lifecycle](dialog-contract.md). Do not synthesize a
-second click or native `command` to carry out the same operation. An accepted
-parameter form produces one final execution request, not an opening request
-followed by a second unrelated invocation.
+When the host invokes an exported child command, the child resolves parameters
+and executes under its own context. It first honors an explicit form binding,
+then looks for a parameter form under the same command ID in its resource view.
+If that form is absent, it generates one from the command schema. The
+[selection and failure rules](command.md#nonmodal-parameter-forms) apply in
+both light-DOM and iframe hosts.
+
+Hand off from the menu through the existing [surface lifecycle](dialog-contract.md).
+The nonmodal form suspends only this invocation. The host's Switch app control
+and sibling apps remain usable. Submitting Save As after switching from editor A
+to editor B revalidates A. If A has closed, the request ends without saving B.
+An accepted submission dispatches once under the original invocation ID.
 
 ## Locale changes as a transaction
 
@@ -897,6 +904,9 @@ Future implementation acceptance requires:
 - Generated names remain stable on save/load; clone allocates fresh instance and
   storage identity. Collisions, changed parent policy, unsupported migrations,
   entered credentials, unknown effects and shared-worker retirement fail safely.
+- An exported child command resolves its explicit, same-ID or generated form
+  in that child. The host and siblings can take focus while the form is open
+  in both embedding modes. Switching apps preserves the draft and target.
 - Cancel, invalid submit, rejected close and target removal produce no operation;
   accepted submit executes once, even under rapid activation.
 - Locale switch during an open menu, edited form, pending command and slow bundle
