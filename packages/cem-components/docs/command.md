@@ -472,6 +472,54 @@ destination only if the form still owns focus. Preserve any newer deliberate
 focus in this or another app. Reuse the existing
 [nonmodal focus contract](dialog-contract.md#outside-focus-on-nonmodal-closure).
 
+## Version 1 Save As example
+
+[Read the complete CEM-ML source](examples/file-save-as.v1.cem). The file uses
+CEM-ML version 1. The application vocabulary, resource manifest and command
+revision each have their own version. The records describe a proposed consumer.
+The existing parser can read and round-trip the tree.
+
+The desktop shell owns a French menu override and a named preferences store.
+Its child editor owns the document, the command context and the nonmodal
+parameter form. Selecting the menu item in the editor proceeds as follows.
+
+1. Resolve `file.save-as` revision 1 against `note-context` and pin document
+   `note-1`. The menu shows **Enregistrer le document sous…**. The action and
+   form title still say **Enregistrer sous**, and the French description comes
+   from the child bundle. Switching the editor to English gives **Save As…**.
+   The Windows profile binds Ctrl+Shift+S to focused content. Its letter key
+   matches ASCII `s` or `S` with the declared modifiers. When focus is in this
+   editor, shortcut preflight uses the same logical route as the menu item.
+2. Collect the missing `contentType` and `filePath` in the owning editor's
+   same-ID form. The admitted preference can prefill the format. The user can
+   choose plain text or Markdown. These choices submit `text/plain` and
+   `text/markdown` in either language. Cancel ends this invocation without a
+   write. If the custom form is omitted, the same two parameters and their
+   localized labels drive the schema-generated form.
+3. On submit, validate the values and recheck the pinned document and service
+   grant. The desktop service writes the document using the requested format and
+   private destination. Success updates `lastContentType` when its separate
+   store grant permits it. Failure to record the preference leaves the completed
+   save successful. The caller receives `invocationId` and `status` once.
+   The draft stays in `editor-session`. The path is confined to the invocation's
+   parameter form and admitted execution endpoint.
+
+| Change to the example | Effective child context |
+| --- | --- |
+| Parent omits the French menu override | The child uses **Enregistrer sous…** from its French bundle. |
+| Parent explicitly supplies empty optional description text | The child shows no description for that entry. An empty required menu label fails override validation. |
+| Host denies or revokes the optional preference binding | The editor can collect the format manually and save. It skips the preference read or write while denied. The shell's private store is inaccessible. |
+| Host denies or revokes the execution grant before dispatch | The command is unavailable. Neither the file nor the preference is written. |
+
+Both apps can use the private key `draft`. Only `editor-1` receives the grant
+to read and write `store-17/lastContentType` under the local name
+`save-preferences`. Native lexical scope suffices for local lookup once the host
+has admitted the child's context. This self-contained manifest needs no module
+map. If the bundles move to separate files, native module-map resource entries
+can resolve their specifiers. A map cannot express who may write a store or
+which child receives a field override. Those checks belong to the proposed
+grant and resource consumers. [Native scope and property inheritance](application.md#scope-syntax-and-property-inheritance-primary-candidate)
+
 ## Lifecycle, concurrency and effects
 
 ```text

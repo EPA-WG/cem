@@ -100,6 +100,10 @@ definition and parameter schema:
 Changing the language replaces the name and help at every subscribed
 presentation; it neither changes the ID nor inherently changes the shortcut.
 
+The [versioned Save As example](command.md#version-1-save-as-example) shows a
+parent replacing one child's French menu label. The form and its labels still
+resolve in the child's locale bundle under the same command ID.
+
 ## Localizable fields
 
 The base command owns references to presentation messages. A locale bundle owns

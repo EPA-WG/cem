@@ -1,0 +1,104 @@
+@doc cem-ml 1
+{application-example @profile=desktop @status=proposal @vocabulary-version=1 |
+    {manifest @default-locale=en @id=editor.resources @version=1 |
+        {bundle @lang=en |
+            {message @key=file.menu | File}
+            {message @key=save.name | Save As}
+            {message @key=save.menu | Save As…}
+            {message @key=save.description | Save the document with another name or format.}
+            {message @key=save.contentType | Content type}
+            {message @key=save.chooseFormat | Choose a format}
+            {message @key=save.plain | Plain text}
+            {message @key=save.markdown | Markdown}
+            {message @key=save.filePath | File path}
+            {message @key=save.submit | Save}
+            {message @key=save.cancel | Cancel}
+        }
+        {bundle @fallback=en @lang=fr |
+            {message @key=file.menu | Fichier}
+            {message @key=save.name | Enregistrer sous}
+            {message @key=save.menu | Enregistrer sous…}
+            {message @key=save.description | Enregistrer le document sous un autre nom ou dans un autre format.}
+            {message @key=save.contentType | Type de contenu}
+            {message @key=save.chooseFormat | Choisir un format}
+            {message @key=save.plain | Texte brut}
+            {message @key=save.markdown | Markdown}
+            {message @key=save.filePath | Chemin du fichier}
+            {message @key=save.submit | Enregistrer}
+            {message @key=save.cancel | Annuler}
+        }
+        {shortcut-profile @id=editor.windows @platform=windows |
+            {binding @command-id=file.save-as @command-revision=1 @key=s @match=key @primary=true @repeat=ignore
+                @target=focused-content |
+                {modifiers @control=true @shift=true}
+        }   }
+        {command @concurrency=single-flight-per-context @id=file.save-as @kind=action @revision=1 |
+            {presentation @description-key=save.description @menu-name-key=save.menu @name-key=save.name}
+            {parameters @freeze=on-accept @sensitive-channel=parametersRef @unknown-fields=reject |
+                {parameter @label-key=save.contentType @name=contentType @required=true @type=enum |
+                    {choice @label-key=save.plain @value=text/plain}
+                    {choice @label-key=save.markdown @value=text/markdown}
+                }
+                {parameter @delivery=endpoint-only @label-key=save.filePath @lifetime=invocation @min-length=1
+                    @name=filePath @required=true @sensitive=true @type=string}
+            }
+            {result @unknown-fields=reject |
+                {field @name=invocationId @type=invocation-id}
+                {field @name=status @type=enum @values="succeeded cancelled failed unhandled unavailable"}
+                {field @name=code @type=diagnostic-code}
+                {deliver-result @correlate-by=invocationId @fields="invocationId status" @max-results=1
+                    @to=originating-invoker}
+        }   }
+        {template @command-revision=1 @kind=parameter-form @resource-id=file.save-as |
+            {cem-dialog @mode=nonmodal |
+                {span @slot=label @text-key=save.name}
+                {form @method=dialog |
+                    {label |
+                        {span @id=format-label @text-key=save.contentType}
+                        {select @aria-labelledby=format-label @name=contentType @required=required |
+                            {option @disabled=disabled @selected=selected @text-key=save.chooseFormat @value=""}
+                            {option @text-key=save.plain @value=text/plain}
+                            {option @text-key=save.markdown @value=text/markdown}
+                    }   }
+                    {label |
+                        {span @id=path-label @text-key=save.filePath}
+                        {input @aria-labelledby=path-label @autocomplete=off @name=filePath @required=required
+                            @type=text}
+                    }
+                    {button @submit-role=accept @text-key=save.submit @type=submit | Save}
+                    {button @formnovalidate=formnovalidate @submit-role=cancel @text-key=save.cancel @type=submit | Cancel}
+    }   }   }   }
+    {host-service @command-id=file.save-as @command-revision=1 @id=desktop.write-document @resources=editor.resources |
+        {write-file @destination-parameter=filePath @format-parameter=contentType @source=pinned-document}
+        {grant-service @context-id=note-context @instance-id=editor-1 @permission=execute}
+    }
+    {cem-application @instance-id=shell-1 @locale=en @resources=editor.resources |
+        {private-store @id=shell-session @kind=session |
+            {key @name=draft @type=string}
+        }
+        {named-store @id=store-17 @kind=local |
+            {key @command-id=file.save-as @command-revision=1 @name=lastContentType @type-from-parameter=contentType}
+        }
+        {grant-store @id=grant-17 @instance-id=editor-1 @key=lastContentType @read=true @store-id=store-17
+            @subscribe=false @write=true}
+        {message-override @command-id=file.save-as @instance-id=editor-1 @key=save.menu @lang=fr | Enregistrer le document sous…}
+        {cem-application @instance-id=editor-1 @locale=fr @resources=editor.resources @shortcut-profile=editor.windows |
+            {store-binding @grant-id=grant-17 @required=false @scope=save-preferences @store-id=store-17}
+            {private-store @id=editor-session @kind=session |
+                {key @initial="Meeting notes" @name=draft @type=string}
+            }
+            {document @content-key=draft @content-store-id=editor-session @id=note-1 @revision=1 |
+                {command-context @id=note-context |
+                    {handler @command-id=file.save-as @dispatch=once-per-invocation @eligible=true
+                        @on-service-denied=unavailable @revalidate=before-dispatch @revision=1
+                        @service-id=desktop.write-document |
+                        {seed-draft @if-unavailable=leave-unset @key=lastContentType @parameter=contentType
+                            @scope=save-preferences @when=missing}
+                        {on-result @status=succeeded |
+                            {store-write @from-parameter=contentType @if-unavailable=skip @key=lastContentType
+                                @scope=save-preferences}
+                    }   }
+                    {cem-action @command-context=note-context @command-id=file.save-as}
+                    {cem-menu @aria-label-key=file.menu |
+                        {cem-menu-item @command-context=note-context @command-id=file.save-as @command-label=menu}
+}   }   }   }   }   }

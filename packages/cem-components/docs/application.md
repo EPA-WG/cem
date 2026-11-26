@@ -830,6 +830,9 @@ and sibling apps remain usable. Submitting Save As after switching from editor A
 to editor B revalidates A. If A has closed, the request ends without saving B.
 An accepted submission dispatches once under the original invocation ID.
 
+See the [versioned Save As example](command.md#version-1-save-as-example)
+for the owning handler, shared store grant and child-specific French override.
+
 ## Locale changes as a transaction
 
 `locale="auto"` and automatic UI theme selection follow the effective environment
