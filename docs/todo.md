@@ -14,11 +14,9 @@ Studio work and component audit fixes are preserved in the
 [2026-11-23 snapshot](archive/todo-snapshot-2026-11-23.md).
 Its unchecked entries are historical; this file remains the active checklist.
 The [virtual application design revision](archive/todo-completed-virtual-application-design-2026-11-23.md)
-extends those proposals with embedded contexts, management and portable state;
-focus/active-app selection and runtime implementation remain future work.
+extends those proposals with embedded contexts, management and portable state.
 The [insulation-first revision](archive/todo-completed-application-insulation-design-2026-11-24.md)
-records native scope candidates, guarded browser APIs and `embed-page` parity;
-implementation and focus/active-app selection remain future work.
+records native scope candidates, guarded browser APIs and `embed-page` parity.
 The [command parameter form revision](../packages/cem-components/docs/command.md#nonmodal-parameter-forms)
 resolves proposal review item 1. Chromium and Firefox native dialog checks
 confirmed that the host could take focus, a sibling could be edited and a draft
@@ -30,6 +28,9 @@ first paint before hydration and independent feature loading, denial and disposa
 The [logical command route](../packages/cem-components/docs/command.md#logical-command-route-and-permissions)
 resolves review item 3 at proposal level. Projected-editor acceptance covers
 observer and guard permissions, one executable claim, and private result delivery.
+The [keyboard ownership decision](../packages/cem-components/docs/application.md#keyboard-ownership-across-apps)
+resolves review item 4. Native focus delivery was checked in Chromium and Firefox
+in light DOM and an iframe. Cross-app command routing still needs runtime coverage.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).

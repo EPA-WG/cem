@@ -11,7 +11,7 @@ these additions.
 microapplication boundary, with a native CEM context, downward container
 authority, application management and portable-state goals. This revision
 supersedes the earlier description as only a command/localization region.
-Focus-to-activation policy remains **TBD**; the contracts below do not select it.
+Keyboard focus supplies the input owner. The manager selects its active child independently.
 
 **Owner revision — insulation-first and guarded APIs, 2026-11-24:** each app
 starts with a private admitted environment. Browser services are available to
@@ -91,7 +91,7 @@ guardrails. Switching placement must not change storage key visibility, named
 scope sharing, logical navigation, resource lookup or command authority.
 The actual DOM ancestry, browser origin and permission/activation constraints
 still differ; adapters preserve the contract without inventing unavailable
-browser permissions. Focus/active-app policy remains TBD in both deployments.
+browser permissions. Both deployments apply the same keyboard ownership rules.
 
 An iframe on a different origin can add browser-enforced separation for a hybrid
 CEM+JavaScript app. An ordinary same-origin iframe supplies a separate document
@@ -443,8 +443,8 @@ Resource inheritance alone grants neither execution nor upward context writes.
    Multiple instances of an editor may handle the same command ID.
 4. Register one coordinated dispatch boundary through the shared runtime.
    Management, business-command and lifecycle admission are separate. Key
-   dispatch for a running app follows the eventual focus/activation policy;
-   do not add a listener per menu item or infer activation from connection.
+   dispatch for a running app starts at the focused control or surface.
+   The manager changes selection through its own activation operation.
 5. On context, resource, permission or host-profile changes, invalidate only the
    affected eligibility/presentation snapshots. Unrelated renders do not reset
    focus or drafts.
@@ -504,9 +504,30 @@ and the [declaration registry](../../../docs/cem-element-design.md#declaration-r
 Maintain separate **DOM focus**, **content command context**, **invoker**, and
 **return-focus destination**. They are frequently different elements.
 
-**Cross-app focus and activation selection are TBD.** The following rules apply
-within an already identified running app. They do not establish that focusing,
-hovering, restoring or rendering an app automatically activates it.
+### Keyboard ownership across apps
+
+Each keystroke belongs to the focused control or surface. Its registered
+logical context supplies the default target for a content command. The
+manager's active-child selection controls scheduling and supplies a target
+for actions explicitly bound to that selection. Focus alone leaves it intact.
+
+| With A selected and focus in B | Input and command recipient |
+| --- | --- |
+| Typing, composition, native Copy or Undo | B's focused control handles native editing. |
+| Ordinary Save shortcut | Resolve Save once in B's logical context. If B cannot handle it, preserve the native default. |
+| Host File menu opened from B | Capture B before entering the menu. The menu handles arrows, typeahead and Escape. Contextual Save targets B's exported endpoint. An action explicitly bound to the selected child captures A. Each action uses its pinned target for its label, eligibility and execution. |
+| Manager shortcut such as `app.next` | An explicitly installed binding in the focused scope submits one semantic request to the manager after control handling. The manager switches from its selected child in its declared order. Resolve binding conflicts at installation. |
+| Nonmodal form | The focused field owns editing. Accepted submit resumes the invocation pinned to the form. Focus can move elsewhere while its draft stays open. |
+
+A focused frame handles input locally and passes only the admitted semantic
+request or context across its bridge. A physical ancestor observing a key has
+no incidental command rights. With focus outside participating content, or a
+stale or stopped target, the selected app receives no fallback dispatch. Respect
+browser-reserved keys, IME composition and the actual scope of a modal surface.
+See the [logical route](command.md#logical-command-route-and-permissions)
+and [shortcut dispatch](command.md#shortcut-dispatch).
+
+### Retaining the content target
 
 When an editor owns focus, it becomes that app's content command context. Before focus
 enters command chrome, such as a toolbar, menu or command palette, capture that
@@ -567,12 +588,12 @@ Whether that order is tab order, MRU or another explicit model remains an
 interaction decision. No default OS hotkeys are claimed by these command names.
 The manager localizes names/help through ordinary command resources.
 
-**Still TBD:** focus-to-activation rules, keyboard ownership when focus and
-selection differ, initial active-child choice, activation during modal tasks,
-close fallback/MRU policy, and return-focus behavior between apps. Explicit
-activation is an admitted manager operation; it is not proof that a focus policy
-has been designed. Active state is a selection fact, not a command grant or a
-DOM accessibility role.
+A manager may start without a selected child. After a successful explicit
+keyboard switch, move focus to the child's eligible remembered control or its
+entry point. A failed switch preserves the existing selection and valid focus.
+Closing a task or child preserves newer deliberate focus. If focus was lost
+with the closing surface, restore its eligible return target or a manager
+control. Selection and focus restoration respect lifecycle gates and modality.
 
 ## Lifecycle, priority and stopped-event admission
 
@@ -608,7 +629,7 @@ reconcile them on restart without claiming they ran while stopped. The surviving
 host control plane owns activation/start/close for a stopped subtree, including
 when its immediate manager's business UI is paused. Stopped instances are never
 effective active execution targets; manager selection changes must be coordinated
-with lifecycle admission, without deciding the TBD focus/fallback policy.
+with lifecycle admission and the focus restoration rules above.
 
 Stopping is a transaction, not just `inert` or hidden markup:
 
@@ -898,7 +919,7 @@ This proposal requires new shared capabilities; none are delivered here.
    registration collision refusals until that capability is supported.
 2. Define instance/manager identity, lifecycle admission and operation-control
    integration, including ancestor stops and active/background scheduling.
-   Resolve the explicitly TBD focus/activation UX before claiming keyboard flow.
+   Verify focused, selected-child and manager bindings with divergent targets.
 3. Define command/resource/override vocabularies and schema revisions; implement
    locale/theme matching, typed parameters and cross-format import validation.
 4. Add handler registrations, eligibility queries, local one-claim routing,
@@ -923,6 +944,10 @@ invoker behavior must remain independently usable throughout migration.
 
 Future implementation acceptance requires:
 
+- With A selected and B focused, ordinary Save and contextual host-menu Save
+  reach B once. Selected-child Save reaches A once and a manager shortcut
+  reaches only the manager. Target loss cancels without retargeting. Verify
+  both light-DOM and iframe hosts, nonmodal form editing and focus restoration.
 - Two editors handling the same ID route by content context, including toolbar,
   menu, pointer context menu, keyboard and native-shell invocation.
 - An unhandled inner-application command never executes in the outer app;
@@ -975,8 +1000,7 @@ Future implementation acceptance requires:
   revisions without replaying invocations. Persist locale and user keybindings;
   never auto-resume a command with side effects from saved event state.
 
-This design leaves focus/active-app selection UX explicitly TBD. Complete
-guardrail coverage, `embed-page` behavioral parity, hybrid browser enforcement,
+Complete guardrail coverage, `embed-page` behavioral parity, hybrid browser enforcement,
 OS adapters, portable app-state codec/migration, physical offload, cross-process
 transport and durable undo require implementation/evidence. Existing runtime
 storage/location bindings are not already app-virtualized; this proposal records

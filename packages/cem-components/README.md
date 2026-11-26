@@ -484,8 +484,8 @@ Known deferrals stay outside this trigger:
   insulation-first virtual/embedded apps, native scope/property bindings,
   guarded browser APIs with `embed-page` parity, downward container overrides,
   management/lifecycle, portable state, commands, parameter dialogs and
-  environment-aware localized/theme resources. Focus and
-  active-app selection remain TBD; these are future APIs, not shipped capabilities.
+  environment-aware localized/theme resources. The focused surface owns keyboard
+  input and the manager owns active-child selection. Runtime support is proposed.
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.
 - [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted

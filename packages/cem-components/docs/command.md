@@ -171,11 +171,10 @@ prerequisite for a declarative CEM microapplication.
 | Sibling app | Container-mediated exported endpoint; no direct ancestry fallback or automatic sibling discovery |
 
 For example, container File > Save can bind to an exported `file.save-as` endpoint
-of the manager-selected child. Pin the selected instance/generation/context when
-the invocation is admitted. If the active selection changes while its parameter
-dialog is open, do not silently save the newly selected app. If no eligible
-target/endpoint exists, report unavailable instead of trying every child or the
-container's own document handler.
+of the manager-selected child. Pin the selected instance and context when
+opening that menu and revalidate them at invocation. Selection changes while
+the menu or parameter form is open preserve that target. Losing the target or
+its exported endpoint makes the action unavailable.
 
 Conversely, a child may request an exported container service, such as opening a
 host-managed resource, without receiving permission to mutate the parent's
@@ -208,10 +207,10 @@ a hybrid same-document host is outside the CEM-only guard and requires the
 appropriate stronger host boundary. Sensitive values remain outside public
 event detail under the protected parameter contract below.
 
-Local routing remains focused-context based within the identified running app.
-Cross-app focus-to-activation and keyboard ownership are **TBD**, as recorded in
-the application proposal. Management can have an explicit active-child reference
-without assuming every `focusin`, hover, load or restore selects it.
+For ordinary keyboard commands the focused control supplies the executing app
+and logical route. A host menu captures the content context at entry. A
+selected-child binding pins the manager's selection instead. Neither binding
+may switch targets after capture. See [keyboard ownership across apps](application.md#keyboard-ownership-across-apps).
 
 Paused/offline/offloaded apps do not process business commands, shortcuts or
 event-to-slice captures, including commands arriving through an export bridge.
@@ -523,9 +522,10 @@ Use the following dispatch rules:
   a shortcut.
 - Apply app/ancestor lifecycle admission first. Stopped apps do not process even
   unclaimed shortcuts or reflect them into their islands. Manager activation,
-  start and close controls remain in the surviving control plane. The eventual
-  cross-app focus/active-selection policy determines the running keyboard owner;
-  this shortcut algorithm does not invent that policy.
+  start and close controls remain in the surviving control plane. A recognized
+  manager binding in the focused scope hands off one admitted semantic command.
+  Unhandled input never falls through to another app. Native editing and
+  browser-reserved bindings retain their ordinary behavior.
 - Ignore IME composition, dead/process keys and AltGraph text entry. Normalize
   key/case/modifiers under the declared matcher; do not treat AltGraph as an
   accidental Control+Alt shortcut.
@@ -592,7 +592,7 @@ Cross-app acceptance also requires exported-child Save targeting, denied upward
 context writes, allowlisted parent services, sibling isolation, bridge-loop
 refusal, same-ID/different-instance state, stopped-app refusal without replay,
 and stale-generation rejection after pause/load/clone. MDI manager commands are
-tested independently from business handlers and TBD focus-selection behavior.
+tested independently from business handlers with different focused and selected apps.
 Verify private defaults, denied self-joining of a named group, admitted
 per-family sharing without handler leakage, and equivalent command API outcomes
 in light-DOM and iframe hosts. Guarded framework service calls must never fall
