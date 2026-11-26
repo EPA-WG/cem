@@ -1,7 +1,7 @@
 @doc cem-ml 1
 {application-example @profile=desktop @status=proposal @vocabulary-version=1 |
     {manifest @default-locale=en @id=editor.resources @version=1 |
-        {bundle @lang=en |
+        {resources @lang=en |
             {message @key=file.menu | File}
             {message @key=save.name | Save As}
             {message @key=save.menu | Save As…}
@@ -14,7 +14,7 @@
             {message @key=save.submit | Save}
             {message @key=save.cancel | Cancel}
         }
-        {bundle @fallback=en @lang=fr |
+        {resources @fallback=en @lang=fr |
             {message @key=file.menu | Fichier}
             {message @key=save.name | Enregistrer sous}
             {message @key=save.menu | Enregistrer sous…}

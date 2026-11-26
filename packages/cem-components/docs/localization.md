@@ -56,7 +56,7 @@ from a private external app merely because it is a structural ancestor. Resolve
 definitions/overlays before message lookup, using the same native
 context/import/reference machinery as other resources. A child's update
 never edits the parent's retained tree. Caches retain app context/grant and
-override-generation identity even when source bundles are shared.
+override-generation identity even when apps share the source resources.
 
 Inherited language/theme preferences are **requests**, matched against the
 child's own available choices. An inherited French preference does not imply
@@ -102,12 +102,12 @@ presentation; it neither changes the ID nor inherently changes the shortcut.
 
 The [versioned Save As example](command.md#version-1-save-as-example) shows a
 parent replacing one child's French menu label. The form and its labels still
-resolve in the child's locale bundle under the same command ID.
+resolve in the child's localized resources under the same command ID.
 
 ## Localizable fields
 
-The base command owns references to presentation messages. A locale bundle owns
-their translations and presentation metadata. Different presentation variants
+The base command references presentation messages. Each locale’s `resources`
+container holds their translations and presentation metadata. Different presentation variants
 may share one message when their wording is truly identical.
 
 | Resource field | Intended use |
@@ -140,7 +140,7 @@ icon mechanically: directional navigation and a brand mark have different rules.
 
 Do **not** translate command IDs, parameter keys, enum wire values, MIME types,
 permission names, handler references, capability requirements or result codes.
-Runtime enabled/checked/busy state comes from the handler. A translation bundle
+Runtime enabled/checked/busy state comes from the handler. Translation resources
 cannot change authorization, operation kind, parameter schema, executable
 provider or concurrency policy. Platform policies and translations can propose
 shortcut defaults, but the active host/user profile controls installation.
@@ -183,16 +183,20 @@ vocabulary below specifies fields, not new CEM-ML syntax.
 | --- | --- |
 | Application resource manifest | Stable resource-set identity/version, supported languages, default locale, locale-to-resource references, schema revisions, admitted asset/shortcut profiles and explicit inheritance links |
 | Command definitions | Stable IDs, semantic schema, presentation message keys, optional parameter-dialog references and execution policies |
-| Locale bundle | Locale identity, resource/message keys, complete message values or typed message nodes, per-value direction where needed, translator metadata |
+| Localized resources | Locale identity, resource/message keys, complete message values or typed message nodes, per-value direction where needed, translator metadata |
 | Shortcut profile | Stable command references, structured modifier/key or physical-code bindings, platform/layout applicability, primary/alternative designation |
 | User preferences | Explicit UI/format locale, command-ID-based keybinding overrides and profile versions; stored separately from shipped resources |
 
-Suggested source organization is a resource manifest plus semantic definitions,
-locale bundles such as `en.cem` and `fr-CA.cem`, and independent shortcut profiles.
+Use `resources` as the grouping container in the manifest. For example,
+`{resources @fallback=en @lang=fr | ...}` groups the French entries and declares
+where to look for a missing key. Individual entries keep their own type and
+key. A parent can override one entry for one child and language. The container
+can be inline or supplied from files such as `en.cem` and `fr-CA.cem`. Command
+definitions and shortcut profiles have their own entries in the manifest.
 Paths are packaging examples, never resource identity. A manifest reference can
 move without rewriting every menu consumer. Split large catalogs by feature and
-load admitted bundles on demand; preload labels/schemas for imminent command UI
-so activation does not block on network access.
+load admitted resources on demand. Preload labels and schemas for imminent
+command UI so activation can proceed without a network request.
 
 ### Alternative source formats
 
@@ -300,7 +304,7 @@ requested locale, actual message locale, fallback source, resource ID/revision,
 field and direction. Mark fallback text with its actual language for speech and
 direction without changing surrounding application language.
 
-If a required key is missing even in the default bundle, emit a stable
+If a required key is missing even in the default locale’s resources, emit a stable
 `resource-missing` diagnostic and disable the affected unnamed command control;
 do not render a misleading blank accessible action. Development tools can show
 the key. Optional resources can use a schema-declared neutral omission policy.
@@ -349,14 +353,14 @@ overridden by the admitted container context.
 
 For paused/offline/offloaded apps, the manager records only the latest relevant
 environment/context revision. Do not deliver language/theme/storage events,
-fetch replacement bundles, render, or fire locale callbacks in the stopped app.
+fetch replacement resources, render, or fire locale callbacks in the stopped app.
 On explicit activation/start, prepare its current resources/theme under fresh
 admission before reopening business processing. Never replay missed preference
 events as a queue. Running apps use this transaction:
 
 1. Capture requested language/theme/profile input revision and a new generation token.
-2. Load/import/validate the selected bundle and fallback dependencies through the
-   existing resource lifecycle. Pin command definition/schema revisions.
+2. Load/import/validate the selected resources and their fallback dependencies
+   through the existing resource lifecycle. Pin command definition/schema revisions.
 3. Resolve messages, direction, mnemonic groups, platform/keybinding defaults
    and user overrides; diagnose conflicts before publication.
 4. If the token is still current, publish one coherent resource-view revision.
@@ -367,10 +371,10 @@ events as a queue. Running apps use this transaction:
    retain them. Emit one locale-change completion notification after publication;
    it does not itself request any command.
 
-Locale changes during load supersede earlier tokens. A failed new bundle leaves
-the previous generation and shortcuts active, with an available localized error
-message; initial failure falls back to the packaged default. An optional feature
-bundle can degrade independently only when its dependency boundary is declared.
+Locale changes during load supersede earlier tokens. If the new resources fail
+to load, keep the previous generation and shortcuts active and show a localized error. On
+initial failure, use the packaged default. Optional feature resources can fail
+independently when the manifest declares their dependencies.
 Do not mix an old command label and a newly installed shortcut for the same
 resource. Persist preferences, not transient decode handles or an entire mutable
 resolved JavaScript catalog.
@@ -414,7 +418,7 @@ every locale update as a separate live-region message.
 
 ## Caching, SSR and implementation acceptance
 
-Cache imported bundles by resource identity/content revision, schema/import
+Cache imported resources by resource identity/content revision, schema/import
 profile and locale, with resolver/base identity, active registry/security policy
 and relevant admission/grant context in the cache identity. Reusing cached bytes
 or a retained tree in another scope still requires fresh admission; cached
@@ -444,7 +448,7 @@ Before implementation adoption, verify:
 - Complete defaults, missing/empty distinctions, duplicate keys, incompatible
   placeholders, fallback cycles, script-sensitive lookup and unsupported tags.
 - Ordered browser/host preferences, explicit preference overrides and multiple
-  independently localized applications; stale/failing bundle loads.
+  independently localized applications; stale or failed resource loads.
 - Container full/partial resource overrides, insulated fallback refusal and
   child-only settings; unavailable locale/theme choices select declared app
   defaults without upward mutation. Stopped apps defer resource/theme work until

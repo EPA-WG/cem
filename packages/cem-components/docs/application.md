@@ -255,8 +255,9 @@ for example only a command's name and help. Missing fields use the admitted
 underlying resource; explicit empty/removal values follow that field's schema.
 Whole-message/plural units and executable/schema-bearing values are atomic unless
 their schema explicitly defines a safe field overlay. Revalidate the effective
-resource before publishing it. Semantic overrides use admitted context authority;
-a translator bundle still cannot replace a handler or schema.
+resource before publishing it. In the manifest, a `resources` container groups
+entries with shared qualifiers such as language. Semantic changes to handlers
+or schemas require separate context authority.
 
 Resolve semantic definitions/overrides before localization. A presentation-only
 override leaves the command's semantic revision unchanged; replacing its schema
@@ -456,7 +457,7 @@ Resource inheritance alone grants neither execution nor upward context writes.
 Resource loading uses the
 [common lifecycle](../../../docs/cem-ml-resource-lifecycle.md), including failed
 and superseded revisions. No second loading state machine is introduced for
-locale bundles. The
+localized resources. The
 [durable data-island contract](../../../docs/cem-element-lifecycle-principle.md)
 continues to own rendering, resume and native value retention.
 
@@ -903,7 +904,7 @@ an unacknowledged effect safe to repeat.
 
 Activation-gated operations must reach the permitted host API synchronously
 from the originating click/key event, or from the final dialog submit gesture.
-Do not await bundle loading, a worker round trip or eligibility computation and
+Do not await resource loading, a worker round trip or eligibility computation and
 assume transient activation survives. Preload eligibility and schemas; the
 browser/host still decides permission. A free-form file path cannot grant write
 access: web Save As normally asks a picker for a file capability or offers a
@@ -986,7 +987,7 @@ Future implementation acceptance requires:
   in both embedding modes. Switching apps preserves the draft and target.
 - Cancel, invalid submit, rejected close and target removal produce no operation;
   accepted submit executes once, even under rapid activation.
-- Locale switch during an open menu, edited form, pending command and slow bundle
+- Locale switch during an open menu, edited form, pending command and slow resource
   load preserves owner identity and rejects stale publication.
 - Native Copy/Paste and form interaction remain available; shortcut/IME tests
   run on different keyboard layouts. Browser, native-shell and spoken AT

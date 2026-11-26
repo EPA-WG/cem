@@ -478,6 +478,8 @@ focus in this or another app. Reuse the existing
 CEM-ML version 1. The application vocabulary, resource manifest and command
 revision each have their own version. The records describe a proposed consumer.
 The existing parser can read and round-trip the tree.
+Each `resources` container groups messages for one language. The manifest
+selects English by default, and the French group declares English as its fallback.
 
 The desktop shell owns a French menu override and a named preferences store.
 Its child editor owns the document, the command context and the nonmodal
@@ -486,7 +488,7 @@ parameter form. Selecting the menu item in the editor proceeds as follows.
 1. Resolve `file.save-as` revision 1 against `note-context` and pin document
    `note-1`. The menu shows **Enregistrer le document sous…**. The action and
    form title still say **Enregistrer sous**, and the French description comes
-   from the child bundle. Switching the editor to English gives **Save As…**.
+   from the child’s French resources. Switching the editor to English gives **Save As…**.
    The Windows profile binds Ctrl+Shift+S to focused content. Its letter key
    matches ASCII `s` or `S` with the declared modifiers. When focus is in this
    editor, shortcut preflight uses the same logical route as the menu item.
@@ -506,7 +508,7 @@ parameter form. Selecting the menu item in the editor proceeds as follows.
 
 | Change to the example | Effective child context |
 | --- | --- |
-| Parent omits the French menu override | The child uses **Enregistrer sous…** from its French bundle. |
+| Parent omits the French menu override | The child uses **Enregistrer sous…** from its French resources. |
 | Parent explicitly supplies empty optional description text | The child shows no description for that entry. An empty required menu label fails override validation. |
 | Host denies or revokes the optional preference binding | The editor can collect the format manually and save. It skips the preference read or write while denied. The shell's private store is inaccessible. |
 | Host denies or revokes the execution grant before dispatch | The command is unavailable. Neither the file nor the preference is written. |
@@ -515,7 +517,7 @@ Both apps can use the private key `draft`. Only `editor-1` receives the grant
 to read and write `store-17/lastContentType` under the local name
 `save-preferences`. Native lexical scope suffices for local lookup once the host
 has admitted the child's context. This self-contained manifest needs no module
-map. If the bundles move to separate files, native module-map resource entries
+map. If the locale resources move to separate files, native module-map resource entries
 can resolve their specifiers. A map cannot express who may write a store or
 which child receives a field override. Those checks belong to the proposed
 grant and resource consumers. [Native scope and property inheritance](application.md#scope-syntax-and-property-inheritance-primary-candidate)

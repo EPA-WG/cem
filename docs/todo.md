@@ -32,7 +32,8 @@ The [keyboard ownership decision](../packages/cem-components/docs/application.md
 resolves review item 4. Native focus delivery was checked in Chromium and Firefox
 in light DOM and an iframe. Cross-app command routing still needs runtime coverage.
 The [versioned Save As example](../packages/cem-components/docs/command.md#version-1-save-as-example)
-provides the authoring candidate for review item 5.
+resolves review item 5. Its `resources` containers group the English and French
+entries. Native CEM-ML round-trip verification covers the example.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).
