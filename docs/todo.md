@@ -27,6 +27,9 @@ schema-driven generation still require implementation and acceptance tests.
 The [first display and lazy feature decision](../packages/cem-components/docs/application.md#first-display-and-lazy-features)
 resolves review item 2 at proposal level. The acceptance scenario covers
 first paint before hydration and independent feature loading, denial and disposal.
+The [logical command route](../packages/cem-components/docs/command.md#logical-command-route-and-permissions)
+resolves review item 3 at proposal level. Projected-editor acceptance covers
+observer and guard permissions, one executable claim, and private result delivery.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).

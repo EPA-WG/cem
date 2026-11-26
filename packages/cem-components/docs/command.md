@@ -110,10 +110,10 @@ and an execution endpoint with the runtime. Their declarative declaration maps
 the invocation into component event/native slice state. Registration is a
 proposed generic capability, not arbitrary application-local JavaScript.
 
-For a given command, start at the retained content origin and walk its
-participating component ancestry to the nearest application boundary. The
-nearest provider declaring that ID owns it. If it is disabled, stop: do not
-fall back to a parent handler and accidentally act on a different document.
+For a given command, resolve the retained content origin to its registered
+command context, then walk its logical component owners toward the owning app.
+The nearest provider declaring the ID owns the decision. A disabled or pending
+provider returns `unavailable` and ends the search.
 Providers that do not declare the ID are skipped. With no provider, the command
 is unhandled. Two registrations for the same ID at one provider are an error;
 the same ID on different context instances is expected.
@@ -156,8 +156,8 @@ Declarative applications invoke generic `cem-elements` capabilities; that
 framework is the guarded browser API boundary. App authors need no extra wrapper
 component, prefixed global names or frame-specific command implementation to
 obtain isolation. The same logical command, context, parameter and result API
-applies to embedded light-DOM and iframe hosts. The host chooses native event
-delivery or an admitted message transport without changing command authority.
+applies to embedded light-DOM and iframe hosts. Local runtime bindings and
+admitted bridge transports enforce the same command authority.
 An actual cross-origin/sandboxed frame adds browser enforcement for hybrid apps
 that include executable code outside the CEM-only contract; it is not a default
 prerequisite for a declarative CEM microapplication.
@@ -222,53 +222,59 @@ command is a fresh admitted request, not a replay of the request that woke it.
 Enclosing stopped apps also block descendant business admission. Save/clone of
 sealed state can be manager bookkeeping without invoking the stopped app.
 
-## Focus-origin event routing
+## Logical command route and permissions
 
-Use **`cem-command`**, not native `command`, for application execution requests.
-The semantics differ: native `CommandEvent` carries `command` and `source` and
-is delivered to the explicit target; the HTML invocation algorithm does not
-make it a bubbling application responder-chain request. It has no standard
-parameter or async-result protocol.
-[HTML invocation algorithm](https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element),
-[CommandEvent interface](https://html.spec.whatwg.org/multipage/interaction.html#the-commandevent-interface).
+The invoker supplies the request. The content target identifies the object of
+the command. For a keyboard shortcut the focused placement supplies the initial
+context. For a menu or toolbar, use the retained interaction context or an
+explicit target binding. Resolve the placement through its registered owner
+and walk the target's logical component owners up to its application. Projection
+into a layout, slot or surface preserves this route. A presentation component
+may participate through an explicitly admitted command-context binding.
+A placement grant alone gives it no command rights. Missing or ambiguous
+ownership makes the command unavailable.
+[Placement ownership](../../../docs/cem-element-granted-placements-design.md#ownership-and-admission).
 
-The following algorithm is proposed:
+Windows offers two precedents. MFC gives an active view an opportunity to
+handle a command and can then consult the document attached to the view.
+WPF distinguishes the command source, target and binding and allows a focused
+or explicit target. CEM additionally limits delivery to the app's admitted
+participants. [MFC command routing](https://learn.microsoft.com/en-us/cpp/mfc/command-routing#standard-command-route)
+and [WPF commanding](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/commanding-overview).
 
-1. Resolve the resource, origin, handler and eligibility before suppressing any
-   input default. Create one invocation ID and pin semantic/schema revision.
-2. Validate supplied parameters. Collect missing values as described below.
-   There is no execution event for a request still waiting on parameters.
-3. Revalidate the pinned target and handler. Create an immutable parameter
-   snapshot for every invocation, including fully supplied/parameterless ones;
-   scalar detail and nested arrays must not be mutable by observers. Dispatch
-   `cem-command` at the
-   original focused/content element, or its retained stable context host when
-   the inner rendered control has been replaced. A disconnected context fails;
-   do not retarget to the new focused editor.
-4. The event bubbles with `bubbles: true`, `composed: true`, `cancelable: true`.
-   Participating providers along the route can observe it. The selected handler
-   claims the runtime invocation synchronously; no other provider may claim it.
-   An application boundary prevents any cross-application execution.
-5. Claiming records ownership but does not mean success. It does not require
-   stopping propagation, so ancestor declarative observers can record the same
-   request without executing it. Unselected/duplicate handlers cannot execute.
-6. After dispatch returns, if `preventDefault()` was called anywhere on the
-   permitted route, cancel without executing. Otherwise recheck app/ancestor
-   running gates, application generation/admission epoch, target lifetime,
-   document identity/revision, handler identity, eligibility, authorization and
-   semantic revision before starting the one claimed endpoint.
-   Dispatch listeners or a synchronous slice render may have changed them. No
-   claim yields `unhandled`; `stopPropagation()` by itself is neither a claim nor
-   success. Diagnostics expose interrupted routes.
+| Permission | Who participates |
+| --- | --- |
+| Observe | Subscribed logical owners on the route receive read-only, capture-safe projections in their data islands. The invoker can track its own request. An external subscriber requires an explicit export. |
+| Veto | Only guards declared for this command on the logical route may refuse execution. Run them synchronously from the owning app toward the target. The first refusal ends the request with a stable reason. Container restrictions apply at admission and at explicit bridge crossings. |
+| Claim and execute | Search from target to app. The runtime binds the invocation once to the selected, eligible endpoint. Only that endpoint receives the executable request and its authorized parameters. With a valid route and no declaration, return `unhandled`. |
+| Receive the result | The executing coordinator records one terminal outcome per invocation. The admitted caller receives its permitted result by invocation ID, through the originating bridge for a cross-app call. Observers receive only subscribed, permitted status. Closing the invoker ends its UI delivery while the operation retains its outcome. |
 
-This keeps focused-element bubbling and durable event reflection while avoiding
-two handlers acting on the same request. Event listeners must not perform the
-side effect during observation; the admitted runtime endpoint starts only
-after the dispatch/claim/cancellation decision. Declarative async handlers are
-fed once after admission, never once per observing ancestor.
+1. Use the same resolver for menu state, shortcut preflight and execution.
+   Before consuming input, establish eligibility and pin the target, its logical
+   owner and handler, the owning instance, and the command/schema revision.
+2. Validate supplied parameters and collect missing values for that invocation.
+   Before execution, freeze the resolved parameters (including repeated values)
+   and revalidate the pinned route. A change of focus or physical layout alone
+   keeps the target. Loss or change of its logical owner ends the request.
+3. Check grants and the app and ancestor lifecycle gates, then run the declared
+   guards. A guard can refuse but cannot edit the request or execute its effect.
+   Immediately before starting the endpoint, recheck the instance generation and
+   admission epoch, document identity/revision, guard and handler registrations,
+   eligibility and semantic revision. A stale decision never transfers a claim.
+4. Deliver the actionable `cem-command` once through the selected runtime
+   binding. Project request, start and result into admitted subscriptions.
+   Receiving a projection never executes or cancels the command.
+
+Native click, keydown and HTML invoker events retain their browser behavior.
+DOM capture follows physical ancestry even for a nonbubbling event. The runtime
+therefore keeps actionable delivery and veto private to the logical route.
+Calling `preventDefault()` on a native input can affect input preflight.
+Calling it on an observer notification cannot veto an admitted invocation.
+[DOM event dispatch](https://dom.spec.whatwg.org/#concept-event-dispatch)
+and [HTML invoker commands](https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element).
 
 Activation-sensitive endpoints must connect directly to an admitted host service
-in the same originating event stack after dispatch and revalidation. They cannot
+in the originating gesture stack after the guards and final revalidation. They cannot
 depend on asynchronous slice rendering, a worker or a promise completing. An
 ordinary declarative handler may run asynchronously when no such activation is
 needed; otherwise return `activation-unavailable` and provide a fresh explicit
@@ -280,9 +286,8 @@ select the containing page's ambient browser objects because the target shares
 a document with the manager. The application contract owns provider binding;
 command handlers consume the same local service names in either hosting form.
 
-Capture listeners can veto a request, but generic observers must not rewrite its
-ID, target or parameters. Runtime invocation ownership is held in an internal
-registry; do not put `claim()` functions, promises or DOM elements in `detail`.
+The runtime retains invocation ownership internally. Observer projections carry
+immutable data and exclude executable claims, promises and DOM elements.
 An arbitrary author-dispatched lookalike `cem-command` cannot create an admitted
 invocation, replay its ID, or grant host permissions. Programmatic invocation
 uses the same admitted request path and remains subject to host policy.
@@ -294,9 +299,9 @@ Use camelCase detail fields and hyphenated event/attribute names, following
 
 | Event | Time and payload meaning |
 | --- | --- |
-| `cem-command` | Final validated execution request; cancelable, routed from content origin |
+| `cem-command` | Final validated request at the selected runtime endpoint. Subscribers receive a read-only projection. |
 | `cem-command-start` | Accepted endpoint starts; noncancelable lifecycle notification |
-| `cem-command-result` | Exactly one terminal outcome for an invocation, including cancellation before start or unhandled resolution |
+| `cem-command-result` | One terminal outcome including cancellation before start or unhandled resolution. The caller receives the allowed result and observers receive their permitted status. |
 | `cem-command-state` | Contextual eligibility revision changed; no execution implied |
 
 Core detail fields are `invocationId`, `applicationInstanceId`,
@@ -557,7 +562,7 @@ combination syntax from alternatives, and provide visible help beyond `title`.
 Native tests must cover definition validation, schema changes, locale-neutral
 parameters, scalar/native profiles, handler/state resolution, claim/cancel
 ordering, duplicate IDs, repeated invocation IDs, stale contexts and outcome
-correlation. Browser tests must exercise focus-origin bubbling, observer slices,
+correlation. Browser tests must exercise logical routing from a focused placement, observer slices,
 two nested editors/applications, native command coexistence, menu/task focus
 relay, parameter forms, invalid/cancel submits, repeat and activation-sensitive
 host calls. Test resource-bound actions and menu items as separate declarations.
@@ -575,6 +580,13 @@ form opens. Change active child and locale while editing, then submit or cancel.
 Verify one result for the original invocation and zero effects on the other
 child. Cover a missing custom form, duplicate or invalid bindings, unsupported
 required types, target closure and preservation of outside focus.
+
+Project A's editor into a layout with its own Save As handler and invoke A
+from the host menu. Exercise an owner guard refusal and a successful save in
+both light DOM and an iframe. Verify the layout gains zero observations, vetoes,
+claims or results through placement. The caller gets one permitted status
+without a private destination. A disabled nearest provider ends lookup. Changing
+the target's logical owner during parameter entry prevents execution.
 
 Cross-app acceptance also requires exported-child Save targeting, denied upward
 context writes, allowlisted parent services, sibling isolation, bridge-loop

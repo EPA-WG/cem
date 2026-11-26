@@ -763,25 +763,38 @@ or an old active-app/focus claim automatically.
 sequenceDiagram
     participant I as Invoker or shortcut
     participant A as Owning application
-    participant C as Focused context and ancestors
+    participant C as Logical command owners
     participant D as Parameter dialog
     I->>A: Stable command ID and supplied parameters
     A->>C: Resolve handler and current state
-    C-->>A: One eligible handler, or unavailable
+    C-->>A: Handler resolution
+    break No eligible handler
+        A-->>I: Unavailable or unhandled
+    end
     opt Required parameters are missing
         A->>D: Open custom or schema-generated nonmodal form for the pinned target
-        D-->>A: Valid accepted parameters, or cancellation
+        break Form cancelled
+            A-->>I: Cancelled
+        end
+        D-->>A: Valid accepted parameters
     end
-    A->>C: Revalidate and route cem-command
-    C-->>A: Claim once and execute
-    C-->>A: Correlated result
-    A-->>I: Project outcome and refresh state
+    A->>C: Revalidate route and consult declared guards
+    alt Guard refuses or ownership changed
+        A-->>I: Permitted terminal status
+    else Admitted
+        A->>C: Deliver once to the selected endpoint
+        C-->>A: Correlated outcome
+        A-->>I: Permitted result
+    end
 ```
 
-The full state machine, event contract, duplicate prevention and parameter rules
-are in [command.md](command.md). The application orchestrates; it does not execute
-every command in a document-global handler. A local editor can own Copy, its
-document owner Save As, and the application Preferences.
+The coordinator maps a focused placement or captured menu target to its
+registered command context. It resolves handlers along that context's logical
+ownership chain. An editor can own Copy, its document owner Save As, and the
+application Preferences. A layout that displays the editor gains no command
+rights through placement. Subscribed owners may observe, declared guards may
+veto, one selected endpoint may execute, and the admitted caller receives the
+permitted result. See [logical command route and permissions](command.md#logical-command-route-and-permissions).
 
 When the host invokes an exported child command, the child resolves parameters
 and executes under its own context. It first honors an explicit form binding,
@@ -855,8 +868,8 @@ Host menu updates subscribe to the published locale and eligibility revisions.
 The existing `host-command` bridge is a narrower scalar service boundary, not
 this proposed routing protocol. Extend it explicitly or add a separately named
 adapter for typed parameters; preserve its nested-view and ownership checks.
-DOM event `isTrusted` is not an authorization token. A runtime-generated
-`cem-command` is synthetic even when a genuine user gesture caused it.
+An endpoint receives authority through the logical route and host grant.
+DOM event `isTrusted` cannot grant execution permission.
 
 Preserve existing host checkpoint effect accounting in opted-in domains: begin
 the admitted operation before a side effect, acknowledge its actual outcome,
