@@ -433,15 +433,12 @@ Resource inheritance alone grants neither execution nor upward context writes.
 
 1. On first admission, allocate stable instance identity/name and register with
    the parent manager (or page host for the root). Construct the effective native
-   context/providers under existing scopes/grants. Validate command IDs and
-   default locale/theme coverage before starting the app.
-2. Materialize the typed definitions and a coherent presentation generation.
-   Until ready, resource-bound controls are unavailable and no shortcut is
-   intercepted. Passive fallback and manager-owned activation/close controls can
-   remain available; app processing stays gated. Native link/form navigation,
-   popups, downloads and network/storage effects must not execute as ambient
-   defaults before app/provider admission. Once ready, native editing/control
-   behavior continues under the app's ordinary interaction contract.
+   context under existing scopes/grants. Validate the manifest and the command
+   definitions, resources and providers required by the initial view.
+2. Display the admitted initial view. SSR supplies ready-to-display UI on first
+   paint. A client-only mount can publish its first ready view under the same
+   rules. Remaining features load independently as needed. The manager's
+   activation and close controls remain available during preparation.
 3. Register generic handler/context providers and subscribe to their state.
    Multiple instances of an editor may handle the same command ID.
 4. Register one coordinated dispatch boundary through the shared runtime.
@@ -462,6 +459,45 @@ and superseded revisions. No second loading state machine is introduced for
 locale bundles. The
 [durable data-island contract](../../../docs/cem-element-lifecycle-principle.md)
 continues to own rendering, resume and native value retention.
+
+### First display and lazy features
+
+The server renders the actual initial view, including its accessible names,
+language, direction and required styles. A user can read that view with client
+hydration delayed. For example, an editor can show the document title and text
+while the optional export panel, its form and its catalog are still unloaded.
+Use a local loading state where the user is waiting for that feature. A host
+placeholder is appropriate when there is no admitted first view to display.
+
+The embedding host supplies the child's effective context. Before SSR emits
+markup, or a browser renderer creates elements or sets effect-bearing attributes,
+the generic runtime checks the dependencies of the output it is about to publish.
+
+| Output | What must be ready |
+| --- | --- |
+| Resource URLs, including images and stylesheet dependencies | The child's resolver and resource policy admit the actual destination and load. |
+| Links, form submissions, downloads and command controls | The child has an admitted way to perform the action. If it depends on a client provider, emit a passive presentation or a disabled control with no ambient action until the provider is ready. |
+| ID references | Bind local references to unique placements in the child's view. Cross-owner references require the existing directed source and placement grants. Publish mutually dependent placements together. |
+| Custom-element tags | Verify compatibility with the target document's registration before exposing markup that could create or upgrade the element. Defer an unverifiable tag or use an admitted separate document. |
+
+Apply these checks to initial output, lazy features and subsequent changes.
+A declaration awaiting admission stays in the native CEM tree or an inert
+template. On a client-only mount, the host must supply unadmitted child markup
+in that form before the browser can interpret it as live content.
+Dependencies shared across owners follow their existing joint
+publication rules. Independent ready content can display immediately.
+The same ownership rules apply in light DOM and iframe hosts, with hybrid code
+subject to the [iframe boundary](#iframe-and-embedded-behavior-parity).
+
+Hydration adopts the displayed owners, preserves focus and supported native
+edits, and obtains current client grants before attaching handlers or enabling
+effects. Serialized identities help locate those owners. A stale or denied
+feature remains unavailable, and already admitted siblings remain usable.
+A late completion after pause, rebind or disposal is discarded under the
+existing admission epoch. Loading a handler never replays an earlier gesture.
+See [SSR adoption](../../../docs/cem-element-lifecycle-principle.md#native-cli-island-adoption),
+[placement publication](../../../docs/cem-element-granted-placements-design.md#readiness-and-publication)
+and the [declaration registry](../../../docs/cem-element-design.md#declaration-registry-and-name-contract).
 
 ## Focus and command context
 
@@ -549,7 +585,7 @@ not suspend a usable local/cached app or be inferred solely from
 
 | State | App business processing | Priority and allowed management |
 | --- | --- | --- |
-| Starting/restoring | Gated until context, resources and state are admitted | Manager handles start/activation/close; failed preparation preserves the prior usable state |
+| Starting/restoring | Gated until the initial execution context, required resources and state are admitted | Manager handles start/activation/close; failed preparation preserves the prior usable state |
 | Running, selected active | Normal admitted events/commands | Prioritize interactive work; keep enclosing managers and required dependency work responsive |
 | Running, other | Normal admitted work within budget | Low/background priority; no global shortcut/active-child entitlement |
 | Pausing/stopping | Close admission, quiesce in-flight work | Manager/control plane only until the stop fence succeeds |
@@ -917,6 +953,11 @@ Future implementation acceptance requires:
 - Inherited theme tokens, RTL, long labels, narrow viewports, keyboard focus and
   forced colors remain usable. Localization must not introduce component-local
   theme defaults or change the canonical token dimensions.
+- With client hydration delayed, SSR displays the initial document and its
+  localized labels. Delay or deny the optional export feature in both embedding
+  modes. The document stays visible, host controls remain usable and no export
+  effect occurs. On successful load, a fresh invocation executes once. A stale
+  completion after disposal leaves the replacement app untouched.
 - SSR can render resolved resources; hydration subscribes to the same semantic
   revisions without replaying invocations. Persist locale and user keybindings;
   never auto-resume a command with side effects from saved event state.

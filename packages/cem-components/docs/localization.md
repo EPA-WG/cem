@@ -424,9 +424,12 @@ instance/context eligibility is not reusable global translation state. Release
 owners on teardown; resource text/provenance remains available for diagnostics
 without preserving private command arguments.
 
-SSR uses an explicit locale/profile snapshot and emits that generation's
-language/direction/resources. Hydration adopts it before reconciling client
-preferences. Preference reconciliation may relocalize but never replay commands,
+SSR uses an explicit locale/profile snapshot and emits the initial view with
+resolved text, accessible names, language and direction. Optional feature
+catalogs can load when needed. On arrival, resolve the feature against the
+then-current locale and override generation before displaying it. A delayed
+catalog leaves the admitted first view visible. Hydration adopts that view
+before reconciling client preferences. Preference reconciliation may relocalize but never replay commands,
 reopen dialogs or overwrite entered form data. A locale mismatch is a resource
 revision issue, not permission to replace the whole application DOM.
 

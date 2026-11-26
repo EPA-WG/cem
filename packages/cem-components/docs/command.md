@@ -125,6 +125,12 @@ a pending/unavailable revision; keyboard dispatch never awaits it. Recheck state
 and document revision at commit, because a menu can remain open while selection,
 permission, target or busy state changes.
 
+A command may have its label in the server-rendered view while its handler or
+required provider loads lazily. Until the executing app can admit the command,
+keep the control unavailable and leave the shortcut unclaimed. Enable it when
+its own dependencies are ready. A fresh invocation is then required. Other
+ready commands continue under the [application startup contract](application.md#first-display-and-lazy-features).
+
 ## Commands across application boundaries
 
 The [virtual application contract](application.md) adds a manager and native

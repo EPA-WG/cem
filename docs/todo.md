@@ -24,6 +24,9 @@ resolves proposal review item 1. Chromium and Firefox native dialog checks
 confirmed that the host could take focus, a sibling could be edited and a draft
 could be submitted in both light DOM and an iframe. CEM form selection and
 schema-driven generation still require implementation and acceptance tests.
+The [first display and lazy feature decision](../packages/cem-components/docs/application.md#first-display-and-lazy-features)
+resolves review item 2 at proposal level. The acceptance scenario covers
+first paint before hydration and independent feature loading, denial and disposal.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).
