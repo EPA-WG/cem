@@ -46,6 +46,9 @@ and [shared storage contract](../packages/cem-components/docs/application.md#sha
 resolve review item 8. The proposal covers hydration, scoped grants and commit
 ordering. Browser probes cover the IndexedDB primitive. The CEM provider and
 its acceptance scenarios remain implementation work.
+The [locale publication contract](../packages/cem-components/docs/localization.md#locale-publication-and-command-dispatch)
+resolves review item 9. It defines the acknowledgment set, dispatch and failure
+rules, and immediate revocation. The race scenarios require runtime acceptance.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).

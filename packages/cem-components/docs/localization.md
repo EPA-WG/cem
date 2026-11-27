@@ -368,27 +368,73 @@ events as a queue. Running apps use this transaction:
    through the existing resource lifecycle. Pin command definition/schema revisions.
 3. Resolve messages, direction, mnemonic groups, platform/keybinding defaults
    and user overrides; diagnose conflicts before publication.
-4. If the token is still current, publish one coherent resource-view revision.
-   Reproject visible labels, status/tooltip text, accessible names/descriptions,
-   parameter-dialog strings, native-shell menu resources and effective bindings.
-   Fence shortcut dispatch until affected controls acknowledge that generation.
-5. Release old resource owners when subscribers/pending references no longer
-   retain them. Emit one locale-change completion notification after publication;
-   it does not itself request any command.
-
-Locale changes during load supersede earlier tokens. If the new resources fail
-to load, keep the previous generation and shortcuts active and show a localized error. On
-initial failure, use the packaged default. Optional feature resources can fail
-independently when the manifest declares their dependencies.
-Do not mix an old command label and a newly installed shortcut for the same
-resource. Persist preferences, not transient decode handles or an entire mutable
-resolved JavaScript catalog.
+4. If the request is current, fence affected command dispatch and apply the
+   prepared generation to its registered projections and shortcut registry.
+5. After the remaining participants acknowledge that generation, reopen eligible
+   routes and publish one completion. Release older resources when their owners
+   and pending references no longer retain them. Persist the preference in the
+   app’s settings. Decoded handles and the resolved catalog are runtime state.
 
 Open menus/dialogs retain their native owner identity, input values, selection,
 validation state and invocation context. Recompute geometry through existing
 surface behavior when text expands. Preserve the semantic parameter schema;
 changing language cannot change MIME enum values or reinterpret a typed number.
 Reformat display-only feedback while preserving canonical values and edits.
+
+### Locale publication and command dispatch
+
+A running app prepares the requested resource generation while the last
+coherent view remains usable under current grants. Immediately before applying
+a winning generation, capture its affected participants. Include the shortcut
+registry and each live projection that presents changed text or accessibility
+metadata, advertises a changed binding, or can invoke an affected command.
+An open menu, a parameter form and an installed native-shell accelerator can
+all participate. Data-only subscribers read the current generation on demand.
+Closed surfaces and unloaded features adopt it when they open.
+
+Fence affected command entry points before changing the first projection.
+This covers both old and new shortcuts, menu actions and native callbacks.
+Native typing, composition and focus navigation continue. Leave fenced keys
+unclaimed and discard stale command callbacks. A participant acknowledges
+its registered owner and generation after applying the complete projection,
+including accessible text and the effective bindings it owns. A render
+queued or a message sent to a native shell is insufficient evidence of adoption.
+
+| Change during the switch | Coordinator action |
+| --- | --- |
+| Menu closes or a participant unmounts | Remove its pending acknowledgment once its old invocation endpoint is fenced. Opening it again requires the current generation. |
+| A new surface opens | It adopts the latest winning generation before it becomes actionable. It cannot activate an old binding or prolong the switch by registering late. |
+| A native subscriber disconnects or fails to acknowledge | Fence its old callbacks and retire the projection if it can be safely withdrawn. If a required surface can still act or advertise an obsolete shortcut, fail the publication. |
+| The owning app pauses, stops or changes admission epoch | Invalidate the pending publication. Keep the latest request with the manager. A running app prepares it under the new epoch. A stopped app adopts it on start before opening business dispatch. |
+| A newer request supersedes the generation | Fence stale renders and acknowledgments. If application of the old request had begun, keep affected routes fenced until a coherent view is established. |
+| A command grant is revoked | Disable that command immediately at every entry point. Check current grants on each invocation. Neither a late acknowledgment nor restoration of an older view can re-enable it. |
+
+Complete the switch when the shortcut registry and every remaining affected
+participant have acknowledged the same generation. Recheck the app epoch
+and current request, enable only eligible bindings, then emit one locale-change
+completion. Acknowledgments for a retired owner or an older generation cannot
+release the fence. A key pressed during the switch never becomes a deferred
+command.
+
+On a preparation failure, keep the previous coherent view and report the
+error using its available localized messages. On first load, try the packaged default and enable only features with
+valid resources. If a required participant fails after partial application,
+keep affected routes fenced while restoring the last coherent view under
+current grants. Treat expiry of the host adapter's acknowledgment wait as a
+failure. Resume affected commands only after the restored projections and
+shortcut registry agree. Where restoration cannot be confirmed, keep those
+routes unavailable and report the failed switch. A failed or superseded
+generation emits no successful completion. Independent apps and features
+with declared separate resource dependencies continue running.
+
+For acceptance, switch to French with the File menu open, an edited nonmodal
+form and a native Save accelerator. Close the menu before it acknowledges.
+Disconnect the native adapter and deliver a late callback. Revoke Save while
+its old label is visible and press its key before and after the switch.
+Verify zero saves, preserved form input and exactly one completion for a
+successful switch. Also pause during publication, supersede French with a
+second request, and fail a required projection after another has updated.
+Verify coherent recovery or unavailable affected routes, with no replay.
 
 ## Messages, formatting and direction
 

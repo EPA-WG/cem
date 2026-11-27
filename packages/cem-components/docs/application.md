@@ -956,17 +956,16 @@ unmanaged styles require their appropriate host boundary. No parallel local
 token system is introduced.
 [CSS color adjustment](https://www.w3.org/TR/css-color-adjust-1/).
 
-Prepare a new resource generation off the active projection, including strings,
-direction, mnemonics, platform shortcuts and accessibility strings. Validate it,
-then publish it as one application state revision. CEM render scheduling may
-update several DOM owners, but input dispatch must never use bindings from a
-different active generation than the presented controls. Use a brief dispatch
-barrier until affected projections acknowledge the revision; do not claim the
-browser performs an atomic multi-node DOM mutation.
+Prepare strings, direction, mnemonics, shortcuts and accessible text off the
+active view. Fence affected input before applying the new generation. Each
+live participant acknowledges adoption or leaves after its old endpoint is
+fenced. A paused app invalidates that generation. Reopen eligible routes only
+when the surviving projections and registry agree. Check current grants even
+when the previous view is retained or restored. The manager retains only the
+latest locale request for a stopped app.
+[Locale publication and command dispatch](localization.md#locale-publication-and-command-dispatch)
 
-Failed or superseded preparation leaves the previous coherent generation
-active. The first load needs a valid packaged default before commands become
-available. Open forms keep their edited values, selection, native owner identity
+Open forms keep their edited values, selection, native owner identity
 and pending invocation. Relocalize labels and validation messages without
 reopening the task or clearing user input. Resolve a new mnemonic map; retain
 the dialog's entry and return-focus relationships.

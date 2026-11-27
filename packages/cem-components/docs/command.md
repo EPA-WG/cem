@@ -678,6 +678,11 @@ Use the following dispatch rules:
   manager binding in the focused scope hands off one admitted semantic command.
   Unhandled input never falls through to another app. Native editing and
   browser-reserved bindings retain their ordinary behavior.
+- During locale publication, leave affected keys unclaimed until the live
+  projections and shortcut registry agree on the generation. Native editing
+  continues. Every command still requires a current grant, including menu or
+  native-shell invocations displaying an older label.
+  [Locale publication and command dispatch](localization.md#locale-publication-and-command-dispatch)
 - Ignore IME composition, dead/process keys and AltGraph text entry. Normalize
   key/case/modifiers under the declared matcher; do not treat AltGraph as an
   accidental Control+Alt shortcut.
