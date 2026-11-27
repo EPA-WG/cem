@@ -10,17 +10,17 @@
 </head>
 <body>
 This is proof of concept for cem-menu component implementation.
-<nav>
+<nav role="menubar">
 
-    <label ><input type="radio" name="Q"/> A <button type="button">A</button></label>
-    <label ><input type="radio" name="Q"/> Open Dialog
+    <label role="menuitem" ><input type="radio" name="Q"/> A <button type="button">A</button></label>
+    <label role="menuitem" ><input type="radio" name="Q"/> Open Dialog
         <button command="show-popover" commandfor="my-dialog1" type="button">Open Dialog</button>
     </label>
     <dialog id="my-dialog1"  popover style="position-area: bottom;" >
         <menu>
 
-            <label ><input type="radio" name="W"/> A <button type="button">A</button></label>
-            <label ><input type="radio" name="W"/> submenu2
+            <label role="menuitem" ><input type="radio" name="W"/> A <button type="button">A</button></label>
+            <label role="menuitem" ><input type="radio" name="W"/> submenu2
                 <button command="show-popover" commandfor="my-dialog2" type="button">Open Dialog2</button>
             </label>
             <dialog id="my-dialog2"  popover style="position-area: bottom;" >
@@ -30,11 +30,11 @@ This is proof of concept for cem-menu component implementation.
                     <button command="hide-popover" commandfor="my-dialog2" type="button">Close</button>
                 </menu>
             </dialog>
-            <label ><input type="radio" name="W"/> C <button type="button">C</button></label>
+            <label role="menuitem" ><input type="radio" name="W"/> C <button type="button">C</button></label>
             <button command="hide-popover" commandfor="my-dialog1" type="button">Close</button>
         </menu>
     </dialog>
-    <label ><input type="radio" name="Q"/> C <button type="button">C</button></label>
+    <label role="menuitem" ><input type="radio" name="Q"/> C <button type="button">C</button></label>
 </nav>
 
 <script>

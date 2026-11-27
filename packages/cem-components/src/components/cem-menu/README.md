@@ -1,70 +1,87 @@
-## Menu and Sub-menu Implementation Checklist
+# cem-menu: nested menu POC and requirements
 
-**Context**
-Technical overview of web navigation patterns, focusing on ARIA roles, structural requirements, and
-accessibility-compliant keyboard interactions.
+## Required interaction and accessibility contract
 
-**Diagnostics**
-An automated scan for existing navigation structures on the current page returned the following results:
+The [WAI Menu and Menubar Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/)
+is a requirement for `cem-menu`, including its keyboard interactions, roles,
+states, properties, and orientation-specific behavior. Optional APG behaviors
+remain optional; document the choices when implementing them. The POC is evidence
+for implementation experiments, not an exception to this requirement or a claim
+of accessibility conformance.
 
-| Feature                                      | Results Found |
-|:---------------------------------------------|:--------------|
-| `<nav>` Elements                             | 0             |
-| `role="menubar"` or `role="menu"`            | 0             |
-| Common Sub-menu Selectors (`.submenu`, etc.) | 0             |
+Required outcomes include:
 
-**Implementation Methods**
-The following patterns were identified as the industry standards for menu development:
+- One composite focus model: Tab/Shift+Tab enter or leave the widget rather than
+  visiting separate controls for each logical item; leaving closes open menus.
+- Enter opens a submenu and focuses its first item, or activates a command and
+  closes the menu. Retain Space activation as a supported project choice.
+- Arrow behavior follows the APG for the actual menubar/menu orientation,
+  including movement between levels. Radio arrow behavior alone is insufficient.
+- Escape closes the current menu and restores its invoking item. Whole-branch
+  dismissal must not focus hidden descendants or overwrite newer outside focus.
+- Expose named menu containers, correctly focused items, popup/expanded state,
+  orientation, and applicable checked/disabled states. Implement the APG rules
+  for disabled items and separators when those features are present.
+- Support Home/End when arrow wrapping is absent. Typeahead remains optional.
 
-* **Disclosure Pattern (Recommended):** Utilizes a `<button>` with `aria-expanded` and `aria-controls` attributes to
-  toggle a `<ul>` list. This is the preferred method for standard responsive website navigation.
-* **Navigation Menubar Pattern:** Employs `role="menubar"` and `role="menuitem"`. This targets complex,
-  application-style interfaces where users expect desktop-like navigation.
+These requirements do not prescribe radios, roving tabindex, or another specific
+implementation mechanism. The chosen mechanism must produce the required
+behavior and accessible semantics with conforming HTML.
 
-**Keyboard Interaction Standards**
-Keyboard behavior must be explicitly managed to ensure accessibility:
+## Current experiment
 
-| Key(s)            | Disclosure Pattern              | Menubar Pattern                |
-|:------------------|:--------------------------------|:-------------------------------|
-| **Tab**           | Move focus to the next trigger. | Exit the entire menubar.       |
-| **Enter / Space** | Toggle sub-menu visibility.     | Activate menu item.            |
-| **Arrow Keys**    | N/A                             | Navigate between items/levels. |
-| **Escape**        | Close sub-menu; return focus.   | Close sub-menu.                |
+[`css-menu-poc.html`](./css-menu-poc.html) explores native radio-group navigation
+combined with button commands and nested auto-popovers:
 
-**Technical Guidance**
-The following logic and styling represent a potential implementation for a robust sub-menu system:
+- Every label represents one logical item and contains a radio plus a button.
+  Group `Q` is the top level; group `W` is inside the first popup. The deepest
+  popup currently contains explanatory text and a Close button, not another
+  radio group.
+- Radios provide native same-group arrow movement and checked-state changes.
+  Arrow-generated radio clicks are ignored by the activation bridge so merely
+  moving between radios does not open a submenu.
+- Label-text clicks select the radio, focus its button, and invoke it.
+  Enter/Space on a radio also focus and invoke that item's button. Events from
+  buttons retain native button activation.
+- Buttons use `command`/`commandfor` to show or hide popovers. Leaf A/C buttons
+  are placeholders without application commands.
+- Each popup records its opening source. Its closed-toggle handler forwards
+  focus through the source button's parent label to the associated radio.
+  Guards skip disconnected sources, sources within closed ancestor popovers,
+  and restoration that would replace focus on an outside control.
+- The closed-toggle handler retains `preventDefault()` as an explicit POC
+  choice. This does not make the toggle notification cancellable.
 
-`````css
-/* Ensure sub-menus are hidden from both sight and assistive technology */
-.sub-menu {
-    display: none;
-    position: absolute;
-}
+The current source includes `role="menubar"` on the outer `nav` and
+`role="menuitem"` on labels. These attributes are experimental: they do not
+supply keyboard behavior or complete the required accessible focus model.
+The layout displays the top-level items vertically.
 
-/* Use aria-expanded state to toggle visibility */
-.menu-trigger[aria-expanded="true"] + .sub-menu {
-    display: block;
-}
-`````
+## Remaining gaps
 
-`````js
-/* Illustrative toggle logic for the Disclosure pattern */
-const trigger = document.querySelector('.menu-trigger');
-trigger.addEventListener('click', () => {
-    const isExpanded = trigger.getAttribute('aria-expanded') === 'true';
-    trigger.setAttribute('aria-expanded', !isExpanded);
-});
-`````
+| Area | Current POC | Required follow-up |
+| --- | --- | --- |
+| Tab navigation | Radios and buttons remain separate focus targets. | Implement the composite focus contract. |
+| Cross-level arrows | Native radio arrows stay within a group. | Implement orientation-aware navigation between levels. |
+| Command completion | Leaf buttons have no command or menu-closing action. | Verify real activation and dismissal. |
+| Roles and focus | Roles are on labels; focus moves to descendant radios/buttons. Submenu containers lack `role="menu"`. | Align the exposed item with the actual focus model and verify the accessibility tree. |
+| Names and state | Menubar/popups lack explicit accessible names; vertical menubar orientation and parent-item popup/expanded state are absent. | Complete and verify names, orientation, and state projection. |
+| Label structure | A label contains both a radio and a button. | Resolve the HTML restriction against extra labelable descendants while preserving the experiment's activation and restoration intent. |
+| List structure | HTML `menu` directly contains labels, dialogs, paragraphs, and buttons. | Use conforming `li` structure or a suitable alternative container. HTML `menu` alone does not establish an ARIA menu. |
+| Container meaning | `nav` represents command items; `dialog popover` exposes dialog semantics. | Decide whether navigation/dialog semantics describe the final content. The dialog/popover combination itself is valid and nonmodal. |
 
-**Actionable Recommendations**
+## Verification
 
-* **Visibility:** Use `display: none` or `visibility: hidden` for collapsed menus. Avoid using `opacity: 0` alone, as
-  the elements remain in the tab order.
-* **Positioning:** Apply `position: absolute` to sub-menus relative to a `position: relative` parent container to avoid
-  breaking document flow.
-* **Focus Management:** For the Menubar pattern, use `tabindex="-1"` on non-active items and manage the "roving
-  tabindex" via JavaScript arrow key listeners.
+Prior Chromium 148 and Firefox 150 checks verified arrow selection without
+activation, label-text and Enter/Space opening, one-level Escape restoration,
+whole-branch closing, and preservation of outside focus. Those checks covered
+the behavior bridge; they do not establish conformance of subsequently added
+ARIA roles or spoken screen-reader output.
 
-*Note: The code fixes and findings above were identified on a live page in DevTools. When applying them to your
-codebase, please adapt them to your project's specific technical stack (e.g., Tailwind CSS classes, CSS modules,
-framework components) rather than applying them as literal CSS overrides.*
+Before acceptance, verify the complete required pattern in Chrome and Firefox,
+including Tab/Shift+Tab, orientation-specific arrows, reopening, all dismissal
+paths, and focus after multiple levels close. Inspect names, roles, states, and
+relationships in the accessibility tree and test with screen readers. Also
+verify visible focus, zoom/reflow, target sizes, contrast, and forced colors.
+Record optional behavior choices and remaining browser/assistive-technology
+limits. Passing a browser interaction test alone is not an ADA compliance claim.

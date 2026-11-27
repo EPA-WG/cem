@@ -151,7 +151,7 @@ Standard browser/environment preferences remain available through an admitted
 read-only provider. Ancestor policy ceilings and explicit container overrides
 always apply; insulation cannot escape host authority.
 
-Compose selected families through explicit native/scoped bindings supplied or
+Compose selected microapplication families through explicit native/scoped bindings supplied or
 approved by the container. Declare whether each inherited input is a read-only
 value, resource view or shared mutable service. No whole-app `context-mode` or
 generic inheritance flag is needed, and sharing never disables guardrails.
