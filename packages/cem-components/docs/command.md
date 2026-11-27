@@ -246,7 +246,7 @@ and [WPF commanding](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanc
 | Observe | Subscribed logical owners on the route receive read-only, capture-safe projections in their data islands. The invoker can track its own request. An external subscriber requires an explicit export. |
 | Veto | Only guards declared for this command on the logical route may refuse execution. Run them synchronously from the owning app toward the target. The first refusal ends the request with a stable reason. Container restrictions apply at admission and at explicit bridge crossings. |
 | Claim and execute | Search from target to app. The runtime binds the invocation once to the selected, eligible endpoint. Only that endpoint receives the executable request and its authorized parameters. With a valid route and no declaration, return `unhandled`. |
-| Receive the result | The executing coordinator records one terminal outcome per invocation. The admitted caller receives its permitted result by invocation ID, through the originating bridge for a cross-app call. Observers receive only subscribed, permitted status. Closing the invoker ends its UI delivery while the operation retains its outcome. |
+| Receive the result | The coordinator settles the invocation once. The original caller receives its permitted result while its binding is live, through the originating bridge for a cross-app call. Observers receive only subscribed status. The admitting host retains the write outcome after the editor closes. |
 
 1. Use the same resolver for menu state, shortcut preflight and execution.
    Before consuming input, establish eligibility and pin the target, its logical
@@ -300,7 +300,7 @@ Use camelCase detail fields and hyphenated event/attribute names, following
 | --- | --- |
 | `cem-command` | Final validated request at the selected runtime endpoint. Subscribers receive a read-only projection. |
 | `cem-command-start` | Accepted endpoint starts; noncancelable lifecycle notification |
-| `cem-command-result` | One terminal outcome including cancellation before start or unhandled resolution. The caller receives the allowed result and observers receive their permitted status. |
+| `cem-command-result` | One terminal outcome including cancellation before start or unhandled resolution. A still-admitted caller receives the allowed result and subscribed observers receive their permitted status. |
 | `cem-command-state` | Contextual eligibility revision changed; no execution implied |
 
 Core detail fields are `invocationId`, `applicationInstanceId`,
@@ -494,8 +494,8 @@ adapter with an eligible user gesture. An unsupported picker or denied grant
 makes Save As `unavailable`. If activation expires, offer a fresh gesture.
 An identifiable user dismissal yields `cancelled`. A confirmed write or close
 failure yields `failed`. If the service cannot establish whether the write
-committed, report `failed` with `outcome-unknown` to authorized diagnostics and
-suppress automatic retry. A download is a separately labelled user choice.
+committed and the invocation must end, report `failed` with `outcome-unknown`
+to authorized diagnostics and suppress automatic retry. A download is a separately labelled user choice.
 [File picker requirements](https://wicg.github.io/file-system-access/#api-showsavefilepicker) ·
 [File write and close](https://fs.spec.whatwg.org/#dom-filesystemfilehandle-createwritable) ·
 [HTML downloads](https://html.spec.whatwg.org/multipage/links.html#downloading-resources)
@@ -608,6 +608,50 @@ Sensitive parameters/results are excluded from persisted event history,
 telemetry and SSR snapshots unless an explicit safe projection permits them.
 Hydration restores presentation and observed history, never executes old events.
 
+### Host-owned write outcomes and reconciliation
+
+The application coordinator owns the invocation and its one terminal command
+result. The host that admits a file write owns the record of what happened to
+the file. Before dispatch, that host issues a fresh opaque `operationId` and
+privately associates it with the original invocation and its caller. The host
+retains enough of that association to settle the request if the executing
+editor closes. Keep paths, handles, contents and arguments out of the journal.
+
+If the editor closes after the write commits but before acknowledgment, the
+file service can still supply evidence for that operation to the surviving
+host. Closure ends the editor’s UI delivery. A still-admitted original caller,
+such as the host File menu, can receive its permitted result once. Check its
+pinned instance, generation, epoch and bridge before delivery. Closing,
+reopening or cloning the editor cannot transfer its old subscription.
+
+| Evidence the host can establish | Journal outcome | Command meaning |
+| --- | --- | --- |
+| The service confirms the pinned revision was written for this operation | `acknowledged` | Report `succeeded` if the invocation is still pending. |
+| The service confirms this operation made no change | `not-applied` | Report `failed`, or `cancelled` for a known pre-commit cancellation. |
+| The receipt is missing and the service cannot establish the outcome | `unknown` | Keep the request pending while awaiting evidence. If it must end, report `failed` with safe code `outcome-unknown`. |
+
+A file’s existence, a timeout and an obsolete handler callback cannot establish
+the outcome of a particular write. Only the trusted host reconciles the
+operation, using independent service evidence and current journal authority.
+Duplicate confirmation of the same outcome is idempotent. Reject contradictory
+receipts and preserve the established outcome. An unknown write stays out of
+automatic retry and leaves the document’s saved revision unchanged.
+[Host journal contract](../../../docs/committed-checkpoints.md)
+
+An authorized status lookup is a read of the host’s latest evidence. If an
+invocation already ended with `outcome-unknown`, later confirmation can make
+that lookup report **Saved**. The original command result stays final. A
+reconnected editor needs fresh, scoped read permission and a host-recognized
+correlation. The lookup exposes neither the destination nor execution authority.
+The v1 example projects only `invocationId` and `status`. Callers needing to
+distinguish an uncertain write from a confirmed failure use the status lookup
+or a versioned projection admitting the safe diagnostic code.
+
+The existing checkpoint journal lives in private host-session memory. After
+loss of that host, reconciliation requires an independently retained authorized
+receipt or a service that can answer for the operation ID. Report **Save could
+not be confirmed** when that evidence is unavailable or expired.
+
 ## Shortcut dispatch
 
 Store a binding as structured modifier/key data, not the human-readable string
@@ -699,6 +743,12 @@ during editing and after teardown. On success only the file service receives
 the destination for execution. Exercise picker denial, failed stream close,
 download handoff and edits made after dispatch. Verify the reported outcome,
 the document’s destination and its saved revision in each case.
+
+Hold the service receipt until the write commits and the editor closes. Verify
+one write, one host outcome and zero callbacks to the closed or replacement
+editor. Exercise a still-admitted host-menu caller, duplicate and contradictory
+receipts, confirmed failure, missing evidence, denied status lookup and host
+loss. Reconnecting can read only its granted projection and never reissues Save.
 
 Cross-app acceptance also requires exported-child Save targeting, denied upward
 context writes, allowlisted parent services, sibling isolation, bridge-loop

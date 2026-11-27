@@ -810,6 +810,12 @@ sequenceDiagram
     end
 ```
 
+The diagram shows the route while the participants are live. For an admitted
+file write the surviving host keeps the effect record and the correlation to
+the original caller. A late service receipt can settle the write after the
+executing app closes. The original UI receives a result only while its delivery
+binding is live. [Host-owned write outcomes](command.md#host-owned-write-outcomes-and-reconciliation)
+
 The coordinator maps a focused placement or captured menu target to its
 registered command context. It resolves handlers along that context's logical
 ownership chain. An editor can own Copy, its document owner Save As, and the
@@ -900,11 +906,14 @@ adapter for typed parameters; preserve its nested-view and ownership checks.
 An endpoint receives authority through the logical route and host grant.
 DOM event `isTrusted` cannot grant execution permission.
 
-Preserve existing host checkpoint effect accounting in opted-in domains: begin
-the admitted operation before a side effect, acknowledge its actual outcome,
-and retain unknown outcomes on disconnect/failure. A command invocation ID
-correlates UI requests; it does not replace the host operation journal or make
-an unacknowledged effect safe to repeat.
+Place the write journal in the admitting host, outside the editor lifetime.
+Register the operation before the effect and correlate its ID with the command
+invocation. In opted-in checkpoint domains, use the existing host journal and
+its trusted reconciliation authority. The host can record a late service
+receipt without resuming child business logic. A fresh, scoped status read can
+report a later confirmation after the invocation ended. Persisting such
+evidence across host loss requires a separately admitted service or receipt.
+[Host-owned write outcomes and reconciliation](command.md#host-owned-write-outcomes-and-reconciliation)
 
 Activation-gated operations must reach the permitted host API synchronously
 from the originating click/key event, or from the final dialog submit gesture.

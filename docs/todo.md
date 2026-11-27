@@ -37,6 +37,10 @@ entries. Native CEM-ML round-trip verification covers the example.
 The [Save As profiles and destination privacy rules](../packages/cem-components/docs/command.md#save-as-across-hosts)
 resolve review item 6. Native Chromium and Firefox probes confirmed capture of
 an unsubmitted path. Protected CEM form capture remains implementation work.
+The [host-owned write outcome](../packages/cem-components/docs/command.md#host-owned-write-outcomes-and-reconciliation)
+resolves review item 7. A checkpoint-coordinator probe covered owner replacement,
+stale acknowledgment and trusted reconciliation. Command result delivery and
+authorized status lookup still require implementation.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).
