@@ -569,7 +569,11 @@ parameter form. Selecting the menu item in the editor proceeds as follows.
 
 Both apps can use the private key `draft`. Only `editor-1` receives the grant
 to read and write `store-17/lastContentType` under the local name
-`save-preferences`. Native lexical scope suffices for local lookup once the host
+`save-preferences`. A preview could receive a separate read-only grant for
+that key. Each app's effective grant governs its writes and subscriptions.
+[Shared storage access and commit order](application.md#shared-storage-access-and-commit-order)
+
+Native lexical scope suffices for local lookup once the host
 has admitted the child's context. This self-contained manifest needs no module
 map. If the locale resources move to separate files, native module-map resource entries
 can resolve their specifiers. A map cannot express who may write a store or

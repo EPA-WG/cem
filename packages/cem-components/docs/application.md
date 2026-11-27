@@ -303,6 +303,43 @@ apps see their granted logical providers, not ambient native objects.
 These generic provider bindings are new work. Current document-global
 storage/location behavior cannot be described as already insulated.
 
+### Private persistence namespaces
+
+Before opening storage, a database or a cookie jar, the container manager
+resolves the child's persistence namespace in the host's stable workspace or
+page scope. Each logical application in the path contributes one tagged segment.
+
+| Child in its immediate container | Segment and restoration rule |
+| --- | --- |
+| Has an authored ID | Use the container-local ID. `left/editor` and `right/editor` can both use `editor`. A reordering within either container preserves its named binding. Reject duplicate local IDs before attaching an ambiguous mount to persisted data. |
+| Anonymous | Use the admitted app URL's canonical origin (scheme, host and effective port) and its one-based position among anonymous direct application children of that origin. Under `left`, the first such editor has the segment `(https://notes.example, 1)`. Freeze the origin at admission. |
+| Anonymous with an opaque or unavailable origin | Use a stable source identity supplied by the host, or allocate an ephemeral partition. The serialized origin `null` cannot identify a durable partition. |
+
+SSR and hydration count the same declared app slots, including lazy features.
+Layout wrappers, projection, named siblings and activation order do not change
+the anonymous count. Two indistinguishable anonymous editors that swap order
+across reloads recover the drafts of their respective **slots**. Give editors
+local IDs when drafts must follow particular editors through reorder. A named
+descendant of an anonymous app still depends on its ancestor's slot. Live
+instances keep their bindings through layout changes and in-app navigation.
+
+The provider maps the host/account or tenant boundary, container path and child
+segment to a private namespace through a registry or an unambiguous versioned
+tuple encoding. It checks the admitted app definition and vendor/security context
+before reattachment. A detectable mismatch leaves the previous partition
+unclaimed. The manager's generated name, native DOM ID and runtime generation
+are separate identities. Rendering a local app ID into light DOM must preserve
+native HTML ID uniqueness. Changing the authored ID or logical container changes
+lookup on the next mount. Moving existing data requires explicit host migration.
+[HTML ID](https://html.spec.whatwg.org/multipage/dom.html#the-id-attribute)
+
+Each admitted provider applies this namespace to its own operations. Local and
+session storage scope every logical key. Database open, list, upgrade and delete
+use app-local database names. A virtual cookie jar scopes cookie names. For
+HTTP cookies, the host also needs an admitted request/response adapter or an
+appropriately isolated browser context to control which cookies the browser
+sends and accepts. [HTTP cookie processing](https://httpwg.org/specs/rfc6265.html#section-5.4)
+
 ### Local/session storage virtualization
 
 Apply automatic partitioning inside the generic CEM storage capabilities. App
@@ -312,27 +349,70 @@ explicit named-scope store and maps each logical key into its backing keyspace.
 The same contract applies to local and session storage, with their different
 persistence/session lifetimes preserved.
 
-Use an unambiguous, versioned encoding of partition identity and logical key.
-Private identity is derived from admitted app/provider IDs; named stores have
-stable group/store IDs to which readable names resolve. Include storage kind
-and host/user/session boundaries as applicable. Do not copy `embed-page`'s
-timestamp-based instance prefix literally or derive authority from a raw user
-name, hostname or suffix. Rename/reparent/clone must not accidentally select
-another app's keys. Prefix computation stays within the adapter, including
-native imports/exports and checkpointed storage writers.
+For private stores use the [private persistence namespace](#private-persistence-namespaces).
+For shared stores resolve the local alias to the host-granted immutable store
+ID. Include provider, storage kind and applicable host/user/session boundaries
+in the binding. Apply key encoding inside the adapter, including imports,
+exports and checkpointed writes.
 
 | Operation | Required virtualized behavior |
 | --- | --- |
 | Read/write/remove | Translate every key exactly once; preserve empty keys/values and explicit missing values under the public storage contract |
-| Enumerate/count | Include only the admitted partition; expose logical keys without physical prefixes |
-| Clear | Remove only that partition's keys, never the whole backing origin store |
+| Enumerate/count | Include only readable logical keys within the admitted partition |
+| Clear | Require whole-partition write authority and remove only that partition’s keys |
 | Notifications | Deliver only admitted same-partition changes; expose logical key, correct old/new values and a scoped storage identity, never a raw native `storageArea` |
 | Lifecycle | Validate instance/provider identity and admission epoch; paused/offline apps receive no delivery and restart reconciles current state without replay |
 | Rebind/revoke | Detach old subscriptions and invalidate pending writes; do not silently migrate data or keep access through stale handles |
 | Save/load/clone | Export only permitted partition state; restore after admission; clone private state into a fresh partition unless explicit shared-store grants say otherwise |
 
-Suppress duplicate outward storage events back to the writing app, and suppress
-no-op mutation events. This does not suppress dependency coherence: update the
+### Shared storage access and commit order
+
+The host grants each app read and write rights over a whole store or a set of
+keys. A child can narrow its binding. Expanding a grant requires the host.
+
+| Access over granted keys | Permitted operations |
+| --- | --- |
+| Read-only (`read=true`, `write=false`) | Read committed values and enumerate readable keys. Reject set, conditional update, remove and clear, including attempted no-ops. |
+| Read/write (`read=true`, `write=true`) | Read, set, conditionally update and remove granted keys. Clearing requires write authority over the whole partition. |
+| Write-only (`read=false`, `write=true`) | Set or remove granted keys. Confirm completion without disclosing prior values or whether the key existed. |
+
+Subscription requires a separate grant. For example, an editor can update
+`store-17/lastContentType` after Save As. A preview with read-only access can
+display the format. With `subscribe=true` it can receive changes to that
+readable key. Otherwise it reads the current format on demand. A denied attempt
+to update or remove the preference changes no value or revision and emits no event.
+
+For private and shared stores, the provider orders mutations within each
+partition at commit across all participating tabs and frames. Check the grant,
+binding epoch and any expected key version in the same transaction or serialized
+operation as set, remove or clear. Publish only after commit. The last committed
+unconditional write wins. A quota failure, denial, conflict or no-op leaves the
+mutation revision unchanged.
+
+For a read-dependent edit, a read/write caller can submit the opaque key version
+it read. Compare and update atomically. A stale version returns a conflict so
+the caller can re-read and decide whether to merge. A token distinguishes
+deletion and recreation of that key and a nonempty clear, even when the value
+later looks identical. It is scoped to the store and key.
+
+If tab A clears a nonempty partition and tab B sets `lastContentType` to
+`text/markdown`, a clear followed by an unconditional set leaves Markdown
+present. The reverse commit order leaves the partition empty. A conditional
+set with a pre-clear token conflicts if the clear commits first. Both editors
+keep their private drafts.
+
+A prefix scopes names. Atomic clear and conditional writes also need a provider
+that coordinates every writer, such as overlapping IndexedDB read/write
+transactions or a serializing host service. If the adapter cannot provide that
+contract, report the binding unavailable. Native Web Storage alone supplies no
+cross-process locking guarantee. [HTML Web Storage](https://html.spec.whatwg.org/multipage/webstorage.html#introduction) · [IndexedDB transaction scheduling](https://www.w3.org/TR/IndexedDB-3/#transaction-scheduling)
+
+Deliver permitted changes in commit order, applying current grants at delivery.
+Deduplicate by commit identity. Send a scoped invalidation when values or keys
+would disclose inaccessible state. On a gap or reconnect, read the current
+authorized snapshot before resuming observation. A revoked or rebound grant
+fences queued writes and deliveries. Suppress duplicate outward storage events
+to the writing app and suppress no-op mutation events. This does not suppress dependency coherence: update the
 originating binding and refresh all other local readers of the same logical key
 inside that app, even though no writer-self storage event is emitted. A successful clear
 of a nonempty logical partition emits one scoped clear notification with null
@@ -350,8 +430,8 @@ session provider; it must not silently upgrade session data into durable storage
 Local cross-tab and session-only delivery retain their distinct boundaries.
 Quota/denial and backing-provider loss are explicit diagnostics. Native external
 changes use the same filtering as same-document peer changes; no app obtains
-unrelated physical key names. Define provider transport/revision details and
-verify these outcomes before implementation adoption.
+unrelated physical key names. The provider transport must preserve the commit
+and notification rules across every surface sharing that partition.
 
 An iframe adapter can use an admitted message/host service when its native store
 is unavailable or in another origin. It must preserve the logical operation,
@@ -399,7 +479,8 @@ native CEM values/references, never JSON text hidden in an attribute.
 | Application definition reference | Stable component/application resource identity and declared native context/defaults; not an instance name |
 | Native context bindings | Typed module maps, namespace/schema frames, services and policy; use native context vocabulary rather than new string-encoded maps |
 | Container-owned context overrides | Admitted parent input targeting this instance; replace all or selected context/resource values; not child-writable policy |
-| `instance-name` | Optional manager-unique stable readable name; generated on first admission if omitted |
+| Authored application ID | Optional, unique within the immediate logical container. Omission selects the anonymous persistence slot. |
+| `instance-name` | Optional readable manager alias, generated on first admission if omitted |
 | `resources` | Typed reference to an admitted application resource set containing semantic command definitions and locale manifests |
 | `locale` | `auto` by default, or an explicit BCP 47 UI language tag; not an operating-system locale setter |
 | `fallback-locale` | Application default language, required to exist in the resource manifest |
@@ -704,7 +785,8 @@ every render, activation or resume.
 | Identity | Lifecycle |
 | --- | --- |
 | Application definition/resource ID | Stable identity of the component/application code and native context defaults |
-| Instance ID | Stable logical application instance; management, private storage and save/load identity |
+| Authored application ID | Container-local segment for durable lookup across mounts. An anonymous app uses its origin-qualified slot. |
+| Instance ID | Opaque identity for the admitted logical instance, management, save/load and live bindings |
 | Instance name | Readable manager-local identity/lookup alias, generated by default or explicitly supplied; may be renamed atomically |
 | Localized title | User-facing label, independent of lookup/storage identity |
 | Runtime generation and native context/scope IDs | Fresh admitted execution/context identity; not a substitute for instance ID and not portable authority |
@@ -718,8 +800,9 @@ resource IDs. Moving an instance between managers requires explicit admission
 and collision handling; changing its DOM parent is not a context/ownership
 transfer protocol.
 
-The default private storage identity is allocated with the logical instance and
-retained on reload/save/load/resume; offload does not erase persisted entries.
+On reload the manager resolves the [private persistence namespace](#private-persistence-namespaces)
+before admitting a stored binding. Save/load/resume retains that binding under
+fresh admission. Offload preserves persisted entries.
 A selected named storage scope is a separate admitted binding, not the manager
 name implicitly reused as a prefix. Renaming an alias leaves the store unchanged;
 switching store membership requires explicit rebinding and fresh admission.
@@ -985,6 +1068,16 @@ Future implementation acceptance requires:
   Complete clear/enumeration/event, session/cross-tab, empty/no-op and denial
   cases go beyond the reference suite's already demonstrated checks. Same-app
   readers stay coherent without a duplicate writer-self storage event.
+- Hydrate named children after reorder and anonymous same-origin children after
+  wrappers, delayed activation and a slot swap. Cover duplicate local IDs, the
+  same ID under two containers, anonymous ancestors, opaque origins, database
+  and cookie isolation, session boundaries and clones.
+- Check a read-only preview against a writable editor. Reject a queued write
+  downgraded to read-only before commit. Check write-only responses, both
+  clear/write orders, stale key versions and scoped notifications. Two-tab
+  IndexedDB probes in Chromium and Firefox verified the underlying transaction
+  ordering and one conditional winner. CEM bindings and grants still need
+  implementation coverage.
 - The same app produces equivalent service/resource/command outcomes with
   equivalent grants in embedded and iframe hosts. Ordinary same-origin frames
   still use the layer; cross-origin hybrid enforcement preserves its APIs.

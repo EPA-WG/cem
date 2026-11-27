@@ -41,6 +41,11 @@ The [host-owned write outcome](../packages/cem-components/docs/command.md#host-o
 resolves review item 7. A checkpoint-coordinator probe covered owner replacement,
 stale acknowledgment and trusted reconciliation. Command result delivery and
 authorized status lookup still require implementation.
+The [persistence namespace](../packages/cem-components/docs/application.md#private-persistence-namespaces)
+and [shared storage contract](../packages/cem-components/docs/application.md#shared-storage-access-and-commit-order)
+resolve review item 8. The proposal covers hydration, scoped grants and commit
+ordering. Browser probes cover the IndexedDB primitive. The CEM provider and
+its acceptance scenarios remain implementation work.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).
