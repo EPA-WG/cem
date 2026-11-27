@@ -85,8 +85,9 @@ This is inspired by native systems, with important distinctions:
 These conventions motivate the proposed resource split; they do not guarantee
 that an already-rendered menu relocalizes merely because an OS setting changes.
 
-For example, both of these views resolve the same semantic `file.save-as`
-definition and parameter schema:
+These English and French views use the same desktop `file.save-as` schema.
+The browser profile has its own destination inputs. Choosing a language
+preserves the selected host profile. [Save As across hosts](command.md#save-as-across-hosts)
 
 | Field | English view | French view |
 | --- | --- | --- |
@@ -102,7 +103,11 @@ presentation; it neither changes the ID nor inherently changes the shortcut.
 
 The [versioned Save As example](command.md#version-1-save-as-example) shows a
 parent replacing one child's French menu label. The form and its labels still
-resolve in the child's localized resources under the same command ID.
+resolve in the child's localized resources under the same command ID. During
+a locale switch, preserve any edited destination in the live private form.
+Localize field names and validation codes without interpolating the private
+path into captured messages. Give **Download a copy** and its handoff feedback
+distinct messages in each locale.
 
 ## Localizable fields
 

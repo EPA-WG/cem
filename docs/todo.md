@@ -34,6 +34,9 @@ in light DOM and an iframe. Cross-app command routing still needs runtime covera
 The [versioned Save As example](../packages/cem-components/docs/command.md#version-1-save-as-example)
 resolves review item 5. Its `resources` containers group the English and French
 entries. Native CEM-ML round-trip verification covers the example.
+The [Save As profiles and destination privacy rules](../packages/cem-components/docs/command.md#save-as-across-hosts)
+resolve review item 6. Native Chromium and Firefox probes confirmed capture of
+an unsubmitted path. Protected CEM form capture remains implementation work.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).

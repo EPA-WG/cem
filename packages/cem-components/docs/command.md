@@ -343,6 +343,8 @@ and never resolves private values through ordinary `slice-event` serialization.
 The existing generic detail-clone path is not sufficient for this extension.
 Redacting only when persisting history would leave secrets in the durable island.
 Release private references at terminal outcome/disposal and never hydrate them.
+For command forms, apply [destination privacy from the first edit](#destination-privacy-from-the-first-edit)
+before the runtime can capture a supplied value or keystroke.
 
 Reflect requests/results into existing `cem-events:event-state` and declared
 slices, preserving invocation IDs, source, revision and native owners. Each
@@ -379,13 +381,7 @@ rules without a declared typed control conversion.
 | --- | --- | --- |
 | `editor.copy` | No explicit parameters | Handler uses retained selection/context; native editing is preferred where appropriate |
 | `view.zoom-to` | Required `percent`, finite number within declared range | Use supplied value or one-field parameter dialog |
-| `file.save-as` | Required `contentType` (allowed MIME enum), required `filePath` (host-specific destination string) | Use supplied values or referenced form; web profile resolves a picker capability instead of treating path text as authority |
-
-The Save As example's schema is suitable for a desktop host. A browser profile
-must explicitly adapt the destination to a suggested filename plus a
-picker-issued capability, or a download. The adapter must not pretend a web page
-can freely write an arbitrary filesystem path. The command's source document is
-retained context, not an extra user-facing parameter.
+| `file.save-as` | Required MIME `contentType`. Desktop requires a private `filePath`. The browser accepts an optional private `suggestedName`. | Pin the host profile before collecting parameters. The browser adapter obtains the destination handle. See [Save As across hosts](#save-as-across-hosts). |
 
 The app that owns the selected execution endpoint also owns parameter collection.
 For a host menu invoking an exported child command, this is the child. Resolve
@@ -433,8 +429,10 @@ cannot resolve the invocation.
    interactive in embedded and iframe hosts. Retain the original invocation,
    handler and content target even if focus or the manager's active app changes.
 4. Only an accepted native form submission can resolve parameters. Apply native
-   constraint validation, capture the submitting button, construct the successful
-   controls entry list, then validate/coerce against the command schema.
+   constraint validation, identify the submitting button and collect successful
+   controls according to native form semantics. For a protected form, the private collector reads the owned successful controls without
+   exposing a general `formdata` event containing the private entries. Validate
+   and coerce the collected values against the command schema.
    Repeated names stay repeated; unchecked/disabled/unnamed controls follow
    native form semantics. Never flatten entries with `Object.fromEntries()`.
 5. Cancel/escape/dismiss/forced close are cancellation, not successful input.
@@ -472,6 +470,61 @@ destination only if the form still owns focus. Preserve any newer deliberate
 focus in this or another app. Reuse the existing
 [nonmodal focus contract](dialog-contract.md#outside-focus-on-nonmodal-closure).
 
+## Save As across hosts
+
+`file.save-as` saves a pinned document revision to a chosen destination. The
+owning app selects the host profile and pins its parameter schema before
+resolving the same-ID form. The document comes from the retained command
+context. The caller may supply admitted parameters or leave them for the
+owning form to collect.
+
+| Action | Input and authority | What counts as completion |
+| --- | --- | --- |
+| Desktop Save As | An allowed MIME `contentType` and private `filePath`. The granted file service validates the destination and overwrite policy. | The service confirms that it wrote the pinned revision. |
+| Browser Save As | An allowed `contentType` and optional private `suggestedName`. The admitted adapter obtains a writable handle from the user's picker during an eligible gesture. | The adapter writes the revision and awaits successful stream close. Choosing a file only selects the destination. |
+| Browser **Download a copy** | The user explicitly requests a download in the selected format, optionally with a suggested filename. | Report **Download requested** after handoff. The browser controls the eventual destination and completion. The editor keeps its existing save destination and dirty state. |
+
+After confirmed Save As, the editor may adopt the chosen destination for future
+saves and mark the written revision saved. Edits made since that revision stay
+dirty. Only the guarded document service can retain the destination binding.
+The shared format preference can update after success under its own grant.
+
+In an embedded app, the host may provide a picker through an explicitly granted
+adapter with an eligible user gesture. An unsupported picker or denied grant
+makes Save As `unavailable`. If activation expires, offer a fresh gesture.
+An identifiable user dismissal yields `cancelled`. A confirmed write or close
+failure yields `failed`. If the service cannot establish whether the write
+committed, report `failed` with `outcome-unknown` to authorized diagnostics and
+suppress automatic retry. A download is a separately labelled user choice.
+[File picker requirements](https://wicg.github.io/file-system-access/#api-showsavefilepicker) ·
+[File write and close](https://fs.spec.whatwg.org/#dom-filesystemfilehandle-createwritable) ·
+[HTML downloads](https://html.spec.whatwg.org/multipage/links.html#downloading-resources)
+
+### Destination privacy from the first edit
+
+Classify the path, suggested filename and handle as private at admission,
+including values supplied by the caller. Before enabling a custom or generated
+form, bind its owned controls to an invocation-private draft. Exclude that form
+from general event and `formdata` projections, form snapshots, validation mirrors
+and event-to-slice capture. Both live capture and SSR/resume readers need this
+rule. A collector that cannot protect the draft makes the invocation unavailable.
+
+On an accepted submit, the admitted collector reads the owned successful
+controls privately, validates them, freezes the values and passes an
+invocation-scoped reference to the selected endpoint. Public validation can
+identify the field and a safe error code. Keep raw values and handles out of
+data islands, diagnostics, telemetry, shared preferences, SSR and checkpoints.
+A locale switch preserves the live private draft. Cancellation, teardown or a
+terminal outcome releases the draft and transient references. After a confirmed
+save, the service may keep its separately authorized destination binding.
+
+The current renderer constructs `FormData` for ordinary capture. Its resume
+serializer can read control values directly. In Chromium and Firefox, a native
+probe confirmed that constructing `FormData` before submit exposed the typed
+test path and fired `formdata` even with autocomplete off. A protected
+collector and capture exclusions are required runtime work.
+[Form and validation capture](../../cem-elements/src/lib/cem-elements.ts)
+
 ## Version 1 Save As example
 
 [Read the complete CEM-ML source](examples/file-save-as.v1.cem). The file uses
@@ -500,9 +553,10 @@ parameter form. Selecting the menu item in the editor proceeds as follows.
    localized labels drive the schema-generated form.
 3. On submit, validate the values and recheck the pinned document and service
    grant. The desktop service writes the document using the requested format and
-   private destination. Success updates `lastContentType` when its separate
-   store grant permits it. Failure to record the preference leaves the completed
-   save successful. The caller receives `invocationId` and `status` once.
+   private destination. On confirmed write, the editor can adopt that destination
+   and mark the pinned revision saved. Success updates `lastContentType` when
+   its separate store grant permits it. Failure to record the preference leaves the completed
+   save successful. A live, admitted caller receives `invocationId` and `status` once.
    The draft stays in `editor-session`. The path is confined to the invocation's
    parameter form and admitted execution endpoint.
 
@@ -637,6 +691,14 @@ both light DOM and an iframe. Verify the layout gains zero observations, vetoes,
 claims or results through placement. The caller gets one permitted status
 without a private destination. A disabled nearest provider ends lookup. Changing
 the target's logical owner during parameter entry prevents execution.
+
+In both light DOM and iframe hosts, exercise custom and generated forms with a
+recognizable destination. Type it, trigger validation, change locale, then
+cancel. Check event projections, snapshots, diagnostics and checkpoint output
+during editing and after teardown. On success only the file service receives
+the destination for execution. Exercise picker denial, failed stream close,
+download handoff and edits made after dispatch. Verify the reported outcome,
+the document’s destination and its saved revision in each case.
 
 Cross-app acceptance also requires exported-child Save targeting, denied upward
 context writes, allowlisted parent services, sibling isolation, bridge-loop

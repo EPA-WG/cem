@@ -830,6 +830,10 @@ The nonmodal form suspends only this invocation. The host's Switch app control
 and sibling apps remain usable. Submitting Save As after switching from editor A
 to editor B revalidates A. If A has closed, the request ends without saving B.
 An accepted submission dispatches once under the original invocation ID.
+Before enabling the form, the owning app binds private destination fields to
+that invocation and excludes the form from general event, form and checkpoint
+capture. Relocalizing the form preserves the live draft. Teardown releases it.
+[Destination privacy from the first edit](command.md#destination-privacy-from-the-first-edit)
 
 See the [versioned Save As example](command.md#version-1-save-as-example)
 for the owning handler, shared store grant and child-specific French override.
@@ -906,9 +910,11 @@ Activation-gated operations must reach the permitted host API synchronously
 from the originating click/key event, or from the final dialog submit gesture.
 Do not await resource loading, a worker round trip or eligibility computation and
 assume transient activation survives. Preload eligibility and schemas; the
-browser/host still decides permission. A free-form file path cannot grant write
-access: web Save As normally asks a picker for a file capability or offers a
-download fallback. Cancellation remains distinct from an execution error.
+browser/host still decides permission. The desktop file service checks the path
+and confirms the write. The browser adapter obtains a writable handle and
+confirms stream close. Only a confirmed write can establish the document’s new
+save destination. Offer **Download a copy** as a separate action that reports
+handoff and preserves dirty state. [Save As across hosts](command.md#save-as-across-hosts)
 
 ## Missing capabilities and implementation order
 
