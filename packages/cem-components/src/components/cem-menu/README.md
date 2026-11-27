@@ -16,7 +16,7 @@ Required outcomes include:
 - Enter opens a submenu and focuses its first item, or activates a command and
   closes the menu. Retain Space activation as a supported project choice.
 - Arrow behavior follows the APG for the actual menubar/menu orientation,
-  including movement between levels. Radio arrow behavior alone is insufficient.
+  including movement between levels.
 - Escape closes the current menu and restores its invoking item. Whole-branch
   dismissal must not focus hidden descendants or overwrite newer outside focus.
 - Expose named menu containers, correctly focused items, popup/expanded state,
@@ -24,64 +24,50 @@ Required outcomes include:
   for disabled items and separators when those features are present.
 - Support Home/End when arrow wrapping is absent. Typeahead remains optional.
 
-These requirements do not prescribe radios, roving tabindex, or another specific
-implementation mechanism. The chosen mechanism must produce the required
-behavior and accessible semantics with conforming HTML.
+The prototype uses roving tabindex on one native button per item. Its visible
+label also supplies its accessible name.
 
-## Current experiment
+## Arrow-key prototype
 
-[`css-menu-poc.html`](./css-menu-poc.html) explores native radio-group navigation
-combined with button commands and nested auto-popovers:
+Open the [LTR sample](./css-menu-poc.html) or the [RTL sample](./css-menu-poc-rtl.html).
+Each is a separate document with a horizontal menubar, a vertical menubar and
+a standalone menu button. File contains a nested Export menu. Edit opens a
+vertical panel from the horizontal bar and a horizontal panel from the vertical
+bar. The RTL document uses Arabic labels.
 
-- Every label represents one logical item and contains a radio plus a button.
-  Group `Q` is the top level; group `W` is inside the first popup. The deepest
-  popup currently contains explanatory text and a Close button, not another
-  radio group.
-- Radios provide native same-group arrow movement and checked-state changes.
-  Arrow-generated radio clicks are ignored by the activation bridge so merely
-  moving between radios does not open a submenu.
-- Label-text clicks select the radio, focus its button, and invoke it.
-  Enter/Space on a radio also focus and invoke that item's button. Events from
-  buttons retain native button activation.
-- Buttons use `command`/`commandfor` to show or hide popovers. Leaf A/C buttons
-  are placeholders without application commands.
-- Each popup records its opening source. Its closed-toggle handler forwards
-  focus through the source button's parent label to the associated radio.
-  Guards skip disconnected sources, sources within closed ancestor popovers,
-  and restoration that would replace focus on an outside control.
-- The closed-toggle handler retains `preventDefault()` as an explicit POC
-  choice. This does not make the toggle notification cancellable.
+| Focused level | Next / previous sibling | Enter child | Opposite cross-axis key |
+| --- | --- | --- | --- |
+| Horizontal LTR | Right / Left | Down | Up |
+| Horizontal RTL | Left / Right | Down | Up |
+| Vertical LTR | Down / Up | Right | Left |
+| Vertical RTL | Down / Up | Left | Right |
 
-The current source includes `role="menubar"` on the outer `nav` and
-`role="menuitem"` on labels. These attributes are experimental: they do not
-supply keyboard behavior or complete the required accessible focus model.
-The layout displays the top-level items vertically.
+In the horizontal LTR sample, press Down on Help. Focus moves to Edit with
+its panel closed. A second Down opens Edit. In the vertical RTL sample the
+same sequence uses Left. A cross-axis key on a disabled launcher keeps focus
+there. In a popup, the forward key on a leaf moves to the next menubar branch.
+In the standalone popup it keeps focus on the leaf. The reverse key in a
+nested popup returns to its launcher. At the first level below a bar it
+switches to the previous root branch.
 
-## Remaining gaps
-
-| Area | Current POC | Required follow-up |
-| --- | --- | --- |
-| Tab navigation | Radios and buttons remain separate focus targets. | Implement the composite focus contract. |
-| Cross-level arrows | Native radio arrows stay within a group. | Implement orientation-aware navigation between levels. |
-| Command completion | Leaf buttons have no command or menu-closing action. | Verify real activation and dismissal. |
-| Roles and focus | Roles are on labels; focus moves to descendant radios/buttons. Submenu containers lack `role="menu"`. | Align the exposed item with the actual focus model and verify the accessibility tree. |
-| Names and state | Menubar/popups lack explicit accessible names; vertical menubar orientation and parent-item popup/expanded state are absent. | Complete and verify names, orientation, and state projection. |
-| Label structure | A label contains both a radio and a button. | Resolve the HTML restriction against extra labelable descendants while preserving the experiment's activation and restoration intent. |
-| List structure | HTML `menu` directly contains labels, dialogs, paragraphs, and buttons. | Use conforming `li` structure or a suitable alternative container. HTML `menu` alone does not establish an ARIA menu. |
-| Container meaning | `nav` represents command items; `dialog popover` exposes dialog semantics. | Decide whether navigation/dialog semantics describe the final content. The dialog/popover combination itself is valid and nonmodal. |
+The shared adapter handles all four arrows using the focused level’s orientation
+and direction. Arrow entry opens a native popover with the launcher as its
+source. Enter, Space and pointer input use native button activation. An enabled
+leaf writes its visible label to the output. Tab or Shift+Tab exits from the
+root launcher and dismisses the open panels. Each bar remembers its last
+focused button. [Keyboard adapter](../../../../../examples/web/menu-keyboard/menu.js)
 
 ## Verification
 
-Prior Chromium 148 and Firefox 150 checks verified arrow selection without
-activation, label-text and Enter/Space opening, one-level Escape restoration,
-whole-branch closing, and preservation of outside focus. Those checks covered
-the behavior bridge; they do not establish conformance of subsequently added
-ARIA roles or spoken screen-reader output.
+From the workspace root run `node tools/scripts/verify-cem-menu-keyboard-poc.mjs`.
+The Playwright check exercises both documents. It checks physical item order,
+the focused button, open panel chain, roving Tab stop and key default handling.
+It also counts trusted clicks from native button activation, checks that arrows
+deliver zero clicks and exercises a disabled launcher with keyboard and pointer.
+The verified engines were Chromium 148.0.7778.96 and Firefox 150.0.2.
 
-Before acceptance, verify the complete required pattern in Chrome and Firefox,
-including Tab/Shift+Tab, orientation-specific arrows, reopening, all dismissal
-paths, and focus after multiple levels close. Inspect names, roles, states, and
-relationships in the accessibility tree and test with screen readers. Also
-verify visible focus, zoom/reflow, target sizes, contrast, and forced colors.
-Record optional behavior choices and remaining browser/assistive-technology
-limits. Passing a browser interaction test alone is not an ADA compliance claim.
+## Remaining gaps
+
+Spoken focus and state announcements still need screen-reader verification.
+The production acceptance work also covers Home/End, optional typeahead,
+zoom/reflow, visible focus, contrast and forced colors.

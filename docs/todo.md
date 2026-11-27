@@ -158,6 +158,11 @@ for the current native work and the conditional diagnostic items on recurrence.
   - [ ] MW-11: publish a per-feature browser support/refusal matrix; run WebKit
         on a supported host and physical keyboard/touch plus NVDA/VoiceOver checks.
 
+## Menu keyboard prototype
+
+- [x] Exercise the radio/button prototype in separate LTR and RTL documents, each with horizontal and vertical menus. Verify native sibling moves, root leaf fallbacks, nested popup entry/return and branch switching in Chromium and Firefox.
+- [x] Use one native control per item in the LTR and RTL samples. Verify adapter-owned arrows, one Tab stop per menubar and native activation with `node tools/scripts/verify-cem-menu-keyboard-poc.mjs`.
+
 ## CEM application acceptance
 
 - [x] **Run the two-editor Save As scenario through the CEM runtime** in both

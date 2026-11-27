@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>تجربة لوحة مفاتيح القوائم</title>
+        <link rel="stylesheet" href="../../../../../examples/web/menu-keyboard/menu.css">
+        <script defer src="../../../../../examples/web/menu-keyboard/menu.js"></script>
+    </head>
+    <body>
+        <h1>تجربة لوحة مفاتيح القوائم</h1>
+        <p>تنقّل بين العناصر بالأسهم. افتح قائمة فرعية بالسهم المتعامد أو بمفتاح الإدخال.</p>
+        <section>
+            <h2>شريط أفقي</h2>
+            <nav role="menubar" aria-label="شريط أفقي" aria-orientation="horizontal">
+                <button type="button" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-file">ملف</button>
+                <dialog id="horizontal-file" popover role="menu" aria-label="ملف" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>جديد</button>
+                    <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-export">تصدير</button>
+                    <dialog id="horizontal-export" popover role="menu" aria-label="تصدير" aria-orientation="vertical">
+                        <button type="button" role="menuitem" tabindex="-1" autofocus>PDF</button>
+                        <button type="button" role="menuitem" tabindex="-1">SVG</button>
+                    </dialog>
+                    <button type="button" role="menuitem" tabindex="-1">حفظ</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1">مساعدة</button>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-edit">تحرير</button>
+                <dialog id="horizontal-edit" popover role="menu" aria-label="تحرير" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>نسخ</button>
+                    <button type="button" role="menuitem" tabindex="-1">لصق</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-unavailable" aria-disabled="true">غير متاح</button>
+                <dialog id="horizontal-unavailable" popover role="menu" aria-label="غير متاح" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>طباعة</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-view">عرض</button>
+                <dialog id="horizontal-view" popover role="menu" aria-label="عرض" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>تكبير</button>
+                </dialog>
+            </nav>
+        </section>
+        <section>
+            <h2>شريط عمودي</h2>
+            <nav role="menubar" aria-label="شريط عمودي" aria-orientation="vertical">
+                <button type="button" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-file">ملف</button>
+                <dialog id="vertical-file" popover role="menu" aria-label="ملف" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>جديد</button>
+                    <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-export">تصدير</button>
+                    <dialog id="vertical-export" popover role="menu" aria-label="تصدير" aria-orientation="vertical">
+                        <button type="button" role="menuitem" tabindex="-1" autofocus>PDF</button>
+                        <button type="button" role="menuitem" tabindex="-1">SVG</button>
+                    </dialog>
+                    <button type="button" role="menuitem" tabindex="-1">حفظ</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1">مساعدة</button>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-edit">تحرير</button>
+                <dialog id="vertical-edit" popover role="menu" aria-label="تحرير" aria-orientation="horizontal">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>نسخ</button>
+                    <button type="button" role="menuitem" tabindex="-1">لصق</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-unavailable" aria-disabled="true">غير متاح</button>
+                <dialog id="vertical-unavailable" popover role="menu" aria-label="غير متاح" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>طباعة</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-view">عرض</button>
+                <dialog id="vertical-view" popover role="menu" aria-label="عرض" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>تكبير</button>
+                </dialog>
+            </nav>
+        </section>
+        <section>
+            <h2>زر قائمة مستقل</h2>
+            <button type="button" command="show-popover" commandfor="actions" aria-haspopup="menu" aria-expanded="false">خيارات</button>
+            <dialog id="actions" popover role="menu" aria-label="إجراءات" aria-orientation="vertical">
+                <button type="button" role="menuitem" tabindex="-1" autofocus>طباعة</button>
+                <button type="button" role="menuitem" tabindex="-1">حفظ</button>
+            </dialog>
+        </section>
+        <output aria-live="polite"></output>
+        <p><a href="css-menu-poc.html" hreflang="en">العينة من اليسار إلى اليمين</a></p>
+    </body>
+</html>

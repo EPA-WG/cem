@@ -232,10 +232,20 @@ if (!existsSync(componentRoot)) {
             }
             rejectImperativeMarkup(slash(relative(repoRoot, join(folder, radioPrototype))), source);
         }
+        // Source-only arrow-key samples share one external prototype adapter.
+        const menuSamples = tag === 'cem-menu' ? ['css-menu-poc.html', 'css-menu-poc-rtl.html'] : [];
+        for (const name of menuSamples) {
+            const path = join(folder, name);
+            if (existsSync(path)) {
+                const adapter = '<script defer src="../../../../../examples/web/menu-keyboard/menu.js"></script>';
+                rejectImperativeMarkup(slash(relative(repoRoot, path)), readText(path).replace(adapter, ''));
+            }
+        }
         const unexpectedFiles = readdirSync(folder, { withFileTypes: true })
             .filter((child) => child.isFile())
             .map((child) => child.name)
-            .filter((name) => name !== `${tag}.xhtml` && name !== `${tag}.stories.ts` && name !== researchPrototype && name !== radioPrototype);
+            .filter((name) => name !== `${tag}.xhtml` && name !== `${tag}.stories.ts` && name !== researchPrototype && name !== radioPrototype
+                && !menuSamples.includes(name) && !(tag === 'cem-menu' && name === 'README.md'));
         if (unexpectedFiles.length > 0) {
             fail(
                 `${slash(relative(repoRoot, folder))} contains files outside the XHTML + CSF Next component contract: ${unexpectedFiles.join(', ')}`,
@@ -281,7 +291,7 @@ if (!existsSync(componentRoot)) {
                 `${slash(relative(repoRoot, declarationPath))} embedded CSS uses non-CEM custom properties: ${[...new Set(nonCemVariables)].sort().join(', ')}`,
             );
         }
-        if (/\@import\b/i.test(style)) {
+        if (/@import\b/i.test(style)) {
             fail(`${slash(relative(repoRoot, declarationPath))} embedded CSS must not import theme CSS; Storybook loads it once`);
         }
         if (!/from\s+['"]storybook\/test['"]/.test(story)) {

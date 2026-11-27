@@ -1,0 +1,12 @@
+body { font: 1rem/1.5 system-ui, sans-serif; margin: 2rem; }
+[role="menubar"], dialog:popover-open { display: flex; align-items: flex-start; gap: .5rem; }
+[aria-orientation="vertical"] { flex-direction: column; }
+button { font: inherit; }
+button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+button[aria-disabled="true"] { color: GrayText; }
+dialog[popover] { margin: 0; position-area: block-end span-inline-end; }
+[aria-orientation="vertical"] > dialog { position-area: inline-end span-block-end; }
+output { display: block; margin-block: 1rem; }
+[role="menuitem"][aria-haspopup="menu"]::after { content: " ▾" / ""; }
+[aria-orientation="vertical"] > [aria-haspopup="menu"]::after { content: " ▸" / ""; }
+[aria-orientation="vertical"]:dir(rtl) > [aria-haspopup="menu"]::after { content: " ◂" / ""; }

@@ -1,82 +1,82 @@
 <!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Radio menu prototype</title>
-    <style>
-        label{ display:block;}
-    </style>
-</head>
-<body>
-This is proof of concept for cem-menu component implementation.
-<nav role="menubar">
-
-    <label role="menuitem" ><input type="radio" name="Q"/> A <button type="button">A</button></label>
-    <label role="menuitem" ><input type="radio" name="Q"/> Open Dialog
-        <button command="show-popover" commandfor="my-dialog1" type="button">Open Dialog</button>
-    </label>
-    <dialog id="my-dialog1"  popover style="position-area: bottom;" >
-        <menu>
-
-            <label role="menuitem" ><input type="radio" name="W"/> A <button type="button">A</button></label>
-            <label role="menuitem" ><input type="radio" name="W"/> submenu2
-                <button command="show-popover" commandfor="my-dialog2" type="button">Open Dialog2</button>
-            </label>
-            <dialog id="my-dialog2"  popover style="position-area: bottom;" >
-                <menu>
-
-                    <p>Dialog is open!</p>
-                    <button command="hide-popover" commandfor="my-dialog2" type="button">Close</button>
-                </menu>
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Menu keyboard prototype</title>
+        <link rel="stylesheet" href="../../../../../examples/web/menu-keyboard/menu.css">
+        <script defer src="../../../../../examples/web/menu-keyboard/menu.js"></script>
+    </head>
+    <body>
+        <h1>Menu keyboard prototype</h1>
+        <p>Use Left and Right to browse the horizontal bar, or Up and Down to browse the vertical bar. Press Enter to open a submenu.</p>
+        <section>
+            <h2>Horizontal menubar</h2>
+            <nav role="menubar" aria-label="Horizontal menubar" aria-orientation="horizontal">
+                <button type="button" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-file">File</button>
+                <dialog id="horizontal-file" popover role="menu" aria-label="File" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>New</button>
+                    <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-export">Export</button>
+                    <dialog id="horizontal-export" popover role="menu" aria-label="Export" aria-orientation="vertical">
+                        <button type="button" role="menuitem" tabindex="-1" autofocus>PDF</button>
+                        <button type="button" role="menuitem" tabindex="-1">SVG</button>
+                    </dialog>
+                    <button type="button" role="menuitem" tabindex="-1">Save</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1">Help</button>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-edit">Edit</button>
+                <dialog id="horizontal-edit" popover role="menu" aria-label="Edit" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>Copy</button>
+                    <button type="button" role="menuitem" tabindex="-1">Paste</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-unavailable" aria-disabled="true">Unavailable</button>
+                <dialog id="horizontal-unavailable" popover role="menu" aria-label="Unavailable" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>Print</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="horizontal-view">View</button>
+                <dialog id="horizontal-view" popover role="menu" aria-label="View" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>Zoom</button>
+                </dialog>
+            </nav>
+        </section>
+        <section>
+            <h2>Vertical menubar</h2>
+            <nav role="menubar" aria-label="Vertical menubar" aria-orientation="vertical">
+                <button type="button" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-file">File</button>
+                <dialog id="vertical-file" popover role="menu" aria-label="File" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>New</button>
+                    <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-export">Export</button>
+                    <dialog id="vertical-export" popover role="menu" aria-label="Export" aria-orientation="vertical">
+                        <button type="button" role="menuitem" tabindex="-1" autofocus>PDF</button>
+                        <button type="button" role="menuitem" tabindex="-1">SVG</button>
+                    </dialog>
+                    <button type="button" role="menuitem" tabindex="-1">Save</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1">Help</button>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-edit">Edit</button>
+                <dialog id="vertical-edit" popover role="menu" aria-label="Edit" aria-orientation="horizontal">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>Copy</button>
+                    <button type="button" role="menuitem" tabindex="-1">Paste</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-unavailable" aria-disabled="true">Unavailable</button>
+                <dialog id="vertical-unavailable" popover role="menu" aria-label="Unavailable" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>Print</button>
+                </dialog>
+                <button type="button" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false" command="show-popover" commandfor="vertical-view">View</button>
+                <dialog id="vertical-view" popover role="menu" aria-label="View" aria-orientation="vertical">
+                    <button type="button" role="menuitem" tabindex="-1" autofocus>Zoom</button>
+                </dialog>
+            </nav>
+        </section>
+        <section>
+            <h2>Standalone menu button</h2>
+            <button type="button" command="show-popover" commandfor="actions" aria-haspopup="menu" aria-expanded="false">Options</button>
+            <dialog id="actions" popover role="menu" aria-label="Actions" aria-orientation="vertical">
+                <button type="button" role="menuitem" tabindex="-1" autofocus>Print</button>
+                <button type="button" role="menuitem" tabindex="-1">Save</button>
             </dialog>
-            <label role="menuitem" ><input type="radio" name="W"/> C <button type="button">C</button></label>
-            <button command="hide-popover" commandfor="my-dialog1" type="button">Close</button>
-        </menu>
-    </dialog>
-    <label role="menuitem" ><input type="radio" name="Q"/> C <button type="button">C</button></label>
-</nav>
-
-<script>
-    [...document.querySelectorAll('label')].forEach( l=>
-    {   l.addEventListener('keydown', event=>
-        {
-            if (event.target.closest('button')) return;
-            if (event.key !== 'Enter' && event.key !== ' ' ) return;
-            event.preventDefault(); // when "Enter" is pressed to stop the browser from looking for a parent form to submit.
-            const b = l.querySelector('button');
-            b.focus();
-            b.click();
-        });
-        l.addEventListener('click', event => {
-            // Native radio arrow navigation dispatches a click: select without activating.
-            if (event.target.closest('button, input[type=radio]')) return;
-            l.firstElementChild.checked = true;
-            event.preventDefault();
-            const b = l.querySelector('button');
-            b.focus();
-            b.click();
-        });
-    });
-
-    [...document.querySelectorAll('dialog')].forEach( d=>d.addEventListener('toggle', (event) => {
-        if (event.newState === 'closed') {
-            event.preventDefault();
-            const source = d.toggleSource;
-            if (!source?.isConnected) return;
-            // Closing a whole branch must not restore into a hidden ancestor.
-            for (let ancestor = source.parentElement; ancestor; ancestor = ancestor.parentElement) {
-                if (ancestor.hasAttribute('popover') && !ancestor.matches(':popover-open')) return;
-            }
-            // Leave newly focused outside controls alone after light dismissal.
-            const focused = document.activeElement;
-            if (focused !== document.body && focused !== source && !d.contains(focused)) return;
-            source.parentElement.focus();
-        }else{
-            d.toggleSource = event.source;
-            // debugger
-        }
-    }));
-</script>
-</body>
+        </section>
+        <output aria-live="polite"></output>
+        <p><a href="css-menu-poc-rtl.html" hreflang="ar">Right-to-left sample</a></p>
+    </body>
 </html>
