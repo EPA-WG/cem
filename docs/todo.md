@@ -158,6 +158,36 @@ for the current native work and the conditional diagnostic items on recurrence.
   - [ ] MW-11: publish a per-feature browser support/refusal matrix; run WebKit
         on a supported host and physical keyboard/touch plus NVDA/VoiceOver checks.
 
+## CEM application acceptance
+
+- [ ] **Run the two-editor Save As scenario through the CEM runtime** in both
+  light DOM and iframe hosts. Give editors A and B distinct drafts. From A,
+  open the host File menu and invoke `file.save-as`. Move focus to B and edit
+  it while A’s nonmodal form stays open. Exercise these cases in each host.
+  [Command acceptance criteria](../packages/cem-components/docs/command.md#verification-required-before-adoption)
+
+  - Enter a recognizable test destination in A and switch the UI to French.
+    Verify the form preserves the input and focus, and shortcuts become
+    available only when the controls and binding registry agree. Submit and
+    confirm exactly one write of A’s pinned revision. B keeps its edits.
+    Verify the raw destination stays out of event projections, snapshots,
+    diagnostics and shared storage during editing and after the form closes.
+  - Revoke Save while its old label is visible. Try the menu and shortcut,
+    then deliver a late locale acknowledgment. Verify zero writes.
+  - In a successful run, hold the service receipt after the write commits.
+    Close A, reopen it, then deliver the receipt. Verify one host outcome,
+    one write in total and zero callbacks to the closed or replacement editor.
+
+- [ ] **Listen to “Open 1.234 files” with a screen reader.** Use a French UI,
+  an English fallback button label and German (`de-DE`) number formatting.
+  Focus the button and record what is heard. Verify the listener understands
+  the action and the integer 1,234. Flag a decimal reading. Move to the next
+  French control and check the return to French. Repeat a locale switch with
+  a nonmodal form open and check that the user keeps their place without a
+  repeat announcement of the whole form. Record the browser, screen reader,
+  synthesizer, installed voices and automatic language-switching setting.
+  [Per-message language and formatting](../packages/cem-components/docs/localization.md#per-message-language-and-formatting)
+
 ## Amsterdam presentation samples: active Studio priority
 
 Completed 2026-11-04. The [completed delivery archive](archive/todo-completed-amsterdam-delivery-2026-11-04.md#amsterdam-presentation-samples-active-studio-priority)
