@@ -160,7 +160,7 @@ for the current native work and the conditional diagnostic items on recurrence.
 
 ## CEM application acceptance
 
-- [ ] **Run the two-editor Save As scenario through the CEM runtime** in both
+- [x] **Run the two-editor Save As scenario through the CEM runtime** in both
   light DOM and iframe hosts. Give editors A and B distinct drafts. From A,
   open the host File menu and invoke `file.save-as`. Move focus to B and edit
   it while A’s nonmodal form stays open. Exercise these cases in each host.
@@ -177,6 +177,9 @@ for the current native work and the conditional diagnostic items on recurrence.
   - In a successful run, hold the service receipt after the write commits.
     Close A, reopen it, then deliver the receipt. Verify one host outcome,
     one write in total and zero callbacks to the closed or replacement editor.
+
+  Verified in Chromium and Firefox with `nx run cem-elements:test:two-editor-save-as`.
+  Each successful case checks the contents of the temporary file written by the service.
 
 - [ ] **Listen to “Open 1.234 files” with a screen reader.** Use a French UI,
   an English fallback button label and German (`de-DE`) number formatting.

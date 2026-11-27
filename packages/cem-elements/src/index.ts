@@ -80,3 +80,5 @@ export { CemRecoveryStatusObserver, type CemRecoveryStatus, type CemRecoveryStat
 export { processingSchemaAssetBinding } from './lib/internal/runtime-support/processing-host-runtime.js';
 
 export { connectCemNativeInvokerFocus } from './lib/native-invoker-focus.js';
+
+export { connectCemApplicationCommand, type CemApplicationCommandOptions, type CemApplicationCommandResult, type CemCommandDocument, type CemDocumentCommandOwner, type CemDocumentWrite, type CemWriteReceipt } from './lib/application-command.js';

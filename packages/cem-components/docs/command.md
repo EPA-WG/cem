@@ -518,19 +518,19 @@ A locale switch preserves the live private draft. Cancellation, teardown or a
 terminal outcome releases the draft and transient references. After a confirmed
 save, the service may keep its separately authorized destination binding.
 
-The current renderer constructs `FormData` for ordinary capture. Its resume
-serializer can read control values directly. In Chromium and Firefox, a native
-probe confirmed that constructing `FormData` before submit exposed the typed
-test path and fired `formdata` even with autocomplete off. A protected
-collector and capture exclusions are required runtime work.
-[Form and validation capture](../../cem-elements/src/lib/cem-elements.ts)
+The desktop command collector keeps native input and selection in the owning
+editor’s light-DOM dialog. It resolves the authored field names into private
+bindings before display. CEM excludes the controls from event projections,
+form capture, validation mirrors and checkpoint enumeration. Ordinary native
+`FormData` also omits their values. The acceptance test inspects these channels
+with a recognizable destination in Chromium and Firefox.
+[Desktop runtime entry point](../../cem-elements/README.md#desktop-document-commands)
 
 ## Version 1 Save As example
 
 [Read the complete CEM-ML source](examples/file-save-as.v1.cem). The file uses
 CEM-ML version 1. The application vocabulary, resource manifest and command
-revision each have their own version. The records describe a proposed consumer.
-The existing parser can read and round-trip the tree.
+revision each have their own version. The two-editor browser test loads the command, form, shortcut profile and localized messages from this source through the native XML projection. The host supplies the editor registrations and service grants.
 Each `resources` container groups messages for one language. The manifest
 selects English by default, and the French group declares English as its fallback.
 
@@ -728,8 +728,7 @@ Include selection changes while menus are open; removed targets while dialogs
 wait; successful and failed Save; separate Copy invocations with identical
 parameters; locale change during execution; sensitive-value redaction; no
 execution on rerender/SSR/hydration; and accessible names, shortcuts, state,
-focus, RTL/long labels, inherited themes and forced colors. These are future
-acceptance cases, not fixtures or tests delivered by this design-only change.
+focus, RTL/long labels, inherited themes and forced colors. The [two-editor test](../../cem-elements/tests/two-editor-save-as.mjs) covers the desktop Save As flow, grant revocation during locale publication and receipt delivery after editor replacement. The wider matrix remains open.
 
 Exercise explicit, same-ID and generated form selection. With a host menu and
 two children exporting `file.save-as`, confirm that only the selected child's

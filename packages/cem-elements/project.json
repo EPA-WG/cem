@@ -4,6 +4,15 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "test:two-editor-save-as": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": ["build", { "projects": ["cem_ml_cli"], "target": "build" }],
+            "options": {
+                "command": "node packages/cem-elements/tests/two-editor-save-as.mjs",
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "test:ssr-canonical-hydration": {
             "cache": false,
             "executor": "nx:run-commands",

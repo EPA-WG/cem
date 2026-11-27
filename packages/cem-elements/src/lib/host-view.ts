@@ -1,3 +1,4 @@
+import { isCemParameterEvent } from './command-parameters.js';
 import type { CemElementRuntime } from './cem-elements.js';
 import type { CemCheckpointOperation } from './checkpoint-publication.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
@@ -64,7 +65,7 @@ export function bindCemHostCommands(element: Element, options: {
     const report = (error: unknown) => { if (active) options.report(error); };
 
     const invoke = (event: Event) => {
-        if (!current() || event.defaultPrevented) return;
+        if (!current() || event.defaultPrevented || isCemParameterEvent(event)) return;
         let control: Element | undefined;
         for (const target of event.composedPath()) {
             if (target === element) break;

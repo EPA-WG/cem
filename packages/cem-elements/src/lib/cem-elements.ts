@@ -1,3 +1,4 @@
+import { isCemParameterElement, isCemParameterEvent } from './command-parameters.js';
 import { hostAttributeCommitControl, prepareHostAttributePublication, type NativeHostAttributeCommit, type PreparedHostAttributePublication } from './internal/runtime-support/host-attribute-publication.js';
 import { compiledDeclarationWork, readCompiledDeclarationAsset } from './compiled-declaration-assets.js';
 import { HttpResourceError, openCemHttpResource as defaultLoadHttpResource, readByteStream, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
@@ -4005,6 +4006,7 @@ export class CemElementRuntime {
             published(receipt);
         };
         const input = (event?: Event) => {
+            if (event && isCemParameterEvent(event)) return;
             // One browser multiline insertion can emit repeated trusted input
             // notifications for its already complete owned plaintext surface.
             // Admit its first value at every owner; later identical fragments
@@ -4035,6 +4037,7 @@ export class CemElementRuntime {
         const pointers = new Set<number>(), keys = new Set<string>();
         let gestureTimer: ReturnType<typeof setTimeout> | undefined;
         const beginGesture = (event: Event) => {
+            if (isCemParameterEvent(event)) return;
             if (event instanceof PointerEvent) pointers.add(event.pointerId);
             else if (event instanceof KeyboardEvent && ['Enter', ' ', 'Escape'].includes(event.key)) keys.add(event.code || event.key);
             else return;
@@ -4050,8 +4053,16 @@ export class CemElementRuntime {
         instance.addEventListener('pointerdown', beginGesture, true);
         instance.addEventListener('keydown', beginGesture, true);
         for (const name of ['pointerup', 'pointercancel', 'keyup']) instance.ownerDocument.addEventListener(name, endGesture, true);
-        const compositionStart = () => { this.checkpointComposing.add(instance); owner.invalidate(); };
-        const compositionEnd = () => { this.checkpointComposing.delete(instance); input(); };
+        const compositionStart = (event: Event) => {
+            if (isCemParameterEvent(event)) return;
+            this.checkpointComposing.add(instance);
+            owner.invalidate();
+        };
+        const compositionEnd = (event: Event) => {
+            if (isCemParameterEvent(event)) return;
+            this.checkpointComposing.delete(instance);
+            input();
+        };
         instance.addEventListener('compositionstart', compositionStart, true);
         instance.addEventListener('compositionend', compositionEnd, true);
         const events = ['beforeinput', 'input', 'change', 'click', 'submit', 'reset', 'select', 'focusin', 'focusout', 'keydown', 'keyup', 'toggle', 'close', 'cancel'];
@@ -8604,6 +8615,7 @@ export class CemElementRuntime {
         event: Event,
         nativeValue?: NativeCemValue,
     ): void {
+        if (isCemParameterEvent(event)) return;
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         const sliceValue = nativeValue ? null : evaluateSliceEventValue(expression, event, state.slices);
@@ -11049,7 +11061,7 @@ function renderedElementsBetween(bounds: RenderBounds, selector: string): Elemen
         }
         current = current.nextSibling;
     }
-    return elements;
+    return elements.filter(element => !isCemParameterElement(element));
 }
 
 function renderedFormKey(form: HTMLFormElement, sliceNames: string[] | undefined, index: number): string {
@@ -11089,7 +11101,7 @@ function canonicalSsrFormSurface(form: HTMLFormElement): boolean {
 }
 
 function canonicalSsrFormControl(control: Element): boolean {
-    if (control.namespaceURI !== XHTML_NAMESPACE || !control.matches('input, textarea, select, button, fieldset')) return false;
+    if (isCemParameterElement(control) || control.namespaceURI !== XHTML_NAMESPACE || !control.matches('input, textarea, select, button, fieldset')) return false;
     const field = control as HTMLInputElement;
     if (isDomInstance(control, 'HTMLInputElement')
         && !['text', 'search', 'email', 'url', 'tel', 'number', 'range', 'checkbox', 'radio'].includes(control.type)) return false;
@@ -11166,7 +11178,7 @@ function serializeRenderedFormValidation(
 
 function renderedFormControls(form: HTMLFormElement): Element[] {
     return Array.from(form.elements).filter(
-        (control): control is Element => (control as Element | undefined)?.nodeType === 1,
+        (control): control is Element => (control as Element | undefined)?.nodeType === 1 && !isCemParameterElement(control),
     );
 }
 

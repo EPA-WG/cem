@@ -1566,6 +1566,36 @@ boundary remains isolated from ancestor commands and cannot be rebound. Default
 mounts without `element` retain their existing replace/remove ownership contract.
 
 
+### Desktop document commands
+
+`connectCemApplicationCommand` binds a host File button and a native menu item
+carrying `command-id` to a versioned resource manifest. Pass the manifest
+element from the CEM-ML XML projection, the command ID, the shortcut profile,
+the host checkpoint journal and its current authority. Each editor registers
+its root, journal instance ID, document snapshot function and write service.
+Call `grant(true)` to admit execution and `close()` when retiring that editor.
+Release its checkpoint owner separately. The File button pins the last focused
+registered editor when the menu opens.
+
+The runtime captures the document ID, revision and text at invocation. A same-ID
+nonmodal form collects the arguments in the owning document. The desktop
+collector supports string and enum fields and can generate their controls when
+the template is absent. The service receives the pinned document, immutable
+parameters and host operation ID. Return that ID with the confirmed write
+outcome. A rejected or mismatched receipt leaves the journal outcome unknown.
+After an editor closes the host can still reconcile a receipt. UI delivery is
+bound to the original registration.
+
+Use `setLocale(locale, { ready, acknowledge })` when a host projection
+publishes asynchronously. Resolve `ready` when its resources are prepared
+and `acknowledge()` when its controls have adopted the generation. Typing and
+focus continue in the existing form while command entry points are fenced.
+The desktop acceptance target exercises the versioned manifest in light DOM
+and same-origin iframe editors in Chromium and Firefox.
+[Manifest](../cem-components/docs/examples/file-save-as.v1.cem) · [Executable host fixture](tests/two-editor-host.mjs)
+
+### Host command bindings
+
 `mountCemView(runtime, { root, tag, state, commands })` mounts a registered
 XHTML/CEM-ML view. Host JavaScript supplies non-UI services and explicitly named
 state slices; the declaration owns visible markup, status mapping, disabled
