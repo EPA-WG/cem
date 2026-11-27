@@ -484,7 +484,7 @@ native CEM values/references, never JSON text hidden in an attribute.
 | `resources` | Typed reference to an admitted application resource set containing semantic command definitions and locale manifests |
 | `locale` | `auto` by default, or an explicit BCP 47 UI language tag; not an operating-system locale setter |
 | `fallback-locale` | Application default language, required to exist in the resource manifest |
-| `format-locale` | Optional separate date/number formatting preference; defaults to the resolved UI locale |
+| `format-locale` | Optional number/date locale. Without an explicit setting, standalone values follow the UI locale and message arguments follow their resolved message language. See [per-message language and formatting](localization.md#per-message-language-and-formatting). |
 | `shortcut-profile` | Admitted platform profile; host-provided when available, otherwise an explicit web profile |
 | Theme preference | Automatic environment matching or explicit app setting through existing CEM theme vocabulary; no new token family |
 | Storage/location bindings | Typed inherited, private or container-supplied providers; logical URL is not necessarily the address bar |

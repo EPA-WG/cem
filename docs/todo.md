@@ -49,6 +49,10 @@ its acceptance scenarios remain implementation work.
 The [locale publication contract](../packages/cem-components/docs/localization.md#locale-publication-and-command-dispatch)
 resolves review item 9. It defines the acknowledgment set, dispatch and failure
 rules, and immediate revocation. The race scenarios require runtime acceptance.
+The [per-message localization](../packages/cem-components/docs/localization.md#per-message-language-and-formatting)
+and [resource admission rules](../packages/cem-components/docs/localization.md#missing-resources-and-admission)
+resolve review item 10. Native ICU, server and browser probes checked the
+fallback plural and formatted label. CEM and spoken accessibility checks remain.
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).

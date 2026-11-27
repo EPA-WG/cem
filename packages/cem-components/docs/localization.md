@@ -236,7 +236,8 @@ reviewable sources and ship enough mapping metadata for diagnostics.
 Reject duplicate semantic command IDs and duplicate locale message keys. Locale
 overlays may replace only declared presentation fields. Validate required
 default-locale coverage, placeholder types/names, plural/select branches,
-reference targets, Unicode/encoding, allowed assets and size limits. Unknown
+reference targets, Unicode/encoding, allowed assets and size limits. Apply the
+[admission rule for the affected scope](#missing-resources-and-admission). Unknown
 fields require an explicit schema extension; silently accepting misspelled
 `description` defeats reliable fallback.
 
@@ -301,18 +302,66 @@ or invent a regional parent; pin CLDR parent data if an implementation adopts
 it. Likely subtags are not resource inheritance.
 [Unicode inheritance distinctions](https://unicode.org/reports/tr35/#Inheritance_vs_Related_Information).
 
-Resolve a whole message/structured plural unit at one fallback level; never
-assemble a sentence out of fragments from several locales. Its placeholders
-are formatted using that message's declared/effective locale unless an explicit
-format-locale policy says otherwise. Return provenance with the resolved value:
-requested locale, actual message locale, fallback source, resource ID/revision,
-field and direction. Mark fallback text with its actual language for speech and
-direction without changing surrounding application language.
+### Per-message language and formatting
 
-If a required key is missing even in the default locale’s resources, emit a stable
-`resource-missing` diagnostic and disable the affected unnamed command control;
-do not render a misleading blank accessible action. Development tools can show
-the key. Optional resources can use a schema-declared neutral omission policy.
+Resolve the whole message, including its plural or select branches, at the first
+admitted fallback level containing the field. Record the requested UI locale,
+actual message language and direction, format locale, field, source and revision.
+The surrounding app keeps its resolved UI language. A translator supplies one
+complete message with the declared typed arguments and required fallback branch.
+
+| Decision | Rule |
+| --- | --- |
+| Grammatical branch | Apply the actual message language's cardinal or ordinal rules to the typed count. Honor the message's declared precision and visible fraction digits when selecting a plural and displaying its number. A categorical select uses its declared locale-neutral selector. |
+| Argument display | An explicit app `format-locale` formats number and date arguments. Otherwise use the actual message locale inside that message. Standalone numbers and dates default to the resolved UI locale. Pass the typed value directly and keep canonical form and command values intact. |
+| Visible and accessible language | Mark the rendered text with its actual language and base direction. For a control whose whole label is a fallback message, put `lang` on the control and derive its accessible name from the visible label. A separately translated description can use a labelled text node in its own language referenced by `aria-describedby`. |
+
+A mixed-language label can use language-tagged runs and bidirectional isolation
+around interpolated content. Preserve those runs for native accessibility APIs
+that support them. Browser accessible names are flat strings. Keep the language
+on the control or labelled source nodes so it is available independently of the
+computed name. Spoken output needs separate platform and assistive-technology
+verification. [Accessible name computation](https://www.w3.org/TR/accname-1.2/#terminology) ·
+[Language of parts](https://www.w3.org/WAI/WCAG22/Understanding/language-of-parts.html) ·
+[Unicode plural rules](https://www.unicode.org/reports/tr35/tr35-numbers.html#Language_Plural_Rules)
+
+**Example.** A French app falls back to an English button label with a typed
+integer count and an explicit German (`de-DE`) format locale. The English
+singular branch reads “Open {count} file” and the other branch reads “Open
+{count} files”. For zero, French and English select different cardinal
+categories. Use the English branch. German grouping applies to the digits.
+
+| Count | Expected visible label and accessible name in native UI, browser and SSR |
+| --- | --- |
+| 0 | Open 0 files |
+| 1 | Open 1 file |
+| 1234 | Open 1.234 files |
+
+For 1234, browser and server output can both use
+`<main lang="fr" dir="ltr"><button lang="en" dir="ltr">Open 1.234 files</button></main>`.
+The native surface carries the same label, English language and left-to-right
+direction. SSR pins locale data, precision, formatting options and, for dates,
+calendar and time zone so hydration can adopt the rendered text.
+
+### Missing resources and admission
+
+| Where resolution fails | Behavior |
+| --- | --- |
+| Package or initial view | At package validation, diagnose incomplete default resources for the scope that declares them required. If the default cannot supply the app's required first view, reject initial admission and let the host show its localized error surface. During an update, preserve the last coherent admitted view under current grants. |
+| Independently declared feature | Validate its required defaults when admitting its resources. If they fail, keep that feature unavailable and its commands fenced. The admitted shell and independent features continue to work. |
+| Individual field of an admitted view | A missing translation follows the declared fallback chain. An optional field missing throughout is omitted. Explicit empty optional help suppresses inherited help. An empty required label is invalid. If a dynamic presentation cannot obtain a required name after fallback, emit `resource-missing` and withhold the unnamed control or provide a safely named, disabled presentation. Other valid bindings keep their own eligibility. |
+
+An invalid override fails its validation transaction. Apply the normal
+publication failure rule and retain the last admitted generation where
+available. Diagnostic projections identify the resource key, field and source.
+Keep private argument values out of all captured diagnostics.
+
+**Verification.** Windows ICU, a Node server-rendering probe, Chromium and
+Firefox produced all three example strings. The browser probes also matched
+the button by its accessible name and checked its English language tag in the
+server-produced markup. CEM projection, native accessibility metadata, spoken
+output and package/feature/field failures remain implementation acceptance
+cases.
 
 ## Environment theme variations
 
