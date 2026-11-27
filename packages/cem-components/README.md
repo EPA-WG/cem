@@ -485,7 +485,9 @@ Known deferrals stay outside this trigger:
   guarded browser APIs with `embed-page` parity, downward container overrides,
   management/lifecycle, portable state, commands, parameter dialogs and
   environment-aware localized/theme resources. The focused surface owns keyboard
-  input and the manager owns active-child selection. Runtime support is proposed.
+  input and the manager owns active-child selection. All ten review decisions
+  were adopted on 2026-11-27. Runtime integration and spoken accessibility
+  verification are tracked in the [CEM application acceptance checklist](../../docs/todo.md#cem-application-acceptance).
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.
 - [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted
