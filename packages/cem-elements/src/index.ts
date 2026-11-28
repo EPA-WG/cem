@@ -83,5 +83,5 @@ export { connectCemNativeInvokerFocus } from './lib/native-invoker-focus.js';
 
 export { connectCemApplicationCommand, type CemApplicationCommandOptions, type CemApplicationCommandResult, type CemCommandDocument, type CemDocumentCommandOwner, type CemDocumentWrite, type CemWriteReceipt } from './lib/application-command.js';
 
-export { getCemApplicationStorage, getCemApplicationSharedStore, grantCemApplicationSharedStore,
+export { grantCemApplicationBrowserServices, type CemBrowserServiceGrant, getCemApplicationStorage, getCemApplicationSharedStore, grantCemApplicationSharedStore,
     type CemApplicationStorage, type CemApplicationSharedStore, type CemSharedStoreGrant, type CemSharedStoreValue, type CemSharedStoreChange } from './lib/application-resources.js';

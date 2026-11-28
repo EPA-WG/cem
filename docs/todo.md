@@ -243,6 +243,13 @@ for the current native work and the conditional diagnostic items on recurrence.
     its own draft. It also checks opener-copy independence, iframe-only reload and refusal
     of old and new bindings when the page session provider is unavailable.
     Run `nx run cem-elements:test:application-isolation`.
+  - [x] Exercise the [browser policy demo](../examples/web/cem-application/index.html) and
+    its [browser checks](../packages/cem-elements/tests/application-browser-policy.mjs)
+    in light DOM and same-origin frames in Chromium and Firefox. Check mixed per-service
+    overrides, read-only access through host and declarative controls, ungranted nested scopes,
+    replacement, reload and retained handles. Run `nx run cem-elements:test:application-isolation`.
+  - [ ] Add explicit rights-limited delegation before forwarding any upstream browser group
+    to grandchildren. Specify and verify the separate cookie, database and cross-origin adapters.
   - The two-editor Save As gate also covers grant revocation and receipts after editor
     replacement. Ancestor stop fences, portable save/load/clone and physical offload remain open.
     [Implementation order](../packages/cem-components/docs/application.md#missing-capabilities-and-implementation-order)

@@ -7804,6 +7804,20 @@ export class CemElementRuntime {
             active = undefined;
         }
 
+        if (storage.readOnly) {
+            const edited = active && !active.native && !resourceValuesEqual(state.slices[declaration.sliceName], active.lastValue);
+            if (declaration.initialValue !== undefined || edited) {
+                this.recordDiagnostics(instance, [resourceDiagnostic('cem-element.local_storage_read_only',
+                    'The application has read-only access to this store', compiled.producedTag, 'warning')]);
+                declaration = { ...declaration, initialValue: undefined };
+                if (active && edited) {
+                    active.destroy?.();
+                    delete state.localStorageResources[declaration.sliceName];
+                    active = undefined;
+                }
+            }
+        }
+
         if (declaration.storageType === 'json') {
             this.bindNativeJsonStorage(instance, compiled, state, declaration, storage, active);
             return;
@@ -7891,6 +7905,16 @@ export class CemElementRuntime {
                 const binding = state.nativeSlices[name];
                 const scalar = state.slices[name];
                 if (!bindingChanged) return;
+                if (storage.readOnly) {
+                    native.eventRevision = eventRevision;
+                    if (native.value) state.nativeSlices[name] = native.value;
+                    else delete state.nativeSlices[name];
+                    state.slices[name] = native.scalar;
+                    this.recordDiagnostics(instance, [resourceDiagnostic('cem-element.local_storage_read_only',
+                        'The application has read-only access to this store', compiled.producedTag, 'warning')]);
+                    this.renderInstance(instance, compiled);
+                    return;
+                }
                 native.eventRevision = eventRevision;
                 const revision = ++native.revision;
                 native.cancel?.();
@@ -8271,8 +8295,7 @@ export class CemElementRuntime {
             }
         };
         if (location) {
-            location.addEventListener('change', listener);
-            return () => location.removeEventListener('change', listener);
+            return location.subscribe(listener);
         }
         ensureTrackedLocation(window);
         window.addEventListener('popstate', listener);

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-application browser services</title>
+    <link rel="stylesheet" href="../../../packages/cem-elements/demo/demo.css">
+    <style>
+        cem-application { display: block }
+        .editors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem }
+        pre { white-space: pre-wrap; overflow-wrap: anywhere }
+        section { padding: .75rem; border: 1px solid currentColor }
+        workspace-route { display: block; min-height: 5rem }
+        form output { display: block; min-height: 1.5em }
+        iframe { border: 0; width: 100%; height: 5rem }
+        output { overflow-wrap: anywhere }
+    </style>
+    <script type="module" src="./host.js"></script>
+</head>
+<body>
+<nav><a href="../../../packages/cem-elements/index.html">CEM elements demos</a></nav>
+<main>
+<h1>cem-application browser services</h1>
+<p>Save a value under the key <code>draft</code>, then read that key from another app. Each app also has a route button. Watch which addresses change when you press it.</p>
+<nav aria-label="Host representation"><a href="?host=light">Light DOM</a> · <a href="?host=iframe">Same-origin iframes</a></nav>
+<cem-application id="workbench" inert>
+<p><label>Storage lifetime <select><option value="local">Local</option><option value="session">Session</option></select></label></p>
+<div class="editors">
+    <section><h2>Personal editor</h2><p>Default policy. Drafts and navigation belong to this editor.</p>
+        <cem-application id="personal"></cem-application></section>
+    <section><h2>Workspace editor</h2><p>The host supplies its default export for this editor, with a writable workspace route and both storage lifetimes.</p>
+        <cem-application id="editor" shared></cem-application></section>
+    <section><h2>Private notes</h2><p>Follows and updates the workspace route while keeping its drafts private.</p>
+        <cem-application id="notes" private><browser-policy scope="workspace" location="shared"></browser-policy></cem-application></section>
+    <section><h2>Reviewer</h2><p>Reads workspace drafts and observes navigation. Try saving a draft or changing its route.</p>
+        <cem-application id="review" isolation="shared"><browser-policy scope="workspace"></browser-policy></cem-application></section>
+    <section><h2>Uninvited editor</h2><p>Requests workspace local storage by name. The host issues no grant. Session storage stays private.</p>
+        <cem-application id="guest" private><browser-policy scope="workspace" local-storage="shared"></browser-policy></cem-application></section>
+</div>
+<section><h2>Nested preview</h2>
+    <p>A preview inside the workspace editor requests local storage with the same workspace alias. Its immediate container has issued it no grant.</p>
+    <button type="button" id="nested-read">Read as nested preview</button>
+    <output aria-live="polite" id="nested-status"></output>
+</section>
+<section><h2>Withdraw reviewer access</h2>
+    <p>Keep the reviewer open and withdraw its grant. Try its retained local-storage handle, then issue access to a different group under the same name.</p>
+    <button type="button" id="withdraw">Withdraw access</button>
+    <button type="button" id="probe">Read retained local handle</button>
+    <button type="button" id="replace">Bind separate group</button>
+    <output aria-live="polite" id="grant-status"></output>
+</section>
+</cem-application>
+<template id="storage-controls">
+    <form><label>Draft <input name="draft"></label>
+        <button type="submit">Save draft</button> <button type="button">Read draft</button>
+        <output aria-live="polite"></output>
+    </form>
+</template>
+<template id="route-declaration">
+<cem-element tag="workspace-route">
+    <template type="text/cem-ml">
+{attribute @name=destination}
+{slice @name=request}
+{location-element @slice=route @live=true}
+{button @type=button @value="{$datadom.attributes.destination}"
+    @slice=request @slice-event=click | Visit this route}
+{cem:if @test=datadom.slices.request |
+    {location-element @method=location.hash @src="{$datadom.slices.request}"
+        @trigger="{$datadom.eventPayloads.request.revision}"}}
+{p | Current route: {output | {$datadom.slices.route.hash ?? ""}}}
+    </template>
+</cem-element>
+</template>
+</main>
+</body>
+</html>

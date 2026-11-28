@@ -8,6 +8,7 @@ export interface CemApplicationStorage {
 }
 
 export interface ResourceStorage extends CemApplicationStorage {
+    readonly readOnly?: boolean;
     /** Fence checkpoint recovery if the backing storage methods change. */
     pinMethods(): () => boolean;
 }

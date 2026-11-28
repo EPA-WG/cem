@@ -615,6 +615,11 @@ Deliverables:
   [wishlist.md](docs/wishlist.md#cem-ml-runtime); transport byte streaming alone
   does not complete it. Full data source-map UI, cache identity and SSR/preload
   remain later phases of the [HTTP resource design](docs/cem-elements-http-request-design.md).
+- [ ] Design and implement outbound network firewall rules at the `cem-application` boundary.
+  Require an explicit host grant for each allowed destination and transport. Let a nested app
+  narrow its container's rules. Check the effective policy before opening a connection and
+  at each redirect. Verify allowed requests, blocked redirects and revocation of a live
+  connection in light DOM and iframe hosts. [Application browser policy](packages/cem-components/docs/application.md#browser-isolation-policy)
 
 Exit criteria (browser substrate production-ready trigger, not `@epa-wg/custom-element` adoption):
 
@@ -1859,6 +1864,13 @@ current document or the whole project immediately.
       keyboard, accessibility, theme and source-identity coverage.
 - [ ] Follow up with **Cai Jinqing**, **Henrik Pätzold** and **Ghislain Fourny**
       on the flow, representative schemas/documents and adoption criteria.
+
+### Review application examples after Site and Studio
+
+- [ ] After CEM Site and CEM Studio complete their primary application workflows, revise
+      the [cem-application demo](examples/web/cem-application/index.html) against their actual
+      embedding, navigation and draft-storage use cases. Retain a common workflow and
+      a denied, revoked or nested case for each supported host representation.
 
 ## Phase 7 - Hugo Framework Integration
 

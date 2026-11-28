@@ -152,8 +152,8 @@ always apply; insulation cannot escape host authority.
 
 Compose selected microapplication families through explicit native/scoped bindings supplied or
 approved by the container. Declare whether each inherited input is a read-only
-value, resource view or shared mutable service. No whole-app `context-mode` or
-generic inheritance flag is needed, and sharing never disables guardrails.
+value, resource view or shared mutable service. The browser isolation preset
+sets defaults for a bounded set of services. Each service still requires its own binding.
 A binding to a shared store is a deliberate exception
 to private storage, not accidental fallback. A child can propose a different
 local module map/namespace set for its own frame; it cannot rewrite any ancestor
@@ -231,6 +231,87 @@ Browser same-origin policy is an enforcement input, not the grouping algorithm.
 Same-origin apps may have distinct CEM sets; different-origin frames may share a
 narrow provider through an admitted bridge. CEM does not relax browser-origin
 rules to implement named sharing or infer vendor trust from an origin match.
+
+### Browser isolation policy
+
+An embedded app starts private. Use one preset on the app. Bare `@private` and
+`@shared` abbreviate `@isolation=private` and `@isolation=shared`. A single
+direct `browser-policy` child can override the preset per browser service.
+The preset covers `location`, `local-storage` and `session-storage`.
+Adding a browser capability requires a separate admission decision.
+
+```cem-ml
+{cem-application @id=notes @private |
+    {browser-policy @scope=workspace @location=shared}
+}
+{cem-application @id=review @shared |
+    {browser-policy @scope=workspace @session-storage=private}
+}
+```
+
+The first app asks to follow the workspace route and keeps both kinds of draft
+storage private. The second asks for the container’s exported workspace
+services and always uses its own session storage. The container may give the
+reviewer a read-only view of the same logical route. The app’s `id` continues
+to identify its private partition when the container changes the export.
+
+| Requested binding | Result |
+| --- | --- |
+| Private, including a per-service private override | Use the app’s own provider even if the container offers that service. |
+| Shared preset, service omitted | Use the recipient’s approved export for that family when present. A family never exported to that recipient starts private. |
+| Explicit per-service shared override | Require the approved export. An absent binding denies the operation. |
+| Previously shared service withdrawn or omitted in a replacement grant | Refuse further access through the old view. A new lookup requires a current export. |
+| Undecorated single outer page app | Preserve its page location projection. Explicit private isolation selects a virtual route even at the root. |
+
+`browser-policy @scope` selects a **recipient-local export name**.
+Omitting it selects the immediate container’s explicitly granted default for
+this recipient. A named request requires that exact alias. Declaring a scope
+under a private preset grants nothing on its own. The module-map prefix,
+component CSS membership and the alias on a `store-binding` keep their existing
+lookup rules. The same vendor, origin or alias on a sibling creates no grant.
+
+The trusted container binds its immutable group ID to a mounted direct child
+with `grantCemApplicationBrowserServices(container, child, grant)`. These two
+calls give different rights on the same route and partition:
+
+```js
+const group = { scope: 'workspace', groupId: 'project-17' };
+grantCemApplicationBrowserServices(shell, notes, {
+    ...group, location: 'read-write'
+});
+const reviewer = grantCemApplicationBrowserServices(shell, review, {
+    ...group, location: 'read', 'local-storage': 'read'
+});
+reviewer.revoke();
+```
+
+The browser adapter admits `read` (read and observe) and `read-write` (also
+navigate, or set/remove keys). Group storage exposes the synchronous keyed
+Web Storage interface. For write-only access, key filters, independent
+subscription rights or versioned concurrent writes, bind an existing named
+store. Both interfaces can coexist on one app. Each browser group has its own
+logical route and local/session key spaces under the issuing app. Host account
+and browser storage boundaries still apply. The group ID remains stable across
+an alias change. Local storage persists across page sessions, session storage
+follows the tab and a logical route lasts for the mounted issuer.
+
+Replacing or revoking an export fences retained handles and their future
+notifications. Already delivered values remain known to the recipient. A host
+can remount the affected view to show the new binding immediately. A nested
+container can issue its own groups to its children. Forwarding an upstream
+service requires a separate, rights-limited delegation contract.
+
+**Implementation status.** The browser runtime reads the declaration once at
+app admission. Set it before mounting resource consumers. Multiple presets,
+duplicate policy children, unknown service declarations and invalid values
+fail admission. Use a new app instance for a different authored policy.
+Host grants can change during a mount. Virtual cookie jars, database adapters,
+network credentials, upstream delegation and cross-origin provider bridges
+remain follow-up work. A raw script in a same-origin document retains the
+browser authority of that document.
+
+Exercise the profiles, overrides, denied requests and replacement grants in
+the [interactive application example](../../../examples/web/cem-application/index.html).
 
 ### Resolution and resource overrides
 

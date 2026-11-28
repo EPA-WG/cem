@@ -8,6 +8,8 @@ import { verifySharedStores, verifySessionStores } from './application-shared-st
 import { verifyPrivateSessions } from './private-session-storage.mjs';
 import { verifySubscriptions } from './named-store-subscriptions.mjs';
 
+import { verifyBrowserPolicy } from './application-browser-policy.mjs';
+
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const origin = 'http://127.0.0.1';
 const failures = [];
@@ -20,6 +22,7 @@ for (const engine of [chromium, firefox]) {
                 await context.route(origin + '/**', serve);
                 await verifyPrivateSessions(context, origin + '/private-session', mode, mountEditor);
                 await verify(context, mode);
+                await verifyBrowserPolicy(context, origin, mode);
                 console.log(engine.name(), mode, 'passed');
             } catch (error) {
                 failures.push(new Error(engine.name() + ' ' + mode, { cause: error }));

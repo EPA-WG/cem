@@ -1,7 +1,10 @@
+import { ApplicationBrowserPolicy, bindGroupStorage, bindLocation, LogicalLocation,
+    type ApplicationLocation, type BrowserGroup, type CemBrowserServiceGrant } from './internal/runtime-support/application-browser-policy.js';
 import { sessionSharedStore } from './internal/runtime-support/session-shared-store.js';
 import { durableSharedStore } from './internal/runtime-support/durable-shared-store.js';
 import { bindSharedStore, type CemApplicationSharedStore, type SharedStoreProvider } from './internal/runtime-support/shared-store.js';
 import { pageLocalStorage, privateStorage, type CemApplicationStorage, type ResourceStorage } from './internal/runtime-support/browser-storage.js';
+export type { ApplicationLocation, CemBrowserServiceGrant } from './internal/runtime-support/application-browser-policy.js';
 export type { CemApplicationSharedStore, CemSharedStoreValue, CemSharedStoreChange } from './internal/runtime-support/shared-store.js';
 export type { CemApplicationStorage, ResourceStorage } from './internal/runtime-support/browser-storage.js';
 
@@ -59,19 +62,6 @@ function initialAddress(doc: HostPage): string {
     return url.href;
 }
 
-export class ApplicationLocation extends EventTarget {
-    constructor(public href: string) { super(); }
-    write(method: string, src: string): void {
-        const next = new URL(method === 'location.hash' ? this.href : src, this.href);
-        if (method === 'location.hash') next.hash = src;
-        if (method.startsWith('history.') && next.origin !== new URL(this.href).origin)
-            throw new DOMException('History URL must have the same origin', 'SecurityError');
-        if (next.href === this.href) return;
-        this.href = next.href;
-        queueMicrotask(() => this.dispatchEvent(new Event('change')));
-    }
-}
-
 class ApplicationResources {
     private readonly stores = new Map<'local' | 'session', ResourceStorage>();
     private writerId?: string;
@@ -79,9 +69,47 @@ class ApplicationResources {
     private readonly sessionProviders = new Map<string, SharedStoreProvider>();
     readonly sharedStores = new Map<string, { issuer: ApplicationResources; store: CemApplicationSharedStore; lifetime: AbortController }>();
 
+    private readonly groups = new Map<string, BrowserGroup>();
+    private readonly privateLocation?: ApplicationLocation;
+    private sharedLocation?: { signal: AbortSignal; view: ApplicationLocation };
+    private readonly sharedStorageViews = new Map<'local' | 'session', { signal: AbortSignal; view: ResourceStorage }>();
+
     constructor(readonly document: Document, readonly parent: ApplicationResources | null,
-        readonly path: readonly Segment[], readonly location: ApplicationLocation | undefined,
-        readonly live: () => boolean) {}
+        readonly path: readonly Segment[], readonly policy: ApplicationBrowserPolicy, pageApp: boolean,
+        readonly live: () => boolean) {
+        if (!(pageApp && policy.pageProjection)) this.privateLocation = bindLocation(
+            new LogicalLocation(initialAddress(document)), true, () => live() && policy.isPrivate('location'));
+    }
+
+    get location(): ApplicationLocation | undefined {
+        const binding = this.policy.resolve('location');
+        if (!binding) return this.privateLocation;
+        const signal = binding.lifetime.signal;
+        if (this.sharedLocation?.signal !== signal) this.sharedLocation = { signal,
+            view: bindLocation(binding.group.location, binding.grant.location === 'read-write',
+                () => this.live() && !signal.aborted, signal) };
+        return this.sharedLocation.view;
+    }
+
+    browserGroup(id: string): BrowserGroup {
+        let group = this.groups.get(id);
+        if (!group) {
+            // A tagged group segment cannot collide with a private app ID or the async named-store namespace.
+            const namespace = JSON.stringify([...this.path, ['browser-group', id]]);
+            const stores = new Map<'local' | 'session', ResourceStorage>();
+            group = { location: new LogicalLocation(initialAddress(this.document)), storage: kind => {
+                let store = stores.get(kind);
+                if (!store) {
+                    store = this.partition(kind, namespace, this.live);
+                    stores.set(kind, store);
+                }
+                return store;
+            } };
+            this.groups.set(id, group);
+        }
+        return group;
+    }
+
     sharedProvider(kind: 'local' | 'session', storeId: string): SharedStoreProvider {
         const window = this.document.defaultView;
         if (!window) throw new DOMException('Shared store provider unavailable', 'InvalidStateError');
@@ -98,15 +126,31 @@ class ApplicationResources {
     }
     storage(kind: 'local' | 'session'): ResourceStorage {
         if (!this.live()) throw Error('cem.application.owner-changed');
+        const family = kind === 'local' ? 'local-storage' : 'session-storage';
+        const binding = this.policy.resolve(family);
+        if (binding) {
+            const signal = binding.lifetime.signal;
+            let cached = this.sharedStorageViews.get(kind);
+            if (cached?.signal !== signal) {
+                cached = { signal, view: bindGroupStorage(binding.group.storage(kind),
+                    binding.grant[family] === 'read-write', () => this.live() && !signal.aborted, signal) };
+                this.sharedStorageViews.set(kind, cached);
+            }
+            return cached.view;
+        }
         let store = this.stores.get(kind);
         if (!store) {
-            const owner = this.document.defaultView;
-            const provider = kind === 'session' ? owner?.top : owner;
-            if (!provider) throw Error('cem.application.storage-unavailable');
-            store = privateStorage(provider, kind, JSON.stringify(this.path), this.live);
+            store = this.partition(kind, JSON.stringify(this.path), () => this.live() && this.policy.isPrivate(family));
             this.stores.set(kind, store);
         }
         return store;
+    }
+
+    private partition(kind: 'local' | 'session', namespace: string, live: () => boolean) {
+        const owner = this.document.defaultView;
+        const provider = kind === 'session' ? owner?.top : owner;
+        if (!provider) throw Error('cem.application.storage-unavailable');
+        return privateStorage(provider, kind, namespace, live);
     }
 }
 
@@ -136,7 +180,7 @@ function admit(root: Boundary): ApplicationResources {
         const owner = slots.get(JSON.stringify(segment))?.deref();
         return owner !== undefined && peers.has(owner);
     };
-    const address = initialAddress(doc);
+    const policy = new ApplicationBrowserPolicy(root);
     let segment: Segment;
     if (root.id) {
         segment = ['id', root.id];
@@ -156,7 +200,7 @@ function admit(root: Boundary): ApplicationResources {
     if (occupied(segment)) throw Error('cem.application.occupied-slot');
     const key = JSON.stringify(segment);
     const pageApp = !parent && doc.defaultView === doc.defaultView?.top && peers.size === 1;
-    const resources = new ApplicationResources(doc, parent, path, pageApp ? undefined : new ApplicationLocation(address),
+    const resources = new ApplicationResources(doc, parent, path, policy, pageApp,
         () => slots.get(key)?.deref() === root && root.isConnected && root.ownerDocument === doc
             && page.defaultView?.document === page
             && nearest(root.parentElement, doc) === parentRoot && (!parent || parent.live())
@@ -174,6 +218,14 @@ export function applicationResources(instance: Element): ApplicationResources | 
 function requireApplication(application: Element): ApplicationResources {
     if (!application.matches(applicationBoundary) || !application.isConnected) throw Error('cem.application.boundary-required');
     return admit(application);
+}
+
+/** Publish an issuer-owned virtual group to one direct child. Aliases and origins carry no authority. */
+export function grantCemApplicationBrowserServices(owner: Element, recipient: Element, grant: CemBrowserServiceGrant): { revoke(): void } {
+    const issuer = requireApplication(owner);
+    const target = requireApplication(recipient);
+    if (target.parent !== issuer) throw new DOMException('A browser service export requires the direct container', 'NotAllowedError');
+    return target.policy.export(grant, id => issuer.browserGroup(id));
 }
 
 export interface CemSharedStoreGrant {
