@@ -386,12 +386,21 @@ keys. A child can narrow its binding. Expanding a grant requires the host.
 | Read/write (`read=true`, `write=true`) | Read, set, conditionally update and remove granted keys. Clearing requires write authority over the whole partition. |
 | Write-only (`read=false`, `write=true`) | Set or remove granted keys. Confirm completion without disclosing prior values or whether the key existed. |
 
-For durable browser stores, the trusted host calls
+For named browser stores, the trusted host calls
 `grantCemApplicationSharedStore(owner, recipient, grant)` from `@epa-wg/cem-elements`.
 Both arguments are mounted `cem-application` boundaries. The owner's admitted
-path and `storeId` identify the IndexedDB partition. The recipient resolves its
-local `scope` to an asynchronous handle. Each mounted recipient needs its own
-grant, including after reopening in another tab.
+path, `storeId` and storage kind identify the partition. The default
+`kind: 'local'` uses durable IndexedDB. Pass `kind: 'session'` for the top-level
+page's session storage. The recipient resolves its local `scope` to the same
+asynchronous API for either kind. Each mounted recipient needs a fresh grant
+after reload or when opened in another tab.
+
+For a session grant, the issuer serializes operations from its recipients, including
+those in same-origin frames. A single session-storage write commits the partition's
+values and versions together. Reloading the tab recovers both. An independent tab
+starts empty. A tab opened with an opener can receive the browser's initial
+snapshot. Each tab's subsequent writes and clears affect only its own copy.
+[HTML page sessions](https://html.spec.whatwg.org/multipage/document-sequences.html#creating-a-new-top-level-traversable)
 
 ```js
 const grant = { storeId: 'store-17', scope: 'preferences', keys: ['lastContentType'], read: true };

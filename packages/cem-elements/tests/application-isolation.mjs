@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, firefox } from 'playwright';
-import { verifySharedStores } from './application-shared-stores.mjs';
+import { verifySharedStores, verifySessionStores } from './application-shared-stores.mjs';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const origin = 'http://127.0.0.1';
@@ -121,6 +121,7 @@ async function verify(context, mode) {
     assert.deepEqual(withdrawn, { before: 'updated', sharedError: 'InvalidStateError', refused: true });
     assert.equal((await read(peers.A, 'A')).draft, 'updated');
     assert.equal((await read(peers.B, 'B')).draft, 'beta');
+    await verifySessionStores(page, mode, setup);
 }
 
 async function setup(page, mode, ids) {

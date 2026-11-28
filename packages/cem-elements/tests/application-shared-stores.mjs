@@ -11,6 +11,11 @@ async function provision(page, mode) {
         };
         const options = { storeId: 'store-17', scope: 'preferences', read: true, write: true };
         const a = editor('A'), b = editor('B');
+        for (const recipient of [a, b]) {
+            const session = { ...options, kind: 'session', scope: 'workspace' };
+            grantCemApplicationSharedStore(shell, recipient, session);
+            grantCemApplicationSharedStore(shell, recipient, { ...session, scope: 'summary', keys: ['draft'], write: false });
+        }
         grantCemApplicationSharedStore(shell, a, options);
         grantCemApplicationSharedStore(shell, b, { ...options, scope: 'second-writer' });
         grantCemApplicationSharedStore(shell, b, { ...options, scope: 'preview', write: false, keys: ['format'] });
@@ -155,4 +160,79 @@ export async function verifySharedStores(page, mode, editors, other, peers) {
     }, mode);
     assert.deepEqual(fenced, ['InvalidStateError', 'InvalidStateError', 'NotAllowedError', 'after clear', 'NotAllowedError', 'NotAllowedError', 'InvalidStateError']);
     assert.equal(await call(remote, 'getItem', 'format'), 'after clear');
+}
+
+export async function verifySessionStores(page, mode, setup) {
+    async function mount(tab) {
+        const editors = await setup(tab, mode, ['A', 'B']);
+        const ungranted = await editors.A.evaluate(async () => {
+            const { getCemApplicationSharedStore } = await import('/runtime/index.js');
+            const app = (document.getElementById('A') ?? document).querySelector('cem-application');
+            try { getCemApplicationSharedStore(app, 'workspace'); } catch (error) { return error.name; }
+        });
+        assert.equal(ungranted, 'NotAllowedError', 'each mount needs its own grant');
+        await provision(tab, mode);
+        const [a, b, preview, durable] = await Promise.all([
+            binding(editors.A, 'A', 'workspace'), binding(editors.B, 'B', 'workspace'),
+            binding(editors.B, 'B', 'summary'), binding(editors.A, 'A', 'preferences'),
+        ]);
+        return { a, b, preview, durable };
+    }
+
+    await page.reload();
+    const original = await mount(page);
+    const simultaneous = await original.a.evaluate(async store => {
+        const { version } = await store.read('counter');
+        const writes = await Promise.allSettled([
+            store.setItem('counter', 'one', version), store.setItem('counter', 'two', version),
+        ]);
+        return writes.map(write => write.status === 'fulfilled' ? 'committed' : write.reason.name);
+    });
+    assert.deepEqual(simultaneous.sort(), ['ConstraintError', 'committed']);
+    await call(original.durable, 'setItem', 'draft', 'durable');
+    assert.equal(await call(original.a, 'getItem', 'draft'), null, 'same issuer and ID, separate storage kinds');
+    await call(original.a, 'setItem', 'draft', 'first tab');
+    const saved = await call(original.preview, 'read', 'draft');
+    assert.equal(saved.value, 'first tab');
+    await race(original.a, original.b, 'race');
+    assert.deepEqual(await call(original.preview, 'keys'), ['draft']);
+    await assert.rejects(call(original.preview, 'setItem', 'draft', 'denied'), { name: 'NotAllowedError' });
+
+    const independent = await page.context().newPage();
+    await independent.goto(page.url());
+    const second = await mount(independent);
+    assert.deepEqual(await call(second.b, 'keys'), [], 'fresh tab starts empty');
+    assert.equal(await call(second.durable, 'getItem', 'draft'), 'durable');
+    await assert.rejects(call(second.a, 'setItem', 'draft', 'foreign', saved.version), { name: 'ConstraintError' });
+    await call(second.a, 'setItem', 'draft', 'second tab');
+    const secondSaved = await call(second.b, 'read', 'draft');
+
+    await page.reload();
+    const restored = await mount(page);
+    assert.deepEqual(await call(restored.preview, 'read', 'draft'), saved, 'reload restores the value and its version');
+    await call(restored.b, 'setItem', 'draft', 'after reload', saved.version);
+    assert.equal(await call(second.b, 'getItem', 'draft'), 'second tab');
+
+    // Native opener sessions start from a snapshot. Fresh grants can read it, but
+    // clearing or editing the copy cannot change the opener's partition or version.
+    const opened = page.waitForEvent('popup');
+    await page.evaluate(() => { window.open(location.href, '_blank'); });
+    const popup = await opened;
+    await popup.waitForLoadState();
+    const copy = await mount(popup);
+    const openerValue = await call(restored.a, 'read', 'draft');
+    assert.equal(await call(copy.preview, 'getItem', 'draft'), openerValue.value);
+    await call(copy.b, 'clear');
+    assert.deepEqual(await call(copy.a, 'keys'), []);
+    assert.deepEqual(await call(restored.preview, 'read', 'draft'), openerValue);
+    await popup.close();
+
+    await independent.reload();
+    const secondReload = await mount(independent);
+    assert.deepEqual(await call(secondReload.b, 'read', 'draft'), secondSaved);
+    await call(restored.b, 'clear');
+    await assert.rejects(call(restored.a, 'setItem', 'draft', 'stale', openerValue.version), { name: 'ConstraintError' });
+    assert.equal(await call(secondReload.preview, 'getItem', 'draft'), 'second tab');
+    assert.equal(await call(secondReload.durable, 'getItem', 'draft'), 'durable');
+    await independent.close();
 }

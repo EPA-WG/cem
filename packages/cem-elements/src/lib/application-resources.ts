@@ -1,4 +1,5 @@
-import { bindSharedStore, type CemApplicationSharedStore } from './internal/runtime-support/shared-store.js';
+import { sessionStoreTransactions } from './internal/runtime-support/session-shared-store.js';
+import { bindSharedStore, durableStoreTransactions, type CemApplicationSharedStore, type SharedStoreTransaction } from './internal/runtime-support/shared-store.js';
 import { pageLocalStorage, privateStorage, type CemApplicationStorage, type ResourceStorage } from './internal/runtime-support/browser-storage.js';
 export type { CemApplicationSharedStore, CemSharedStoreValue } from './internal/runtime-support/shared-store.js';
 export type { CemApplicationStorage, ResourceStorage } from './internal/runtime-support/browser-storage.js';
@@ -72,11 +73,30 @@ export class ApplicationLocation extends EventTarget {
 
 class ApplicationResources {
     private readonly stores = new Map<'local' | 'session', ResourceStorage>();
+    private readonly sessionTransactions = new Map<string, SharedStoreTransaction>();
     readonly sharedStores = new Map<string, { issuer: ApplicationResources; store: CemApplicationSharedStore }>();
 
     constructor(readonly document: Document, readonly parent: ApplicationResources | null,
         readonly path: readonly Segment[], readonly location: ApplicationLocation | undefined,
         readonly live: () => boolean) {}
+    sharedTransactions(kind: 'local' | 'session', storeId: string): SharedStoreTransaction {
+        const window = this.document.defaultView;
+        if (!window) throw new DOMException('Shared store provider unavailable', 'InvalidStateError');
+        const namespace = JSON.stringify([this.path, storeId]);
+        if (kind === 'local') {
+            const factory = window.indexedDB;
+            if (!factory) throw new DOMException('Shared store provider unavailable', 'InvalidStateError');
+            return durableStoreTransactions(factory, namespace);
+        }
+        let transaction = this.sessionTransactions.get(storeId);
+        if (!transaction) {
+            const page = window.top;
+            if (!page) throw new DOMException('Page session unavailable', 'InvalidStateError');
+            transaction = sessionStoreTransactions(page, namespace);
+            this.sessionTransactions.set(storeId, transaction);
+        }
+        return transaction;
+    }
     storage(kind: 'local' | 'session'): ResourceStorage {
         if (!this.live()) throw Error('cem.application.owner-changed');
         let store = this.stores.get(kind);
@@ -138,6 +158,7 @@ function admit(root: Boundary): ApplicationResources {
     const pageApp = !parent && doc.defaultView === doc.defaultView?.top && peers.size === 1;
     const resources = new ApplicationResources(doc, parent, path, pageApp ? undefined : new ApplicationLocation(address),
         () => slots.get(key)?.deref() === root && root.isConnected && root.ownerDocument === doc
+            && page.defaultView?.document === page
             && nearest(root.parentElement, doc) === parentRoot && (!parent || parent.live())
             && frames.every(edge => edge.frame.isConnected && edge.frame.contentDocument === edge.document));
     slots.set(key, new WeakRef(root));
@@ -156,7 +177,9 @@ function requireApplication(application: Element): ApplicationResources {
 }
 
 export interface CemSharedStoreGrant {
-    /** Stable ID in the granting application's durable partition. */
+    /** Storage lifetime. Omission preserves the durable local store. */
+    readonly kind?: 'local' | 'session';
+    /** Stable ID in the granting application's partition for this kind. */
     readonly storeId: string;
     /** Alias exposed only to this recipient. */
     readonly scope: string;
@@ -178,19 +201,17 @@ function encloses(issuer: ApplicationResources, recipient: ApplicationResources)
 export function grantCemApplicationSharedStore(owner: Element, recipient: Element, grant: CemSharedStoreGrant): { revoke(): void } {
     const issuer = requireApplication(owner);
     const target = requireApplication(recipient);
-    const { storeId, scope, read, write, keys } = grant;
+    const { storeId, scope, read, write, keys, kind = 'local' } = grant;
     if (typeof storeId !== 'string' || !storeId || typeof scope !== 'string' || !scope
-        || read !== true || typeof write !== 'boolean'
+        || (kind !== 'local' && kind !== 'session') || read !== true || typeof write !== 'boolean'
         || (keys !== undefined && (!Array.isArray(keys) || !keys.every(key => typeof key === 'string'))))
         throw new TypeError('Invalid shared store grant');
     const current = target.sharedStores.get(scope);
     if (!encloses(issuer, target) || (current && !encloses(issuer, current.issuer)))
         throw new DOMException('Shared store grant requires the owning application', 'NotAllowedError');
-    const factory = issuer.document.defaultView?.indexedDB;
-    if (!factory) throw new DOMException('Shared store provider unavailable', 'InvalidStateError');
-    const namespace = JSON.stringify([issuer.path, storeId]);
+    const transaction = issuer.sharedTransactions(kind, storeId);
     const bound = () => target.sharedStores.get(scope)?.store === store;
-    const store: CemApplicationSharedStore = bindSharedStore(factory, namespace, write,
+    const store: CemApplicationSharedStore = bindSharedStore(transaction, write,
         keys && new Set(keys), () => bound() && target.live() && issuer.live());
     target.sharedStores.set(scope, { issuer, store });
     return Object.freeze({ revoke() { if (bound()) target.sharedStores.delete(scope); } });

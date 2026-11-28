@@ -218,9 +218,15 @@ for the current native work and the conditional diagnostic items on recurrence.
     host and across tabs race on an expected version. One write commits and one conflicts.
     It also checks unconditional writes, clear and deletion ordering, and a downgrade
     while a write is queued. Run `nx run cem-elements:test:application-isolation`.
+  - [x] Verify session-scoped named stores in Chromium and Firefox in light DOM and
+    same-origin iframe hosts. The [browser check](../packages/cem-elements/tests/application-shared-stores.mjs)
+    reloads two tabs and reissues their grants. Each recovers its own values and versions.
+    A fresh tab starts empty. An opener-created tab can clear its initial copy independently.
+    The check also covers competing writers, a read-only recipient and a durable store
+    with the same owner and ID. Run `nx run cem-elements:test:application-isolation`.
   - The two-editor Save As gate also covers grant revocation and receipts after editor
-    replacement. Write-only grants, subscription and change delivery, session-scoped named
-    stores, session lifetime across tabs, ancestor stop fences, portable save/load/clone and physical offload remain open.
+    replacement. Write-only grants, subscription and change delivery, private session
+    lifetime across tabs, ancestor stop fences, portable save/load/clone and physical offload remain open.
     [Implementation order](../packages/cem-components/docs/application.md#missing-capabilities-and-implementation-order)
 
 - [ ] **Complete localized resource delivery.** Pin the versioned message vocabulary and
