@@ -478,16 +478,16 @@ Known deferrals stay outside this trigger:
 
 ## Component Docs
 
-- [Application orchestration proposal](./docs/application.md),
-  [resource-backed command proposal](./docs/command.md), and
-  [localization proposal](./docs/localization.md) — coordinated design for
-  insulation-first virtual/embedded apps, native scope/property bindings,
-  guarded browser APIs with `embed-page` parity, downward container overrides,
-  management/lifecycle, portable state, commands, parameter dialogs and
-  environment-aware localized/theme resources. The focused surface owns keyboard
-  input and the manager owns active-child selection. All ten review decisions
-  were adopted on 2026-11-27. Runtime integration and spoken accessibility
-  verification are tracked in the [CEM application acceptance checklist](../../docs/todo.md#cem-application-acceptance).
+- The **resource-backed command design** defines how actions, menu items and shortcuts
+  invoke a stable command ID, how the owning app collects parameters, and who receives
+  the result. The two-editor Save As flow is verified in light DOM and iframe hosts.
+  [Command design](./docs/command.md) · [Remaining verification](../../docs/todo.md#resource-backed-command-verification)
+- The application orchestration and localization proposals describe insulated embedded
+  apps, native scope and property bindings, guarded browser APIs with `embed-page` parity,
+  container overrides, lifecycle and portable state, and localized and theme resources.
+  The focused surface owns keyboard input and the manager selects the active child.
+  All ten review decisions were adopted on 2026-11-27.
+  [Application proposal](./docs/application.md) · [Localization proposal](./docs/localization.md) · [Application acceptance](../../docs/todo.md#cem-application-acceptance)
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.
 - [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted

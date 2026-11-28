@@ -1,15 +1,14 @@
 # Resource-backed commands
 
-**Status:** design proposal, 2026-11-23; no runtime or component API is added by
-this document. Companion documents: [application.md](application.md) and
-[localization.md](localization.md). Existing native invoker commands and
-`host-command` bindings retain their current contracts.
+**Adopted design · 2026-11-27.** This document defines resource-backed command
+bindings, routing, parameter collection and result delivery for CEM components.
+The two-editor Save As flow exercises the runtime contract in light DOM and iframe
+hosts. [Implementation and verification](#implementation-and-verification)
 
-**Insulation revision — 2026-11-24:** every application starts with a private
-command/context environment. Inheritance, shared services and named-group
-membership are explicit host-admitted relationships. Within that selected
-environment, existing native CEM per-property scope inheritance still applies;
-this proposal adds no generic `inherit` or `inherited` syntax.
+Each application starts with a private command context. The host explicitly admits
+inheritance, shared services and named-group membership. Within that context, CEM
+uses its existing per-property scope inheritance. [Application orchestration](application.md)
+and [localization](localization.md) describe the companion proposals.
 
 ## Command identity and model
 
@@ -23,7 +22,7 @@ URLs; package import aliases must be explicit.
 
 Windows menu selections and accelerators can deliver the same command ID via
 `WM_COMMAND`, but menu, string and accelerator resources are separate types.
-CEM's integrated command record is a proposed abstraction over that idea.
+CEM groups the command ID, presentation resources and shortcut bindings in one command record.
 [Windows accelerators](https://learn.microsoft.com/en-us/windows/win32/menurc/about-keyboard-accelerators),
 [Windows resource types](https://learn.microsoft.com/en-us/windows/win32/intl/preparing-a-resource-configuration-file).
 
@@ -51,7 +50,7 @@ One command can be available in one editor and disabled in another.
 
 ## Authoring and native HTML compatibility
 
-The proposed canonical resource binding is **`command-id`**. The spelling
+The canonical resource binding is **`command-id`**. The spelling
 `command="resource-id"` conflicts with an existing API: `cem-action` already forwards
 `command` to its native button. HTML reserves built-in values and custom
 keywords beginning with `--`. A resource ID such as `file.save-as` does not
@@ -60,7 +59,7 @@ establish native command semantics. See the
 [HTML command keywords](https://html.spec.whatwg.org/multipage/form-elements.html#attr-button-command).
 
 ```html
-<!-- Proposed resource bindings; not currently executable examples. -->
+<!-- Design examples for resource-bound component declarations. -->
 <cem-action command-id="editor.copy"></cem-action>
 <cem-menu-item command-id="file.save-as"></cem-menu-item>
 
@@ -69,13 +68,12 @@ establish native command semantics. See the
             label="Preferences"></cem-action>
 ```
 
-Do not infer a route from whether an arbitrary `command` string happens to be
-in the resource registry. That would change behavior when resources load or a
-future HTML command is standardized. Do not introduce `command` as an alias in
-this proposal. A future breaking revision could reconsider that spelling, but
-would require explicit versioning and migration.
+Resolve resource IDs only from `command-id`. Existing `host-command` bindings
+keep their current contract. Route `command` through the native invoker contract
+even when its value also appears in the resource registry.
+Changing that spelling requires explicit versioning and migration.
 
-| Proposed input | Contract |
+| Input | Contract |
 | --- | --- |
 | `command-id` | One stable semantic resource key, required for resource invocation |
 | `command-parameters` | Native typed parameter value binding; omitted means no supplied values, not an empty string |
@@ -107,8 +105,7 @@ the same generic protocol through the substrate; no document-global click scan.
 
 Handler providers register supported IDs, a synchronous eligibility snapshot,
 and an execution endpoint with the runtime. Their declarative declaration maps
-the invocation into component event/native slice state. Registration is a
-proposed generic capability, not arbitrary application-local JavaScript.
+the invocation into component event/native slice state. The runtime admits handler registrations through a generic capability.
 
 For a given command, resolve the retained content origin to its registered
 command context, then walk its logical component owners toward the owning app.
@@ -577,8 +574,7 @@ Native lexical scope suffices for local lookup once the host
 has admitted the child's context. This self-contained manifest needs no module
 map. If the locale resources move to separate files, native module-map resource entries
 can resolve their specifiers. A map cannot express who may write a store or
-which child receives a field override. Those checks belong to the proposed
-grant and resource consumers. [Native scope and property inheritance](application.md#scope-syntax-and-property-inheritance-primary-candidate)
+which child receives a field override. The grant and resource consumers enforce those checks. [Native scope and property inheritance](application.md#scope-syntax-and-property-inheritance-primary-candidate)
 
 ## Lifecycle, concurrency and effects
 
@@ -714,56 +710,13 @@ Remove unavailable bindings from that projection, distinguish simultaneous
 combination syntax from alternatives, and provide visible help beyond `title`.
 [WAI-ARIA key shortcuts](https://www.w3.org/TR/wai-aria-1.2/#aria-keyshortcuts).
 
-## Verification required before adoption
+## Implementation and verification
 
-Native tests must cover definition validation, schema changes, locale-neutral
-parameters, scalar/native profiles, handler/state resolution, claim/cancel
-ordering, duplicate IDs, repeated invocation IDs, stale contexts and outcome
-correlation. Browser tests must exercise logical routing from a focused placement, observer slices,
-two nested editors/applications, native command coexistence, menu/task focus
-relay, parameter forms, invalid/cancel submits, repeat and activation-sensitive
-host calls. Test resource-bound actions and menu items as separate declarations.
+The two-editor acceptance test runs the desktop Save As path in Chromium and
+Firefox, each with light DOM and iframe hosts. It checks the pinned document
+revision, private destination capture, grant revocation during locale publication,
+and host-owned receipt delivery after editor replacement.
+[Two-editor browser test](../../cem-elements/tests/two-editor-save-as.mjs)
 
-Include selection changes while menus are open; removed targets while dialogs
-wait; successful and failed Save; separate Copy invocations with identical
-parameters; locale change during execution; sensitive-value redaction; no
-execution on rerender/SSR/hydration; and accessible names, shortcuts, state,
-focus, RTL/long labels, inherited themes and forced colors. The [two-editor test](../../cem-elements/tests/two-editor-save-as.mjs) covers the desktop Save As flow, grant revocation during locale publication and receipt delivery after editor replacement. The wider matrix remains open.
-
-Exercise explicit, same-ID and generated form selection. With a host menu and
-two children exporting `file.save-as`, confirm that only the selected child's
-form opens. Change active child and locale while editing, then submit or cancel.
-Verify one result for the original invocation and zero effects on the other
-child. Cover a missing custom form, duplicate or invalid bindings, unsupported
-required types, target closure and preservation of outside focus.
-
-Project A's editor into a layout with its own Save As handler and invoke A
-from the host menu. Exercise an owner guard refusal and a successful save in
-both light DOM and an iframe. Verify the layout gains zero observations, vetoes,
-claims or results through placement. The caller gets one permitted status
-without a private destination. A disabled nearest provider ends lookup. Changing
-the target's logical owner during parameter entry prevents execution.
-
-In both light DOM and iframe hosts, exercise custom and generated forms with a
-recognizable destination. Type it, trigger validation, change locale, then
-cancel. Check event projections, snapshots, diagnostics and checkpoint output
-during editing and after teardown. On success only the file service receives
-the destination for execution. Exercise picker denial, failed stream close,
-download handoff and edits made after dispatch. Verify the reported outcome,
-the document’s destination and its saved revision in each case.
-
-Hold the service receipt until the write commits and the editor closes. Verify
-one write, one host outcome and zero callbacks to the closed or replacement
-editor. Exercise a still-admitted host-menu caller, duplicate and contradictory
-receipts, confirmed failure, missing evidence, denied status lookup and host
-loss. Reconnecting can read only its granted projection and never reissues Save.
-
-Cross-app acceptance also requires exported-child Save targeting, denied upward
-context writes, allowlisted parent services, sibling isolation, bridge-loop
-refusal, same-ID/different-instance state, stopped-app refusal without replay,
-and stale-generation rejection after pause/load/clone. MDI manager commands are
-tested independently from business handlers with different focused and selected apps.
-Verify private defaults, denied self-joining of a named group, admitted
-per-family sharing without handler leakage, and equivalent command API outcomes
-in light-DOM and iframe hosts. Guarded framework service calls must never fall
-back to another app's browser/provider state.
+The remaining native, browser, cross-application and accessibility checks are
+tracked in the [resource-backed command verification checklist](../../../docs/todo.md#resource-backed-command-verification).

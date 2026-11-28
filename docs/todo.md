@@ -20,13 +20,13 @@ records native scope candidates, guarded browser APIs and `embed-page` parity.
 The [command parameter form revision](../packages/cem-components/docs/command.md#nonmodal-parameter-forms)
 resolves proposal review item 1. Chromium and Firefox native dialog checks
 confirmed that the host could take focus, a sibling could be edited and a draft
-could be submitted in both light DOM and an iframe. CEM form selection and
-schema-driven generation still require implementation and acceptance tests.
+could be submitted in both light DOM and an iframe. The two-editor runtime test exercises both same-ID forms and generated forms.
+The [command checklist](#resource-backed-command-verification) covers the remaining selection and validation cases.
 The [first display and lazy feature decision](../packages/cem-components/docs/application.md#first-display-and-lazy-features)
 resolves review item 2 at proposal level. The acceptance scenario covers
 first paint before hydration and independent feature loading, denial and disposal.
 The [logical command route](../packages/cem-components/docs/command.md#logical-command-route-and-permissions)
-resolves review item 3 at proposal level. Projected-editor acceptance covers
+records the adopted routing decision for review item 3. Projected-editor acceptance covers
 observer and guard permissions, one executable claim, and private result delivery.
 The [keyboard ownership decision](../packages/cem-components/docs/application.md#keyboard-ownership-across-apps)
 resolves review item 4. Native focus delivery was checked in Chromium and Firefox
@@ -36,11 +36,11 @@ resolves review item 5. Its `resources` containers group the English and French
 entries. Native CEM-ML round-trip verification covers the example.
 The [Save As profiles and destination privacy rules](../packages/cem-components/docs/command.md#save-as-across-hosts)
 resolve review item 6. Native Chromium and Firefox probes confirmed capture of
-an unsubmitted path. Protected CEM form capture remains implementation work.
+an unsubmitted path. The two-editor runtime test also checks protected destination capture.
 The [host-owned write outcome](../packages/cem-components/docs/command.md#host-owned-write-outcomes-and-reconciliation)
 resolves review item 7. A checkpoint-coordinator probe covered owner replacement,
-stale acknowledgment and trusted reconciliation. Command result delivery and
-authorized status lookup still require implementation.
+stale acknowledgment and trusted reconciliation. The two-editor runtime test covers late receipt delivery.
+The command checklist tracks the remaining reconciliation and status-access cases.
 The [persistence namespace](../packages/cem-components/docs/application.md#private-persistence-namespaces)
 and [shared storage contract](../packages/cem-components/docs/application.md#shared-storage-access-and-commit-order)
 resolve review item 8. The proposal covers hydration, scoped grants and commit
@@ -171,7 +171,7 @@ for the current native work and the conditional diagnostic items on recurrence.
   light DOM and iframe hosts. Give editors A and B distinct drafts. From A,
   open the host File menu and invoke `file.save-as`. Move focus to B and edit
   it while A’s nonmodal form stays open. Exercise these cases in each host.
-  [Command acceptance criteria](../packages/cem-components/docs/command.md#verification-required-before-adoption)
+  [Command design and verification](../packages/cem-components/docs/command.md#implementation-and-verification)
 
   - Enter a recognizable test destination in A and switch the UI to French.
     Verify the form preserves the input and focus, and shortcuts become
@@ -197,6 +197,59 @@ for the current native work and the conditional diagnostic items on recurrence.
   repeat announcement of the whole form. Record the browser, screen reader,
   synthesizer, installed voices and automatic language-switching setting.
   [Per-message language and formatting](../packages/cem-components/docs/localization.md#per-message-language-and-formatting)
+
+### Resource-backed command verification
+
+The completed two-editor scenario above covers the desktop write, grant revocation during
+French locale publication, and a receipt arriving after editor replacement. Extend that
+fixture where a case needs two editors. The following checks cover the rest of the
+[command design](../packages/cem-components/docs/command.md).
+
+- [ ] **Validate command definitions and invocation identity in native tests.** Exercise schema
+  changes, scalar and native parameter profiles, locale-neutral values, duplicate command IDs,
+  handler eligibility, claim and cancellation order, stale contexts and result correlation.
+  Replay an invocation ID and verify its effect occurs at most once. Issue two Copy commands
+  with identical parameters and distinct invocation IDs and verify each runs once.
+- [ ] **Verify routing from a projected editor in light DOM and iframe hosts.** Give the layout
+  its own Save As handler and invoke the editor through the host menu. Exercise a successful
+  claim, an owner guard refusal and a disabled nearest provider. Assert the layout receives
+  zero observations, vetoes, claims or results through placement. Check the admitted observer
+  slices and the caller’s permitted status. Change the selection with the menu open, then
+  change the target’s logical owner during parameter entry and verify the stale route cannot execute.
+- [ ] **Verify resource-bound controls and keyboard dispatch.** Exercise the action, icon button
+  and menu item declarations independently with `command-id`. Check native `command` and
+  `commandfor` coexistence, shortcut repeats, host calls that require user activation, menu-to-task
+  focus transfer and focus return. Rerender, server-render and hydrate a bound control and
+  verify that each produces zero invocations.
+- [ ] **Complete nonmodal parameter-form coverage in both hosts.** Exercise explicit dialog
+  overrides, same-ID lookup in the owning child and schema fallback when a custom form is
+  missing. Cover duplicate or invalid bindings, unsupported required types, invalid submission
+  and target closure. Change the active child and locale while editing. On submit or cancel,
+  verify one result for the pinned invocation, zero effects on its sibling and preservation
+  of focus when it has moved outside the form.
+- [ ] **Verify destination privacy and Save As outcomes across host profiles.** In both hosts,
+  enter a recognizable destination in custom and generated forms, trigger validation, switch
+  locale and cancel. Inspect event projections, snapshots, diagnostics, shared storage and
+  checkpoint output during editing and after teardown. On success verify that only the file
+  service receives the destination for execution. Cover picker denial, failed stream close,
+  download handoff and edits after dispatch. Assert the reported outcome, document destination
+  and saved revision for each case.
+- [ ] **Complete host receipt and reconciliation coverage.** Keep a host-menu caller admitted
+  after the editor closes and check its permitted result. Exercise duplicate and contradictory
+  receipts, confirmed failure, missing evidence, denied status lookup and loss of the host.
+  Verify that reconnecting exposes only the granted status and never reissues the write.
+- [ ] **Verify cross-application command permissions and lifecycle.** Exercise exported-child
+  targeting, denied upward context writes, allowlisted parent services, sibling isolation,
+  bridge-loop refusal and independent state for two instances exporting the same ID. Check
+  stopped-app refusal without replay and stale generations after pause, load and clone. Run
+  manager commands separately from business commands with focus and active selection in
+  different apps. Test private defaults, denied self-joining and admitted per-family sharing.
+  Compare light DOM and iframe outcomes, including that sharing exposes no extra handlers and
+  a refused framework service cannot fall back to another app’s provider or browser state.
+- [ ] **Verify accessible command presentation during locale changes.** Change locale during
+  execution and check the accessible name, effective shortcut, enabled/checked/busy state and
+  focus. Exercise RTL, long labels, inherited themes and forced colors. Record the spoken
+  fallback-label result in the existing “Open 1.234 files” check above.
 
 ## Amsterdam presentation samples: active Studio priority
 
