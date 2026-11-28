@@ -313,6 +313,9 @@ browser authority of that document.
 Exercise the profiles, overrides, denied requests and replacement grants in
 the [interactive application example](../../../examples/web/cem-application/index.html).
 
+For API-specific resource masks, operation rights, delegation, redirection and
+revocation, apply the [API firewall design](../../../docs/cem-application-api-firewall-design.md).
+
 ### Resolution and resource overrides
 
 Use existing native lookup rules, not a universal new merge algorithm. Non-CSS

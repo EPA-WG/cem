@@ -2,13 +2,13 @@ export * from './lib/cem-elements.js';
 export { resolveRetainedPayloadContract, classifyRetainedPayloadElement,
     type CemRetainedPayloadContract, type CemPayloadVocabulary, type CemPayloadName } from './lib/retained-payload-contract.js';
 export * from './lib/repository.js';
-export { openCemHttpResource, type CemHttpPostRequest } from './lib/http-resource-transport.js';
+export { openCemApplicationHttpResource, openCemHttpResource, type CemApplicationHttpHop, type CemHttpPostRequest } from './lib/http-resource-transport.js';
 export { bindCemGraphqlActions, readCemGraphqlQuery, type CemGraphqlActionOptions, type CemGraphqlActionRoute, type CemGraphqlGuard, type CemGraphqlQueryOptions, type CemGraphqlResponse } from './lib/graphql-actions.js';
 export { createCemGraphqlPreviewHost, type CemGraphqlPreviewGrant, type CemPreviewApplicationHost } from './lib/graphql-preview.js';
 export { cemSchemaAssetGenerationTarget, CemSchemaAssetDemandGroup, type CemSchemaAssetDemandPlan, type CemSchemaAssetDemandGroupOptions, type CemSchemaAssetDemandEndpoint, CemSchemaAssetPackRecoveryBinding, cemSchemaAssetTransportFromBinding, cemSchemaAssetRuntimeFromBinding, type CemSchemaAssetPackRecoveryOptions, type CemSchemaAssetNativeBinding, CemSchemaAssetPackLoader, CemSchemaAssetLoadError, type CemSchemaAssetPackOptions, type CemSchemaAssetRuntime,
     type CemSchemaAssetRuntimeEndpoint, type CemSchemaAssetTransportRuntime, type CemSchemaAssetTransportSource, type CemSchemaAssetNativeRuntime, type CemSchemaAssetSourceIdentity, type CemSchemaAssetPackageIdentity, type CemLoadedSchemaAssetSource } from './lib/schema-asset-pack.js';
 export { CemCommittedCheckpointStore, type CemCommitReceipt, type CemCheckpointNativeRuntime, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemStoredCheckpoint, type CemCheckpointRetirementHandoff } from './lib/committed-checkpoint.js';
-export { mountCemView, type CemHostCommandRequest, type CemHostViewOptions, type CemHostView } from './lib/host-view.js';
+export { bindCemHostCommands, mountCemView, type CemHostCommandRequest, type CemHostViewOptions, type CemHostView } from './lib/host-view.js';
 export {
     CemDeclarationScopeError,
     createCemDeclarationScope,
@@ -83,5 +83,7 @@ export { connectCemNativeInvokerFocus } from './lib/native-invoker-focus.js';
 
 export { connectCemApplicationCommand, type CemApplicationCommandOptions, type CemApplicationCommandResult, type CemCommandDocument, type CemDocumentCommandOwner, type CemDocumentWrite, type CemWriteReceipt } from './lib/application-command.js';
 
-export { grantCemApplicationBrowserServices, type CemBrowserServiceGrant, getCemApplicationStorage, getCemApplicationSharedStore, grantCemApplicationSharedStore,
+export { grantCemApplicationNetwork, grantCemApplicationBrowserServices, type CemBrowserServiceGrant, getCemApplicationStorage, getCemApplicationSharedStore, grantCemApplicationSharedStore,
     type CemApplicationStorage, type CemApplicationSharedStore, type CemSharedStoreGrant, type CemSharedStoreValue, type CemSharedStoreChange } from './lib/application-resources.js';
+
+export { openCemApplicationWebSocket, type CemApplicationSocketEvents } from './lib/application-websocket.js';

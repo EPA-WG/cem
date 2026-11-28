@@ -248,6 +248,14 @@ for the current native work and the conditional diagnostic items on recurrence.
     in light DOM and same-origin frames in Chromium and Firefox. Check mixed per-service
     overrides, read-only access through host and declarative controls, ungranted nested scopes,
     replacement, reload and retained handles. Run `nx run cem-elements:test:application-isolation`.
+  - [ ] Specify and verify per-API resource filters at the application boundary for cookies,
+    local/session and named stores, IndexedDB and Cache Storage. Cover masked keys and paths,
+    enumeration, write-only privacy, bulk operations and revocation at commit or delivery.
+    [Data API requirements](cem-application-api-firewall-design.md#cookies-storage-and-other-apis)
+  - [ ] Inventory every CEM element and adapter that can initiate network I/O, including
+    indirect browser loads. Require the owning application's full grant stack at every
+    network entry point. Verify a denied destination receives zero requests and that
+    revocation stops future delivery. [Firewall design and acceptance cases](cem-application-api-firewall-design.md)
   - [ ] Add explicit rights-limited delegation before forwarding any upstream browser group
     to grandchildren. Specify and verify the separate cookie, database and cross-origin adapters.
   - The two-editor Save As gate also covers grant revocation and receipts after editor

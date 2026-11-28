@@ -4,6 +4,15 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "test:application-network": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node packages/cem-elements/tests/application-network.mjs",
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "test:application-isolation": {
             "executor": "nx:run-commands",
             "cache": false,

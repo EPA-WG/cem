@@ -31,11 +31,13 @@ label also supplies its accessible name.
 
 Enable `keynav` on a menu, its enclosing component or a template node. Menus
 inherit the setting through their owners. `keynav="off"` opts a subtree out.
-Run the [LTR component sample](../../../playgrounds/cem-menu-keynav.html) or
-[RTL component sample](../../../playgrounds/cem-menu-keynav-rtl.html) with the
-built CEM runtime and theme available. Each uses the production declarations for
+Open the [combined English and Arabic menu demo](../../../playgrounds/cem-menu-keynav.html) with the
+built CEM runtime and theme available. Both samples use the production declarations for
 `cem-menu`, `cem-menu-item` and `cem-dropdown`. Arrow navigation, native button
 activation and Tab exit follow the [design](../../../../../docs/cem-keyboard-navigation-design.md).
+
+Each enabled leaf invokes a host command. A shared log shows its direction, localized label
+and stable command ID once per activation.
 
 ## Arrow-key prototype
 
@@ -62,15 +64,14 @@ switches to the previous root branch.
 
 The shared adapter handles all four arrows using the focused level’s orientation
 and direction. Arrow entry opens a native popover with the launcher as its
-source. Enter, Space and pointer input use native button activation. An enabled
-leaf writes its visible label to the output. Tab or Shift+Tab exits from the
+source. Enter, Space and pointer input use native button activation. An enabled leaf writes its visible label to the output. Tab or Shift+Tab exits from the
 root launcher and dismisses the open panels. Each bar remembers its last
 focused button. [Keyboard adapter](../../../../../examples/web/menu-keyboard/menu.js)
 
 ## Verification
 
 From the workspace root run `node tools/scripts/verify-cem-menu-keyboard-poc.mjs` for the prototype. After building `cem-elements`, add `--component` to run the same cases against rendered CEM components and exercise form and fieldset inheritance.
-The Playwright check exercises both documents. It checks physical item order,
+The Playwright check exercises both writing directions. It checks physical item order,
 the focused button, open panel chain, roving Tab stop and key default handling.
 It also counts trusted clicks from native button activation, checks that arrows
 deliver zero clicks and exercises a disabled launcher with keyboard and pointer.

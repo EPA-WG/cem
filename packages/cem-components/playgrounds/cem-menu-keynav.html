@@ -19,15 +19,35 @@
     }
 }</script>
     <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <style>
+        body { max-width: 74rem; margin: auto; padding: 1rem; font-family: system-ui, sans-serif; }
+        main { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 25rem), 1fr)); gap: 2rem; }
+        main > section { min-width: 0; }
+        #commands { border-block-start: 1px solid currentColor; margin-block-start: 1.5rem; }
+        #commands ol { max-height: 14rem; overflow: auto; }
+    </style>
     <script type="module">
-        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { bindCemHostCommands, installCemElementRuntime } from '@epa-wg/cem-elements';
         window.cemPlaygroundRuntime = installCemElementRuntime(window);
-        document.addEventListener('click', event => {
-            const item = event.target.closest('button[role=menuitem]');
-            if (item && !event.defaultPrevented && !item.hasAttribute('aria-haspopup')) {
-                document.querySelector('output').value = item.textContent;
+        const log = document.querySelector('#commands ol');
+        for (const sample of document.querySelectorAll('main > section')) {
+            const commands = {};
+            for (const item of sample.querySelectorAll('cem-menu-item[host-command]')) {
+                const name = item.getAttribute('host-command');
+                const label = item.getAttribute('label');
+                commands[name] = request => {
+                    const entry = document.createElement('li');
+                    const title = document.createElement('bdi');
+                    title.lang = sample.lang;
+                    title.textContent = label;
+                    const id = document.createElement('code');
+                    id.textContent = request.command;
+                    entry.append(sample.dir.toUpperCase() + ' · ', title, ' · ', id);
+                    log.append(entry);
+                };
             }
-        });
+            bindCemHostCommands(sample, { commands, current: () => sample.isConnected, report: console.error });
+        }
     </script>
 </head>
 <body class="cem-theme-light" keynav>
@@ -35,83 +55,172 @@
 <cem-element tag="cem-menu" capability="composite-menu" src="@epa-wg/cem-components/components/cem-menu/cem-menu.xhtml#cem-menu"></cem-element>
 <cem-element tag="cem-dropdown" capability="popup" src="@epa-wg/cem-components/components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown"></cem-element>
 <h1>Menu keyboard navigation</h1>
+<p>Use the arrow keys to move through a menu. Press Enter or Space, or click a command, to add it to the log.</p>
+<main>
+<section id="ltr" lang="en" dir="ltr" aria-labelledby="ltr-title">
+<h2 id="ltr-title">English · Left to right</h2>
 <section>
-    <h2>Horizontal menubar</h2>
+    <h3>Horizontal menubar</h3>
     <cem-menu direction="row" aria-label="Horizontal menubar">
         <cem-menu-item label="File">
-            <cem-menu direction="column" aria-label="File" slot="submenu" id="horizontal-file">
-                <cem-menu-item label="New"></cem-menu-item>
+            <cem-menu direction="column" aria-label="File" slot="submenu" id="ltr-horizontal-file">
+                <cem-menu-item label="New" host-command="file.new"></cem-menu-item>
                 <cem-menu-item label="Export">
-                    <cem-menu direction="column" aria-label="Export" slot="submenu" id="horizontal-export">
-                        <cem-menu-item label="PDF"></cem-menu-item>
-                        <cem-menu-item label="SVG"></cem-menu-item>
+                    <cem-menu direction="column" aria-label="Export" slot="submenu" id="ltr-horizontal-export">
+                        <cem-menu-item label="PDF" host-command="file.export.pdf"></cem-menu-item>
+                        <cem-menu-item label="SVG" host-command="file.export.svg"></cem-menu-item>
                     </cem-menu>
                 </cem-menu-item>
-                <cem-menu-item label="Save"></cem-menu-item>
+                <cem-menu-item label="Save" host-command="file.save"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
-        <cem-menu-item label="Help"></cem-menu-item>
+        <cem-menu-item label="Help" host-command="help.open"></cem-menu-item>
         <cem-menu-item label="Edit">
-            <cem-menu direction="column" aria-label="Edit" slot="submenu" id="horizontal-edit">
-                <cem-menu-item label="Copy"></cem-menu-item>
-                <cem-menu-item label="Paste"></cem-menu-item>
+            <cem-menu direction="column" aria-label="Edit" slot="submenu" id="ltr-horizontal-edit">
+                <cem-menu-item label="Copy" host-command="edit.copy"></cem-menu-item>
+                <cem-menu-item label="Paste" host-command="edit.paste"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
         <cem-menu-item label="Unavailable" aria-disabled="true">
-            <cem-menu direction="column" aria-label="Unavailable" slot="submenu" id="horizontal-unavailable">
-                <cem-menu-item label="Print"></cem-menu-item>
+            <cem-menu direction="column" aria-label="Unavailable" slot="submenu" id="ltr-horizontal-unavailable">
+                <cem-menu-item label="Print" host-command="file.print"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
         <cem-menu-item label="View">
-            <cem-menu direction="column" aria-label="View" slot="submenu" id="horizontal-view">
-                <cem-menu-item label="Zoom"></cem-menu-item>
+            <cem-menu direction="column" aria-label="View" slot="submenu" id="ltr-horizontal-view">
+                <cem-menu-item label="Zoom" host-command="view.zoom"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
     </cem-menu>
 </section>
 <section>
-    <h2>Vertical menubar</h2>
+    <h3>Vertical menubar</h3>
     <cem-menu direction="column" aria-label="Vertical menubar">
         <cem-menu-item label="File">
-            <cem-menu direction="column" aria-label="File" slot="submenu" id="vertical-file">
-                <cem-menu-item label="New"></cem-menu-item>
+            <cem-menu direction="column" aria-label="File" slot="submenu" id="ltr-vertical-file">
+                <cem-menu-item label="New" host-command="file.new"></cem-menu-item>
                 <cem-menu-item label="Export">
-                    <cem-menu direction="column" aria-label="Export" slot="submenu" id="vertical-export">
-                        <cem-menu-item label="PDF"></cem-menu-item>
-                        <cem-menu-item label="SVG"></cem-menu-item>
+                    <cem-menu direction="column" aria-label="Export" slot="submenu" id="ltr-vertical-export">
+                        <cem-menu-item label="PDF" host-command="file.export.pdf"></cem-menu-item>
+                        <cem-menu-item label="SVG" host-command="file.export.svg"></cem-menu-item>
                     </cem-menu>
                 </cem-menu-item>
-                <cem-menu-item label="Save"></cem-menu-item>
+                <cem-menu-item label="Save" host-command="file.save"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
-        <cem-menu-item label="Help"></cem-menu-item>
+        <cem-menu-item label="Help" host-command="help.open"></cem-menu-item>
         <cem-menu-item label="Edit">
-            <cem-menu direction="row" aria-label="Edit" slot="submenu" id="vertical-edit">
-                <cem-menu-item label="Copy"></cem-menu-item>
-                <cem-menu-item label="Paste"></cem-menu-item>
+            <cem-menu direction="row" aria-label="Edit" slot="submenu" id="ltr-vertical-edit">
+                <cem-menu-item label="Copy" host-command="edit.copy"></cem-menu-item>
+                <cem-menu-item label="Paste" host-command="edit.paste"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
         <cem-menu-item label="Unavailable" aria-disabled="true">
-            <cem-menu direction="column" aria-label="Unavailable" slot="submenu" id="vertical-unavailable">
-                <cem-menu-item label="Print"></cem-menu-item>
+            <cem-menu direction="column" aria-label="Unavailable" slot="submenu" id="ltr-vertical-unavailable">
+                <cem-menu-item label="Print" host-command="file.print"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
         <cem-menu-item label="View">
-            <cem-menu direction="column" aria-label="View" slot="submenu" id="vertical-view">
-                <cem-menu-item label="Zoom"></cem-menu-item>
+            <cem-menu direction="column" aria-label="View" slot="submenu" id="ltr-vertical-view">
+                <cem-menu-item label="Zoom" host-command="view.zoom"></cem-menu-item>
             </cem-menu>
         </cem-menu-item>
     </cem-menu>
 </section>
 <section>
-    <h2>Standalone menu button</h2>
-    <cem-dropdown id="actions" open="false" label="Options">
+    <h3>Standalone menu button</h3>
+    <cem-dropdown id="ltr-actions" open="false" label="Options">
         <cem-menu direction="column" aria-label="Actions">
-            <cem-menu-item label="Print"></cem-menu-item>
-            <cem-menu-item label="Save"></cem-menu-item>
+            <cem-menu-item label="Print" host-command="file.print"></cem-menu-item>
+            <cem-menu-item label="Save" host-command="file.save"></cem-menu-item>
         </cem-menu>
     </cem-dropdown>
 </section>
-<output aria-live="polite"></output>
+</section>
+<section id="rtl" lang="ar" dir="rtl" aria-labelledby="rtl-title">
+<h2 id="rtl-title">العربية · من اليمين إلى اليسار</h2>
+<section>
+    <h3>شريط أفقي</h3>
+    <cem-menu direction="row" aria-label="شريط أفقي">
+        <cem-menu-item label="ملف">
+            <cem-menu direction="column" aria-label="ملف" slot="submenu" id="rtl-horizontal-file">
+                <cem-menu-item label="جديد" host-command="file.new"></cem-menu-item>
+                <cem-menu-item label="تصدير">
+                    <cem-menu direction="column" aria-label="تصدير" slot="submenu" id="rtl-horizontal-export">
+                        <cem-menu-item label="PDF" host-command="file.export.pdf"></cem-menu-item>
+                        <cem-menu-item label="SVG" host-command="file.export.svg"></cem-menu-item>
+                    </cem-menu>
+                </cem-menu-item>
+                <cem-menu-item label="حفظ" host-command="file.save"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="مساعدة" host-command="help.open"></cem-menu-item>
+        <cem-menu-item label="تحرير">
+            <cem-menu direction="column" aria-label="تحرير" slot="submenu" id="rtl-horizontal-edit">
+                <cem-menu-item label="نسخ" host-command="edit.copy"></cem-menu-item>
+                <cem-menu-item label="لصق" host-command="edit.paste"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="غير متاح" aria-disabled="true">
+            <cem-menu direction="column" aria-label="غير متاح" slot="submenu" id="rtl-horizontal-unavailable">
+                <cem-menu-item label="طباعة" host-command="file.print"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="عرض">
+            <cem-menu direction="column" aria-label="عرض" slot="submenu" id="rtl-horizontal-view">
+                <cem-menu-item label="تكبير" host-command="view.zoom"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+    </cem-menu>
+</section>
+<section>
+    <h3>شريط عمودي</h3>
+    <cem-menu direction="column" aria-label="شريط عمودي">
+        <cem-menu-item label="ملف">
+            <cem-menu direction="column" aria-label="ملف" slot="submenu" id="rtl-vertical-file">
+                <cem-menu-item label="جديد" host-command="file.new"></cem-menu-item>
+                <cem-menu-item label="تصدير">
+                    <cem-menu direction="column" aria-label="تصدير" slot="submenu" id="rtl-vertical-export">
+                        <cem-menu-item label="PDF" host-command="file.export.pdf"></cem-menu-item>
+                        <cem-menu-item label="SVG" host-command="file.export.svg"></cem-menu-item>
+                    </cem-menu>
+                </cem-menu-item>
+                <cem-menu-item label="حفظ" host-command="file.save"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="مساعدة" host-command="help.open"></cem-menu-item>
+        <cem-menu-item label="تحرير">
+            <cem-menu direction="row" aria-label="تحرير" slot="submenu" id="rtl-vertical-edit">
+                <cem-menu-item label="نسخ" host-command="edit.copy"></cem-menu-item>
+                <cem-menu-item label="لصق" host-command="edit.paste"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="غير متاح" aria-disabled="true">
+            <cem-menu direction="column" aria-label="غير متاح" slot="submenu" id="rtl-vertical-unavailable">
+                <cem-menu-item label="طباعة" host-command="file.print"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="عرض">
+            <cem-menu direction="column" aria-label="عرض" slot="submenu" id="rtl-vertical-view">
+                <cem-menu-item label="تكبير" host-command="view.zoom"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+    </cem-menu>
+</section>
+<section>
+    <h3>زر قائمة مستقل</h3>
+    <cem-dropdown id="rtl-actions" open="false" label="خيارات">
+        <cem-menu direction="column" aria-label="إجراءات">
+            <cem-menu-item label="طباعة" host-command="file.print"></cem-menu-item>
+            <cem-menu-item label="حفظ" host-command="file.save"></cem-menu-item>
+        </cem-menu>
+    </cem-dropdown>
+</section>
+</section>
+</main>
+<section id="commands" aria-labelledby="command-heading">
+<h2 id="command-heading">Command log</h2>
+<div role="log" aria-labelledby="command-heading" aria-live="polite" aria-relevant="additions"><ol></ol></div>
+</section>
 </body>
 </html>

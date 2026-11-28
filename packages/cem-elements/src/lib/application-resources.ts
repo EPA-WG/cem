@@ -1,3 +1,4 @@
+import { checkNetwork, denyNetwork } from './internal/runtime-support/application-network-policy.js';
 import { ApplicationBrowserPolicy, bindGroupStorage, bindLocation, LogicalLocation,
     type ApplicationLocation, type BrowserGroup, type CemBrowserServiceGrant } from './internal/runtime-support/application-browser-policy.js';
 import { sessionSharedStore } from './internal/runtime-support/session-shared-store.js';
@@ -226,6 +227,40 @@ export function grantCemApplicationBrowserServices(owner: Element, recipient: El
     const target = requireApplication(recipient);
     if (target.parent !== issuer) throw new DOMException('A browser service export requires the direct container', 'NotAllowedError');
     return target.policy.export(grant, id => issuer.browserGroup(id));
+}
+
+/** Trusted host operation. A root ceiling is supplied out of band. Child exports
+ * come from the immediate issuer's admission snapshot and require upstream delegation. */
+export function grantCemApplicationNetwork(owner: Element | null, recipient: Element, ceiling?: Element): { revoke(): void } {
+    const target = requireApplication(recipient);
+    if (owner === null) {
+        if (target.parent || !ceiling || ceiling.getAttribute('to') !== recipient.id
+            || ceiling.getAttribute('scope') !== target.policy.scope) return denyNetwork();
+        return target.policy.network.install(ceiling);
+    }
+    const issuer = requireApplication(owner);
+    const upstream = issuer.policy.network.binding;
+    if (target.parent !== issuer || ceiling || !upstream) return denyNetwork();
+    return target.policy.network.install(issuer.policy.network.exportFor(recipient.id, target.policy.scope), upstream);
+}
+
+/** Pin the initiating consumer, its mounted owner and every issuing generation before resolving a URL. */
+export function applicationNetworkLease(consumer: Element) {
+    const owner = applicationResources(consumer);
+    if (!owner) return null;
+    const grant = owner.policy.network.binding;
+    if (!grant) return denyNetwork();
+    const ownsConsumer = () => consumer.isConnected && applicationResources(consumer) === owner;
+    const current = () => {
+        grant.signal.throwIfAborted();
+        if (!ownsConsumer()) denyNetwork();
+    };
+    current();
+    return { signal: grant.signal, current, ownsConsumer,
+        check(url: URL, method: string, credentials: RequestCredentials, following = false, transport: 'http' | 'websocket' = 'http') {
+            current();
+            checkNetwork(grant, { url, method, credentials, transport }, following);
+        } };
 }
 
 export interface CemSharedStoreGrant {

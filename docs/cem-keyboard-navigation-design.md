@@ -10,7 +10,7 @@ The earlier radio/button experiment at `f02e46e2` exposed two focus destinations
 
 The revised prototype uses labelled native buttons throughout. Both documents use the same adapter. Each demonstrates horizontal and vertical menubars, nested submenus and a standalone menu button. [LTR sample](../packages/cem-components/src/components/cem-menu/css-menu-poc.html) · [RTL sample](../packages/cem-components/src/components/cem-menu/css-menu-poc-rtl.html)
 
-The production component and prototype share a browser acceptance matrix. The component also exercises inherited scope in forms and fieldsets. [LTR component sample](../packages/cem-components/playgrounds/cem-menu-keynav.html) · [RTL component sample](../packages/cem-components/playgrounds/cem-menu-keynav-rtl.html) · [Component contract](../packages/cem-elements/docs/composite-menu-contract.md)
+The production component and prototype share a browser acceptance matrix. The component also exercises inherited scope in forms and fieldsets. [LTR component sample](../packages/cem-components/playgrounds/cem-menu-keynav.html#ltr) · [RTL component sample](../packages/cem-components/playgrounds/cem-menu-keynav.html#rtl) · [Component contract](../packages/cem-elements/docs/composite-menu-contract.md)
 
 ## Authoring interface
 

@@ -1,3 +1,4 @@
+import { applicationStylesheetReader } from './stylesheet-reader.js';
 import { nativeCheckpointIdentity } from './checkpoint-domain.js';
 import { observeRenderOrderMoves, type CemRenderOrderMoveObserver } from '../../projection.js';
 import {
@@ -198,6 +199,7 @@ export class CemStylesheetRegistry {
                         ? source.options.declaration === options.declaration : occurrence.scope.name === options.sharedScope);
                     if (!occurrences.length && !this.current.get(options.element)?.loads.has(source)) continue;
                     const installation = prepareRetainedStylesheets({ ...source.options, occurrences,
+                        read: applicationStylesheetReader(options.element, source.options.read),
                         consumer: `registry-prepared:${crypto.randomUUID()}`, context: options.context,
                         lease: source.options.ownership.stageConsumer(options.element, options.scope) });
                     if (!current()) { this.clean(installation); break; }
@@ -332,6 +334,7 @@ export class CemStylesheetRegistry {
         connection.revision++;
         try {
             const installation = installRetainedStylesheets({ ...source.options, occurrences,
+                read: applicationStylesheetReader(options.element, source.options.read),
                 consumer: `registry:${crypto.randomUUID()}`, context: options.context,
                 lease: source.options.ownership.beginConsumer(options.element, options.scope) });
             if (connection.released || this.sources.get(source.options.declaration) !== source) {

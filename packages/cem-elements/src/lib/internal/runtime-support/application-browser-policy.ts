@@ -1,3 +1,4 @@
+import { ApplicationNetworkPolicy, isNetworkDeclaration } from './application-network-policy.js';
 import type { ResourceStorage } from './browser-storage.js';
 
 type Isolation = 'private' | 'shared';
@@ -59,6 +60,7 @@ function name(value: unknown): value is string {
 
 /** One declaration snapshot per admission. Group handles belong to one recipient and one grant generation. */
 export class ApplicationBrowserPolicy {
+    readonly network: ApplicationNetworkPolicy;
     readonly profile: Isolation;
     readonly scope: string | null;
     readonly pageProjection: boolean;
@@ -76,10 +78,11 @@ export class ApplicationBrowserPolicy {
         const policies = Array.from(root.children).filter(node => node.localName === 'browser-policy' && node.namespaceURI === root.namespaceURI);
         if (policies.length > 1) throw new TypeError('Declare one direct browser-policy');
         const policy = policies[0];
+        this.network = new ApplicationNetworkPolicy(policy);
         this.scope = policy?.getAttribute('scope') ?? null;
         if (this.scope !== null && !name(this.scope)) throw new TypeError('Invalid browser-policy scope');
         if (policy) {
-            if (policy.childElementCount) throw new TypeError('Unsupported browser-policy child');
+            if (Array.from(policy.children).some(node => node.namespaceURI !== policy.namespaceURI || !isNetworkDeclaration(node))) throw new TypeError('Unsupported browser-policy child');
             for (const attr of policy.attributes) {
                 if (attr.name === 'scope' || attr.namespaceURI === 'http://www.w3.org/2000/xmlns/') continue;
                 const family = families.find(key => key === attr.name);

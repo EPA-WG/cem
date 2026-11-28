@@ -21,12 +21,14 @@ const server = createServer(async (request, response) => {
 });
 if (component) await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 
+let sampleDirection = 'ltr';
 const samples = new URL('../../packages/cem-components/src/components/cem-menu/', import.meta.url);
 try {
     for (const engine of [chromium, firefox]) {
         const browser = await engine.launch();
         try {
             for (const dir of ['ltr', 'rtl']) {
+                sampleDirection = dir;
                 const page = await browser.newPage();
                 try {
                     const errors = [];
@@ -41,11 +43,16 @@ try {
                         document.addEventListener('keydown', event => { window.consumed = event.defaultPrevented; });
                     }));
                     const suffix = dir === 'rtl' ? '-rtl' : '';
-                    await page.goto(component ? `http://127.0.0.1:${server.address().port}/packages/cem-components/playgrounds/cem-menu-keynav${suffix}.html`
+                    await page.goto(component ? `http://127.0.0.1:${server.address().port}/packages/cem-components/playgrounds/cem-menu-keynav.html`
                         : new URL('css-menu-poc' + suffix + '.html', samples).href);
                     await ready(page);
-                    assert.equal(await page.locator('html').getAttribute('dir'), dir);
-                    assert.equal(await page.locator('[dir]').count(), 1);
+                    if (component) {
+                        assert.equal(await page.locator('#' + dir).getAttribute('dir'), dir);
+                        assert.equal(await page.locator('main > section[dir]').count(), 2);
+                    } else {
+                        assert.equal(await page.locator('html').getAttribute('dir'), dir);
+                        assert.equal(await page.locator('[dir]').count(), 1);
+                    }
                     assert.equal(await page.locator('input, label, [role="radio"]').count(), 0);
                     const extraControls = page.locator(':is(nav, [role="menu"]) :is(button, a, input, select, textarea, [tabindex]):not(button[role="menuitem"]):not([part=composite][tabindex="-1"])');
                     assert.equal(await extraControls.count(), 0);
@@ -63,9 +70,9 @@ try {
 } finally { if (server.listening) await new Promise(resolve => server.close(resolve)); }
 
 function levelSelector(level) {
-    if (['horizontal', 'vertical'].includes(level)) return '[role="menubar"][aria-orientation="' + level + '"]';
+    if (['horizontal', 'vertical'].includes(level)) return (component ? '#' + sampleDirection + ' ' : '') + '[role="menubar"][aria-orientation="' + level + '"]';
     if (!component) return '#' + level;
-    return '#' + level + (level === 'actions' ? ' cem-menu' : '') + ' > [part=composite]';
+    return '#' + sampleDirection + '-' + level + (level === 'actions' ? ' cem-menu' : '') + ' > [part=composite]';
 }
 function itemSelector(level) {
     const owner = levelSelector(level);
@@ -77,8 +84,8 @@ async function ready(page) {
     if (component) {
         const html = await readFile(path.join(repo, new URL(page.url()).pathname.slice(1)), 'utf8');
         const expected = [...html.matchAll(/<cem-menu-item\s/g)].length;
-        await page.waitForFunction(count => document.querySelectorAll('button[role=menuitem]').length === count && document.querySelectorAll('[role=menubar]').length === 2 &&
-            !!document.querySelector('#actions [part=base] button')?.popoverTargetElement, expected);
+        await page.waitForFunction(count => document.querySelectorAll('button[role=menuitem]').length === count && document.querySelectorAll('[role=menubar]').length === 4 &&
+            ['ltr', 'rtl'].every(dir => document.querySelector('#' + dir + '-actions [part=base] button')?.popoverTargetElement), expected);
         await page.evaluate(async () => {
             const hosts = document.querySelectorAll('cem-menu,cem-menu-item,cem-dropdown');
             await Promise.all([...hosts].map(host => window.cemPlaygroundRuntime.whenRenderSettled(host)));
@@ -96,7 +103,7 @@ async function state(page, level, index, panels = []) {
             && launchers.every(b => b.getAttribute('aria-expanded') === String((b.commandForElement ?? b.popoverTargetElement).matches(':popover-open')))
             && bars.every(bar => bar.querySelectorAll(':scope > button[tabindex="0"],:scope > cem-menu-item > button[tabindex="0"]').length === 1)
             && button.tabIndex === (button.closest('[role=menu],[role=menubar]').matches('[role=menubar]') ? 0 : -1);
-    }, { selector: itemSelector(level), index, panels }, { timeout: 4000 }).catch(async error => {
+    }, { selector: itemSelector(level), index, panels: component ? panels.map(id => sampleDirection + '-' + id) : panels }, { timeout: 4000 }).catch(async error => {
         const actual = await page.evaluate(() => ({
             focus: [document.activeElement.localName, document.activeElement.textContent?.trim().slice(0, 65), document.activeElement.tabIndex],
             open: [...document.querySelectorAll(':popover-open')].map(panel => panel.id),
@@ -123,6 +130,8 @@ async function verifyBar(page, root, dir) {
     if (row) assert.ok(dir === 'ltr' ? positions[0].x < positions[1].x : positions[0].x > positions[1].x);
     else assert.ok(positions[0].y < positions[1].y);
     const initial = (await clicks(page)).length;
+    const log = page.getByRole('log').locator('li');
+    const initialEntries = component ? await log.count() : 0;
     await item(page, root, 0).focus();
     await key(page, next); await state(page, root, 1);
     await key(page, toward); await state(page, root, 2); // Cross-axis leaf fallback lands on closed Edit.
@@ -165,7 +174,11 @@ async function verifyBar(page, root, dir) {
     await help.click();
     const names = await Promise.all([fileButton, exportButton, leaf, fileButton, exportButton, help, help].map(b => b.textContent()));
     assert.deepEqual((await clicks(page)).slice(initial), names.map(name => [name, true]), 'one trusted click per activation');
-    assert.equal(await page.locator('output').textContent(), await help.textContent());
+    if (component) {
+        const entries = (await log.allTextContents()).slice(initialEntries);
+        assert.deepEqual(entries, [leaf, help, help].map((_, i) =>
+            dir.toUpperCase() + ' · ' + (i ? names[5] : names[2]) + ' · ' + (i ? 'help.open' : 'file.export.pdf')));
+    } else assert.equal(await page.locator('output').textContent(), await help.textContent());
 
     // Activate an open branch preview with its launcher still focused.
     await fileButton.focus(); await key(page, toward); await key(page, back);
@@ -175,7 +188,7 @@ async function verifyBar(page, root, dir) {
 }
 
 async function verifyStandalone(page, dir) {
-    const launcher = page.locator(component ? '#actions [part=base] button' : 'button[commandfor="actions"]');
+    const launcher = page.locator(component ? '#' + dir + '-actions [part=base] button' : 'button[commandfor="actions"]');
     await launcher.focus(); await key(page, 'ArrowUp'); await state(page, 'actions', 1, ['actions']);
     await key(page, 'Escape');
     await key(page, 'Enter'); await state(page, 'actions', 0, ['actions']);
@@ -187,9 +200,10 @@ async function verifyStandalone(page, dir) {
 async function verifyTab(page) {
     await page.reload();
     await ready(page);
+    if (component && sampleDirection === 'rtl') await page.locator('#ltr-actions [part=base] button').focus();
     await key(page, 'Tab'); await state(page, 'horizontal', 0);
     await key(page, 'ArrowDown'); await key(page, 'ArrowDown');
-    await key(page, await page.locator('html').getAttribute('dir') === 'ltr' ? 'ArrowRight' : 'ArrowLeft');
+    await key(page, sampleDirection === 'ltr' ? 'ArrowRight' : 'ArrowLeft');
     await state(page, 'horizontal-export', 0, ['horizontal-file', 'horizontal-export']);
     await key(page, 'Tab'); await state(page, 'vertical', 0);
     await key(page, 'ArrowDown'); await key(page, 'ArrowDown'); await state(page, 'vertical', 2);
@@ -199,7 +213,7 @@ async function verifyTab(page) {
 }
 
 async function verifyForm(page, dir) {
-    await page.evaluate(async () => {
+    await page.evaluate(async direction => {
         const declaration = document.createElement('cem-element');
         declaration.setAttribute('tag', 'file-list-tools');
         declaration.setAttribute('keynav', '');
@@ -215,13 +229,13 @@ async function verifyForm(page, dir) {
         const region = document.createElement('section');
         region.setAttribute('keynav', 'off');
         region.innerHTML = '<file-list-tools></file-list-tools>';
-        document.body.append(region);
+        document.getElementById(direction).append(region);
         const instance = region.firstElementChild;
         await window.cemPlaygroundRuntime.whenRenderSettled(instance);
         await window.cemPlaygroundRuntime.whenRenderSettled(instance.querySelector('cem-menu'));
         window.formSubmissions = 0;
         region.addEventListener('submit', event => { event.preventDefault(); window.formSubmissions++; });
-    });
+    }, dir);
     const form = page.locator('file-list-tools form');
     const group = form.locator('fieldset'), menu = group.locator('cem-menu');
     const inline = dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight';

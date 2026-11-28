@@ -138,7 +138,7 @@ export async function mountCemGraphqlPreview(root: HTMLElement, application: Cem
     };
     signal.addEventListener('abort', dispose, { once: true });
     try {
-        const response = await readCemGraphqlQuery({ baseUrl, endpoint: grant.endpoint, guard: retainedGuard, ...grant.initialRead, signal });
+        const response = await readCemGraphqlQuery({ baseUrl, endpoint: grant.endpoint, guard: retainedGuard, ...grant.initialRead, consumer: root, signal });
         if (!publish(response)) throw Error('cem.preview.disposed');
         unbind = bindCemGraphqlActions({ root, baseUrl, endpoint: grant.endpoint, guard: retainedGuard, owner,
             mutationIdempotency: grant.mutationIdempotency,

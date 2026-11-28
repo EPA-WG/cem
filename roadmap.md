@@ -615,11 +615,44 @@ Deliverables:
   [wishlist.md](docs/wishlist.md#cem-ml-runtime); transport byte streaming alone
   does not complete it. Full data source-map UI, cache identity and SSR/preload
   remain later phases of the [HTTP resource design](docs/cem-elements-http-request-design.md).
+- [ ] Apply the `cem-application` grant stack to cookies, local/session storage, named
+  stores and database adapters. Define resource-specific masks for domains, cookie paths
+  and names, logical keys and database records. Enforce them on reads, writes, enumeration,
+  bulk operations and change delivery. [API firewall design](docs/cem-application-api-firewall-design.md)
 - [ ] Design and implement outbound network firewall rules at the `cem-application` boundary.
+  Every network-consuming CEM element and delegated loader must enforce its owning application's
+  full grant stack for direct and indirect requests. [Network destination rules](docs/cem-application-api-firewall-design.md#network-destination-grammar)
   Require an explicit host grant for each allowed destination and transport. Let a nested app
   narrow its container's rules. Check the effective policy before opening a connection and
   at each redirect. Verify allowed requests, blocked redirects and revocation of a live
-  connection in light DOM and iframe hosts. [Application browser policy](packages/cem-components/docs/application.md#browser-isolation-policy)
+  connection in light DOM and iframe hosts. The first browser implementation covers nested
+  HTTP and WebSocket grants. The [design inventory](docs/cem-application-api-firewall-design.md#browser-implementation)
+  tracks the remaining network entry points. [Application browser policy](packages/cem-components/docs/application.md#browser-isolation-policy)
+
+#### User-managed firewall and API permissions
+
+- [ ] Give users a trusted local settings surface for each app and embedding context. Show
+  the requested operation, the owning app, the effective rule and its issuer. A user can
+  narrow host and ancestor grants. A user approval is effective only while every grant in
+  the original stack still permits the operation. Preserve stricter managed restrictions.
+- [ ] Offer **block**, **ask** and **allow** policies. Prompt in host-owned UI before I/O
+  only for an otherwise grantable operation. Hold one pending decision for equivalent requests,
+  expire it on app closure or grant replacement, and recheck the stack before release. Dismissal
+  sends nothing. Offer one use, this session, or a saved local rule. Check the app identity,
+  grant generation and destination again on retries and redirect hops.
+- [ ] Default a connection approval to the exact scheme, effective port, host and path. Let
+  the user explicitly expand to a path mask, an exact domain, one level of subdomains,
+  all descendant subdomains or a label mask. Preview concrete included and excluded addresses,
+  including the apex, before saving. Distinguish an exact URL with its query from a path
+  that covers every query. Keep transport, methods and credential rights visible.
+  Show a redacted resource identity for sensitive URLs. For cookies and stores, use their
+  cookie-name/path or logical-key matchers and offer separate operation rights.
+- [ ] Let a user promote a one-time denial or existing app block into a persistent blocklist
+  entry. Preview the effect of broadening the destination, resource mask or affected apps.
+  Matching blocks take precedence over remembered allows and outstanding prompts. Apply a
+  new block to live operations through the revocation mechanism. Provide a local rule list
+  with provenance, expiry, edit, remove and reset. Verify that lifting a user block still
+  requires a current host grant.
 
 Exit criteria (browser substrate production-ready trigger, not `@epa-wg/custom-element` adoption):
 

@@ -1,3 +1,4 @@
+import { applicationNetworkLease } from './application-resources.js';
 import type { CemCheckpointPublicationOwner } from './checkpoint-publication.js';
 import type { CemHttpResourceLoadResult } from './cem-elements.js';
 import { bindCemHostCommands, type CemHostCommandRequest } from './host-view.js';
@@ -22,6 +23,7 @@ export interface CemGraphqlGuard {
 }
 
 export interface CemGraphqlQueryOptions {
+    readonly consumer?: Element;
     readonly baseUrl: string;
     readonly endpoint: string;
     readonly operation: string;
@@ -88,7 +90,9 @@ async function responseBytes(loaded: CemHttpResourceLoadResult, signal: AbortSig
  * can admit the operation as a query before it is sent using HTTP GET. */
 export async function readCemGraphqlQuery(options: CemGraphqlQueryOptions): Promise<CemGraphqlResponse> {
     const { baseUrl, endpoint, operation, guard } = options;
-    const signal = requestSignal(options.signal);
+    const lease = options.consumer && applicationNetworkLease(options.consumer);
+    const lifetime = requestSignal(options.signal);
+    const signal = lease ? AbortSignal.any([lease.signal, lifetime]) : lifetime;
     signal.throwIfAborted();
     const target = graphqlTarget(endpoint, baseUrl);
     const uri = target.href;
@@ -103,8 +107,9 @@ export async function readCemGraphqlQuery(options: CemGraphqlQueryOptions): Prom
         resolverIdentity: 'selected-graphql', resourcePolicyStamp: 'same-origin',
         contextIdentity: operation, method: 'GET', policy, signal,
         credentials: 'same-origin', cache: 'no-store', headers,
-    });
+    }, lease ?? undefined);
     const bytes = await responseBytes(loaded, signal, () => true);
+    lease?.current();
     return { operation, bytes, uri, html: guard.renderResponse(operation, bytes, uri) };
 }
 
@@ -149,7 +154,8 @@ export function bindCemGraphqlActions(options: CemGraphqlActionOptions): () => v
             pending = true;
             try {
                 options.admitMutation?.(action.operationId);
-                const signal = requestSignal(lifetime.signal);
+                const lease = applicationNetworkLease(root);
+                const signal = requestSignal(lease ? AbortSignal.any([lifetime.signal, lease.signal]) : lifetime.signal);
                 const loaded = await openCemHttpResource({
                     authoredUrl: endpoint, baseUrl, resolvedUrl,
                     resolverIdentity: 'selected-graphql', resourcePolicyStamp: 'same-origin',
@@ -158,8 +164,9 @@ export function bindCemGraphqlActions(options: CemGraphqlActionOptions): () => v
                     // A browser can retransmit a replayable upload internally.
                     // The original journal ID remains identical on every delivery.
                     headers: { ...headers, 'content-type': 'application/json', 'idempotency-key': action.operationId },
-                });
+                }, lease ?? undefined);
                 const bytes = await responseBytes(loaded, signal, () => current() && action.current());
+                lease?.current();
                 const uri = loaded.response.url || resolvedUrl;
                 if (!current() || !action.current()) return;
                 const html = guard.renderResponse(operation, bytes, uri);

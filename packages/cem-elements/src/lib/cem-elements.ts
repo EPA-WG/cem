@@ -1,8 +1,8 @@
-import { applicationResources, resolveLocalStorage, type ApplicationLocation, type ResourceStorage } from './application-resources.js';
+import { applicationNetworkLease, applicationResources, resolveLocalStorage, type ApplicationLocation, type ResourceStorage } from './application-resources.js';
 import { isCemParameterElement, isCemParameterEvent } from './command-parameters.js';
 import { hostAttributeCommitControl, prepareHostAttributePublication, type NativeHostAttributeCommit, type PreparedHostAttributePublication } from './internal/runtime-support/host-attribute-publication.js';
 import { compiledDeclarationWork, readCompiledDeclarationAsset } from './compiled-declaration-assets.js';
-import { HttpResourceError, openCemHttpResource as defaultLoadHttpResource, readByteStream, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
+import { type CemApplicationHttpHop, HttpResourceError, openCemHttpResource as defaultLoadHttpResource, readByteStream, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
 import { CemRecoveryStatusObserver } from './recovery-status.js';
 import { prepareCemProviderHandoff, type CemProviderHandoff } from './checkpoint-provider-handoff.js';
 import { isCemCredentialControl, prepareCemEditorProviderHandoff } from './form-control-capability.js';
@@ -134,7 +134,7 @@ import { CemStylesheetRegistry, type CemStylesheetConnection } from './internal/
 import type { CemStylesheetInstallationOptions } from './internal/runtime-support/stylesheet-installation.js';
 import { installInstanceStylesheets, stageInstanceStylesheets, prepareInstanceStylesheets, prepareEmittedInstanceStylesheets, type InstanceStylesheetInstallation } from './internal/runtime-support/instance-stylesheet-installation.js';
 import { CemCssDomPublicationQueue, type PreparedCssDomPublication } from './internal/runtime-support/css-dom-publication-queue.js';
-import { readRetainedStylesheet } from './internal/runtime-support/stylesheet-reader.js';
+import { applicationStylesheetReader, readRetainedStylesheet } from './internal/runtime-support/stylesheet-reader.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
     type CemEdgeSsrHostOperation,
@@ -721,6 +721,8 @@ export interface CemElementRuntimeOptions {
      * boundary even while Phase 1 materializes JSON responses before rerendering.
      */
     loadHttpResource?: (request: CemHttpRequest) => Promise<CemHttpResourceLoadResult>;
+    /** Single-hop adapter for granted cem-application requests. */
+    applicationHttpHop?: CemApplicationHttpHop;
     /**
      * Conservative browser defaults for direct HTTP resource loading. Hosts can
      * override these when they provide their own resolver/loader policy.
@@ -1164,6 +1166,8 @@ interface LocationElementDeclaration {
 type LocationReadDeclaration = LocationElementDeclaration & { sliceName: string };
 
 interface ActiveHttpResource {
+    owner?: ReturnType<typeof applicationResources>;
+    grantSignal?: AbortSignal;
     document?: CemProcessingDocumentHandle;
     host?: CemProcessingHost;
     key: string;
@@ -1963,6 +1967,7 @@ export class CemElementRuntime {
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
     private readonly resolveResourceUrlOption?: CemElementRuntimeOptions['resolveResourceUrl'];
+    private readonly applicationHttpHop?: CemApplicationHttpHop;
     private readonly loadHttpResourceOption?: CemElementRuntimeOptions['loadHttpResource'];
     private readonly httpResourcePolicy: CemHttpResourcePolicy;
     private readonly repositoryRegistry?: CemRepositoryReader;
@@ -2006,6 +2011,7 @@ export class CemElementRuntime {
         this.resolveScopedModuleUrlOption = options.resolveScopedModuleUrl;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
         this.resolveResourceUrlOption = options.resolveResourceUrl;
+        this.applicationHttpHop = options.applicationHttpHop;
         this.loadHttpResourceOption = options.loadHttpResource;
         this.httpResourcePolicy = { ...DEFAULT_HTTP_RESOURCE_POLICY, ...(options.httpResourcePolicy ?? {}) };
         this.repositoryRegistry = options.repositoryRegistry;
@@ -2252,17 +2258,22 @@ export class CemElementRuntime {
             try {
                 if (!Number.isFinite(deadline) || deadline <= 0) throw Error('invalid compiled declaration acquisition timeout');
                 return await compiledDeclarationWork((async () => {
+                    const lease = applicationNetworkLease(element);
+                    const signal = lease ? AbortSignal.any([controller.signal, lease.signal]) : controller.signal;
                     const resolve = async (specifier: string) => isUrlLikeSpecifier(specifier)
                         ? new URL(specifier, base).href
                         : this.resolveModuleUrlInContext(specifier, document, context, base, undefined, 'template-import', scope);
                     const metadataUrl = await resolve(values[0]), templateUrl = await resolve(values[1]);
                     current(); controller.signal.throwIfAborted();
-                    const metadataBytes = await readCompiledDeclarationAsset(metadataUrl, document.baseURI, 'metadata', this.httpResourcePolicy, controller.signal);
+                    lease?.check(new URL(metadataUrl), 'GET', 'omit');
+                    const metadataBytes = await readCompiledDeclarationAsset(metadataUrl, document.baseURI, 'metadata', this.httpResourcePolicy, signal);
                     const metadataJson = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(metadataBytes);
                     // Refuse a bad metadata pin before acquiring the larger executable asset.
                     await this.renderSupport(scope).admitCompiledDeclarationMetadata(metadataJson, values[2]);
                     current(); controller.signal.throwIfAborted();
-                    const templateBytes = await readCompiledDeclarationAsset(templateUrl, document.baseURI, 'template', this.httpResourcePolicy, controller.signal);
+                    lease?.check(new URL(templateUrl), 'GET', 'omit');
+                    const templateBytes = await readCompiledDeclarationAsset(templateUrl, document.baseURI, 'template', this.httpResourcePolicy, signal);
+                    lease?.current();
                     current(); controller.signal.throwIfAborted();
                     return { metadataJson, metadataHash: values[2], templateBytes };
                 })(), controller.signal);
@@ -2836,7 +2847,8 @@ export class CemElementRuntime {
             new Set([...inheritedBaseUrls.map((baseUrl) => resolveNestedDeclarationSrc(path, baseUrl)), path]),
         );
         const key = `${inheritedBaseUrls.join('\n') || baseDocument.baseURI}\n${moduleContext?.identity ?? ''}\n${path}`;
-        const cached = this.srcDocuments.get(key);
+        const lease = applicationNetworkLease(declarationElement);
+        const cached = !lease && this.srcDocuments.get(key);
         if (cached) {
             return cached;
         }
@@ -2865,7 +2877,7 @@ export class CemElementRuntime {
             let loadError: unknown;
             for (const candidate of requestPaths) {
                 try {
-                    loaded = await this.loadSrcDocument(candidate, baseDocument);
+                    loaded = await this.loadSrcDocument(candidate, baseDocument, lease);
                     loadedPath = candidate;
                     break;
                 } catch (error) {
@@ -2878,6 +2890,7 @@ export class CemElementRuntime {
             const result =
                 typeof loaded === 'string' ? fallbackSrcDocumentLoadResult(loadedPath, baseDocument, loaded) : loaded;
             const sourceText = typeof loaded === 'string' ? loaded : await readTextStream(loaded.body);
+            lease?.current();
             const format = analyzeExternalDeclarationSourceFormat({
                 specifier: result.resolvedUrl || loadedPath,
                 contentType: result.contentType,
@@ -2902,6 +2915,7 @@ export class CemElementRuntime {
                 kind: format.kind,
             };
         })();
+        if (lease) return parsed;
         this.srcDocuments.set(key, parsed);
         void parsed.catch(() => {
             // Share pending work and retain successes; do not cache failures.
@@ -2921,7 +2935,15 @@ export class CemElementRuntime {
         return bases;
     }
 
-    private loadSrcDocument(path: string, baseDocument: Document): Promise<string | CemSrcDocumentLoadResult> {
+    private async loadSrcDocument(path: string, baseDocument: Document, lease: ReturnType<typeof applicationNetworkLease>): Promise<string | CemSrcDocumentLoadResult> {
+        if (lease) {
+            const url = new URL(path, baseDocument.baseURI).href;
+            const result = await defaultLoadHttpResource({ authoredUrl: path, baseUrl: baseDocument.baseURI, resolvedUrl: url,
+                method: 'GET', headers: {}, signal: lease.signal, policy: this.httpResourcePolicy,
+                resolverIdentity: 'application', contextIdentity: 'declaration', resourcePolicyStamp: this.scopePolicyStamp }, lease, this.applicationHttpHop);
+            return { resolvedUrl: result.response.url, body: result.body, contentType: result.response.contentType ?? undefined,
+                resolverIdentity: 'application' };
+        }
         return this.loadSrcDocumentOption
             ? this.loadSrcDocumentOption(path, baseDocument)
             : defaultLoadSrcDocument(path, baseDocument);
@@ -5128,7 +5150,7 @@ export class CemElementRuntime {
                 element: instance, instanceId, sources, context, signal,
                 artifactId: `instance-css:${key}`, scopePolicyStamp: this.scopePolicyStamp,
                 host: this.processingHost(compiled), baseUrl: compiled.resourceBaseUrl,
-                read: this.retainedStylesheets?.read ?? readRetainedStylesheet,
+                read: applicationStylesheetReader(instance, this.retainedStylesheets?.read ?? readRetainedStylesheet),
                 portableClosed: this.portableSsrInstanceStyles.has(instance),
             }) };
             this.instanceStylesheets.set(instance, state);
@@ -5345,6 +5367,7 @@ export class CemElementRuntime {
             throw new Error('xpath-functions requires a nonempty reference on a CEM-ML template');
         }
         const declaration = compiled.declarationElement;
+        const lease = applicationNetworkLease(declaration);
         const context = this.ensureModuleUrlContext(declaration, compiled);
         const request: CemModuleUrlResolutionRequest = {
             purpose: 'template-import', authoredSpecifier: specifier,
@@ -5367,11 +5390,11 @@ export class CemElementRuntime {
             onCemDeclarationScopeDispose(compiled.declarationScope, () => scopedSources.clear());
         }
         const key = JSON.stringify([uri, resolverPolicyStamp]);
-        let pending = sources.get(key);
+        let pending = !lease ? sources.get(key) : undefined;
         if (!pending) {
             if (sources.size >= 64) throw new Error('XPath function library count exceeds limit');
             pending = (async () => {
-                const loaded = await this.loadSrcDocument(uri, declaration.ownerDocument);
+                const loaded = await this.loadSrcDocument(uri, declaration.ownerDocument, lease);
                 const source = typeof loaded === 'string' ? loaded
                     : await readTextStream(loaded.body, XPATH_LIBRARY_MAX_SOURCE_BYTES);
                 assertCemDeclarationScopeActive(compiled.declarationScope);
@@ -5380,10 +5403,10 @@ export class CemElementRuntime {
                     : JSON.stringify([resolverPolicyStamp, loaded.resolverIdentity]);
                 return identifyXPathFunctionLibrary(source, sourceUri, sourcePolicy, this.renderSupport(compiled.declarationScope).cemMlTemplateArtifactPayloadKey);
             })().catch((error: unknown) => {
-                sources.delete(key);
+                if (!lease) sources.delete(key);
                 throw error;
             });
-            sources.set(key, pending);
+            if (!lease) sources.set(key, pending);
         }
         return pending;
     }
@@ -5424,7 +5447,7 @@ export class CemElementRuntime {
                 return url;
             },
             load: async (url) => {
-                const loaded = await this.loadSrcDocument(url, declaration.ownerDocument);
+                const loaded = await this.loadSrcDocument(url, declaration.ownerDocument, applicationNetworkLease(declaration));
                 return typeof loaded === 'string' ? loaded : readTextStream(loaded.body);
             },
         };
@@ -5607,7 +5630,7 @@ export class CemElementRuntime {
                     : prepareInstanceStylesheets({ element: instance, instanceId: snapshot.instanceId,
                     sources, context, signal: registry.signal, artifactId: `instance-css:${key}`,
                     scopePolicyStamp: this.scopePolicyStamp, host: this.processingHost(compiled),
-                    baseUrl: compiled.resourceBaseUrl, read: this.retainedStylesheets?.read ?? readRetainedStylesheet,
+                    baseUrl: compiled.resourceBaseUrl, read: applicationStylesheetReader(instance, this.retainedStylesheets?.read ?? readRetainedStylesheet),
                     portableClosed: this.portableSsrInstanceStyles.has(instance) });
                 try {
                     const [declarationCss, instanceCss] = await Promise.all([registry.ready, styles.ready]);
@@ -8347,7 +8370,10 @@ export class CemElementRuntime {
             policy: this.httpResourcePolicy,
         });
         const active = state.httpResources[declaration.sliceName];
-        if (active?.key === key) {
+        let owner: ReturnType<typeof applicationResources> | undefined;
+        try { owner = applicationResources(instance); } catch { /* Admission failure is published by the request below. */ }
+        const grantSignal = owner?.policy.network.binding?.signal;
+        if (active?.key === key && active.owner === owner && active.grantSignal === grantSignal) {
             return active.settled;
         }
         if (active) this.releaseHttpResource(active);
@@ -8371,7 +8397,7 @@ export class CemElementRuntime {
         this.scheduleResourceRerender(instance, compiled, declaration.sliceName, revision);
 
         const settled = this.runHttpRequestResource(instance, compiled, declaration, key, revision, controller);
-        state.httpResources[declaration.sliceName] = { key, revision, controller, settled };
+        state.httpResources[declaration.sliceName] = { key, revision, controller, settled, owner, grantSignal };
         return settled;
     }
 
@@ -8405,7 +8431,9 @@ export class CemElementRuntime {
         controller: AbortController,
     ): Promise<void> {
         let timeout: ReturnType<typeof setTimeout> | undefined;
+        let lease: ReturnType<typeof applicationNetworkLease> = null;
         try {
+            lease = applicationNetworkLease(instance);
             if (declaration.method !== 'GET' && declaration.method !== 'HEAD') {
                 throw new HttpResourceError(
                     'cem-element.http_request_method_unsupported',
@@ -8445,15 +8473,17 @@ export class CemElementRuntime {
                 cache: declaration.cache,
                 expectedContentType: declaration.expectedContentType ?? resolution.contentTypeHint,
                 policy: this.httpResourcePolicy,
-                signal: controller.signal,
+                signal: lease ? AbortSignal.any([controller.signal, lease.signal]) : controller.signal,
             };
+            if (!lease && applicationResources(instance)) throw new Error('HTTP resource owner changed');
             const requestMetadata = httpRequestMetadata(request);
-            const loaded = await (this.loadHttpResourceOption
-                ? this.loadHttpResourceOption(request)
-                : defaultLoadHttpResource(request));
+            const loaded = await (lease ? defaultLoadHttpResource(request, lease, this.applicationHttpHop)
+                : (this.loadHttpResourceOption ?? defaultLoadHttpResource)(request));
             if (!this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
+                await loaded.body[Symbol.asyncIterator]().return?.();
                 return;
             }
+            lease?.current();
             this.updateHttpResourceAndRerender(instance, compiled, declaration.sliceName, revision, {
                 declaration,
                 revision,
@@ -8464,6 +8494,7 @@ export class CemElementRuntime {
                 diagnostics: [],
             });
             const bytes = await readByteStream(loaded.body, request.policy.maxResponseBytes, request.signal);
+            lease?.current();
             const sourceId = httpResourceSourceId(request, loaded.response,
                 loaded.response.contentType ?? request.expectedContentType ?? null, bytes);
             const host = this.processingHost(compiled);
@@ -8493,9 +8524,9 @@ export class CemElementRuntime {
                     return;
                 }
             }
-            if (request.signal.aborted || !this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
+            if (request.signal.aborted || (lease && !lease.ownsConsumer()) || !this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
                 if (method !== 'HEAD') void host.document({ action: 'release', handle }).result.catch(() => undefined);
-                if (request.signal.aborted) throw new Error('HTTP document import was aborted');
+                request.signal.throwIfAborted();
                 return;
             }
             const active = this.instanceStates.get(instance)?.httpResources[declaration.sliceName];
@@ -8503,17 +8534,20 @@ export class CemElementRuntime {
                 if (method !== 'HEAD') void host.document({ action: 'release', handle }).result.catch(() => undefined);
                 return;
             }
+            lease?.current();
             if (method !== 'HEAD') { active.document = handle; active.host = host; }
             this.updateHttpResourceAndRerender(instance, compiled, declaration.sliceName, revision, {
                 declaration, revision, state: 'loaded', request: requestMetadata,
                 response: loaded.response, sourceId, data: null, diagnostics: [],
             });
         } catch (error) {
+            // Synchronous admission failures can precede installation of the active revision.
+            await Promise.resolve();
             if (!this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) {
                 return;
             }
-            const aborted = controller.signal.aborted;
-            const diagnosticCode =
+            const aborted = controller.signal.aborted || !!lease?.signal.aborted;
+            const diagnosticCode = lease?.signal.aborted ? 'cem-element.network_grant_revoked' :
                 error instanceof HttpResourceError
                     ? error.code
                     : aborted
