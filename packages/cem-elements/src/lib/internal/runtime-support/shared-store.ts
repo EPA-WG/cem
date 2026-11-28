@@ -111,30 +111,40 @@ export function durableStoreTransactions(factory: IDBFactory, namespace: string)
     };
 }
 
-export function bindSharedStore(transaction: SharedStoreTransaction, writable: boolean,
+type StoreOperation = 'read' | 'write' | 'conditional-write' | 'clear';
+const writeFailureNames = new Set(['QuotaExceededError', 'SecurityError', 'InvalidStateError', 'AbortError']);
+
+export function bindSharedStore(transaction: SharedStoreTransaction, { read, write }: { read: boolean; write: boolean },
     keys: ReadonlySet<string> | undefined, live: () => boolean): CemApplicationSharedStore {
-    function authorize(mode: IDBTransactionMode, key?: string) {
+    function authorize(operation: StoreOperation, key?: string) {
         if (!live()) throw new DOMException('Shared store binding has expired', 'InvalidStateError');
-        if ((mode === 'readwrite' && !writable) || (key !== undefined && keys && !keys.has(key)))
+        if ((operation !== 'write' && !read) || (operation !== 'read' && !write)
+            || (key !== undefined && keys && !keys.has(key)))
             throw new DOMException('Shared store grant denies this operation', 'NotAllowedError');
+        if (operation === 'clear' && keys) throw new DOMException('Clear requires a whole-store grant', 'NotAllowedError');
     }
 
-    async function run<T>(mode: 'readonly' | 'readwrite', key: string | undefined,
+    async function run<T>(operation: StoreOperation, key: string | undefined,
         work: (entries: StoreEntries) => Promise<T>): Promise<T> {
-        const check = () => authorize(mode, key);
+        const check = () => authorize(operation, key);
         check();
         try {
-            const result = await transaction(mode, check, work);
-            if (mode === 'readonly') check();
+            const result = await transaction(operation === 'read' ? 'readonly' : 'readwrite', check, work);
+            if (operation === 'read') check();
             return result;
         } catch (error) {
             check();
+            if (!read) {
+                // Provider diagnostics may contain persisted data. Only publish the failure category.
+                const name = (error as DOMException | null)?.name;
+                throw new DOMException('Shared store write failed', name && writeFailureNames.has(name) ? name : 'OperationError');
+            }
             throw error;
         }
     }
 
     async function change(key: string, value: string | null, expected?: string) {
-        await run('readwrite', key, async entries => {
+        await run(expected === undefined ? 'write' : 'conditional-write', key, async entries => {
             const old = await entries.get(key);
             if (expected !== undefined) {
                 const epoch = await entries.epoch();
@@ -152,20 +162,20 @@ export function bindSharedStore(transaction: SharedStoreTransaction, writable: b
     return Object.freeze({
         getItem(key: string) {
             key = String(key);
-            return run('readonly', key, async entries => {
+            return run('read', key, async entries => {
                 const entry = await entries.get(key);
                 return entry?.value ?? null;
             });
         },
         read(key: string) {
             key = String(key);
-            return run('readonly', key, async entries => {
+            return run('read', key, async entries => {
                 const [epoch, entry] = await Promise.all([entries.epoch(), entries.get(key)]);
                 return Object.freeze({ value: entry?.value ?? null, version: version(epoch, key, entry) });
             });
         },
         keys() {
-            return run('readonly', undefined, async entries => {
+            return run('read', undefined, async entries => {
                 const names = await entries.keys();
                 return names.filter(key => !keys || keys.has(key));
             });
@@ -173,9 +183,7 @@ export function bindSharedStore(transaction: SharedStoreTransaction, writable: b
         setItem(key: string, value: string, expected?: string) { return change(String(key), String(value), expected); },
         removeItem(key: string, expected?: string) { return change(String(key), null, expected); },
         async clear() {
-            authorize('readwrite');
-            if (keys) throw new DOMException('Clear requires a whole-store grant', 'NotAllowedError');
-            await run('readwrite', undefined, async entries => {
+            await run('clear', undefined, async entries => {
                 await entries.clearIfNonempty();
             });
         },

@@ -183,7 +183,7 @@ export interface CemSharedStoreGrant {
     readonly storeId: string;
     /** Alias exposed only to this recipient. */
     readonly scope: string;
-    readonly read: true;
+    readonly read: boolean;
     readonly write: boolean;
     /** Omit for the whole store. A key-limited binding cannot clear the store. */
     readonly keys?: readonly string[];
@@ -203,7 +203,8 @@ export function grantCemApplicationSharedStore(owner: Element, recipient: Elemen
     const target = requireApplication(recipient);
     const { storeId, scope, read, write, keys, kind = 'local' } = grant;
     if (typeof storeId !== 'string' || !storeId || typeof scope !== 'string' || !scope
-        || (kind !== 'local' && kind !== 'session') || read !== true || typeof write !== 'boolean'
+        || (kind !== 'local' && kind !== 'session')
+        || typeof read !== 'boolean' || typeof write !== 'boolean' || (!read && !write)
         || (keys !== undefined && (!Array.isArray(keys) || !keys.every(key => typeof key === 'string'))))
         throw new TypeError('Invalid shared store grant');
     const current = target.sharedStores.get(scope);
@@ -211,7 +212,7 @@ export function grantCemApplicationSharedStore(owner: Element, recipient: Elemen
         throw new DOMException('Shared store grant requires the owning application', 'NotAllowedError');
     const transaction = issuer.sharedTransactions(kind, storeId);
     const bound = () => target.sharedStores.get(scope)?.store === store;
-    const store: CemApplicationSharedStore = bindSharedStore(transaction, write,
+    const store: CemApplicationSharedStore = bindSharedStore(transaction, { read, write },
         keys && new Set(keys), () => bound() && target.live() && issuer.live());
     target.sharedStores.set(scope, { issuer, store });
     return Object.freeze({ revoke() { if (bound()) target.sharedStores.delete(scope); } });

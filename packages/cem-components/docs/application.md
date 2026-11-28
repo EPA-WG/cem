@@ -384,7 +384,7 @@ keys. A child can narrow its binding. Expanding a grant requires the host.
 | --- | --- |
 | Read-only (`read=true`, `write=false`) | Read committed values and enumerate readable keys. Reject set, conditional update, remove and clear, including attempted no-ops. |
 | Read/write (`read=true`, `write=true`) | Read, set, conditionally update and remove granted keys. Clearing requires write authority over the whole partition. |
-| Write-only (`read=false`, `write=true`) | Set or remove granted keys. Confirm completion without disclosing prior values or whether the key existed. |
+| Write-only (`read=false`, `write=true`) | Unconditionally set or remove granted keys. Successful calls resolve to `undefined` for inserts, replacements, removals and no-ops. |
 
 For named browser stores, the trusted host calls
 `grantCemApplicationSharedStore(owner, recipient, grant)` from `@epa-wg/cem-elements`.
@@ -416,7 +416,10 @@ editorGrant.revoke();
 ```
 
 Omit `keys` to grant access to the whole store. A denied operation rejects
-with `NotAllowedError`. A stale expected version rejects with `ConstraintError`.
+with `NotAllowedError`. For a write-only handle this includes `getItem`, `read`,
+`keys`, `clear` and either mutation with an expected version. The runtime
+checks those permissions before contacting the provider. With read/write
+access, a stale expected version rejects with `ConstraintError`.
 Reissuing a scope replaces the previous grant. Operations on the retired
 handle reject with `InvalidStateError`, and its revoker cannot withdraw the
 replacement. An enclosing app can replace a descendant's grant. A descendant
@@ -1120,10 +1123,10 @@ Verify the following cases as each application capability is implemented.
   and cookie isolation, session boundaries and clones.
 - Check a read-only preview against a writable editor. Reject a queued write
   downgraded to read-only before commit. Check write-only responses, both
-  clear/write orders, stale key versions and scoped notifications. Two-tab
-  IndexedDB probes in Chromium and Firefox verified the underlying transaction
-  ordering and one conditional winner. CEM bindings and grants still need
-  implementation coverage.
+  clear/write orders, stale key versions and scoped notifications. The
+  CEM browser checks in Chromium and Firefox cover transaction ordering,
+  conditional conflicts and write-only acknowledgments in light DOM and
+  same-origin iframe hosts. Scoped notifications remain open.
 - The same app produces equivalent service/resource/command outcomes with
   equivalent grants in embedded and iframe hosts. Ordinary same-origin frames
   still use the layer; cross-origin hybrid enforcement preserves its APIs.

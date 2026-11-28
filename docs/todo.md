@@ -224,8 +224,14 @@ for the current native work and the conditional diagnostic items on recurrence.
     A fresh tab starts empty. An opener-created tab can clear its initial copy independently.
     The check also covers competing writers, a read-only recipient and a durable store
     with the same owner and ID. Run `nx run cem-elements:test:application-isolation`.
+  - [x] Verify write-only named-store grants in Chromium and Firefox, in light DOM and
+    same-origin iframes. For durable and session stores, the [browser check](../packages/cem-elements/tests/application-shared-stores.mjs)
+    compares the writer’s completion for inserts, overwrites, removals and no-ops while
+    a separately granted reader checks the values and versions. Reads, enumeration, clear
+    and mutations with a version token are refused. Run `nx run cem-elements:test:application-isolation`.
+    [Unit checks for early denial and provider error privacy](../packages/cem-elements/src/lib/internal/runtime-support/shared-store.spec.ts)
   - The two-editor Save As gate also covers grant revocation and receipts after editor
-    replacement. Write-only grants, subscription and change delivery, private session
+    replacement. Subscription and change delivery, private session
     lifetime across tabs, ancestor stop fences, portable save/load/clone and physical offload remain open.
     [Implementation order](../packages/cem-components/docs/application.md#missing-capabilities-and-implementation-order)
 

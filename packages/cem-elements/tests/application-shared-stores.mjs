@@ -11,6 +11,7 @@ async function provision(page, mode) {
         };
         const options = { storeId: 'store-17', scope: 'preferences', read: true, write: true };
         const a = editor('A'), b = editor('B');
+        window.grantNamedStore = (id, grant) => grantCemApplicationSharedStore(shell, editor(id), grant);
         for (const recipient of [a, b]) {
             const session = { ...options, kind: 'session', scope: 'workspace' };
             grantCemApplicationSharedStore(shell, recipient, session);
@@ -160,6 +161,69 @@ export async function verifySharedStores(page, mode, editors, other, peers) {
     }, mode);
     assert.deepEqual(fenced, ['InvalidStateError', 'InvalidStateError', 'NotAllowedError', 'after clear', 'NotAllowedError', 'NotAllowedError', 'InvalidStateError']);
     assert.equal(await call(remote, 'getItem', 'format'), 'after clear');
+    await verifyWriteOnly(page, editors);
+}
+
+async function verifyWriteOnly(page, editors) {
+    const denied = { name: 'NotAllowedError', message: 'Shared store grant denies this operation' };
+    for (const kind of ['local', 'session']) {
+        const grants = await page.evaluateHandle(kind => {
+            const store = { kind, storeId: 'incoming', scope: 'inbox' };
+            window.grantNamedStore('A', { ...store, read: true, write: true });
+            const grantWriter = keys => window.grantNamedStore('B', { ...store, keys, read: false, write: true });
+            let lease = grantWriter(['item', 'missing']);
+            return {
+                widen() { lease = grantWriter(); },
+                issueEmptyGrant() { window.grantNamedStore('B', { ...store, read: false, write: false }); },
+                revoke() { lease.revoke(); },
+            };
+        }, kind);
+        await assert.rejects(grants.evaluate(grants => grants.issueEmptyGrant()), /Invalid shared store grant/);
+        const inspector = await binding(editors.A, 'A', 'inbox');
+        const writer = await binding(editors.B, 'B', 'inbox');
+        await call(inspector, 'setItem', 'item', 'reviewer-only value');
+        await call(inspector, 'setItem', 'outside', 'untouched');
+        for (const key of ['item', 'missing']) {
+            const before = await call(inspector, 'read', key);
+            await assert.rejects(call(writer, 'getItem', key), denied);
+            await assert.rejects(call(writer, 'read', key), denied);
+            for (const token of [before.version, 'stale']) {
+                await assert.rejects(call(writer, 'setItem', key, 'conditional', token), denied);
+                await assert.rejects(call(writer, 'removeItem', key, token), denied);
+            }
+            assert.deepEqual(await call(inspector, 'read', key), before);
+        }
+        await assert.rejects(call(writer, 'keys'), denied);
+        await assert.rejects(call(writer, 'setItem', 'outside', 'out of scope'), denied);
+        await assert.rejects(call(writer, 'removeItem', 'outside'), denied);
+        await assert.rejects(call(writer, 'clear'), { name: 'NotAllowedError' });
+
+        // Overwrite and insert have identical receipts. Only the reviewer sees the result.
+        for (const key of ['item', 'missing']) {
+            assert.equal(await call(writer, 'setItem', key, ''), undefined);
+            const written = await call(inspector, 'read', key);
+            assert.equal(written.value, '');
+            assert.equal(await call(writer, 'setItem', key, ''), undefined);
+            assert.deepEqual(await call(inspector, 'read', key), written);
+            assert.equal(await call(writer, 'removeItem', key), undefined);
+            const removed = await call(inspector, 'read', key);
+            assert.equal(removed.value, null);
+            assert.notEqual(removed.version, written.version);
+            assert.equal(await call(writer, 'removeItem', key), undefined);
+            assert.deepEqual(await call(inspector, 'read', key), removed);
+        }
+        await grants.evaluate(grants => grants.widen());
+        await assert.rejects(call(writer, 'setItem', 'item', 'retired'), { name: 'InvalidStateError' });
+        const whole = await binding(editors.B, 'B', 'inbox');
+        await assert.rejects(call(whole, 'clear'), denied);
+        assert.equal(await call(inspector, 'getItem', 'outside'), 'untouched');
+        assert.equal(await call(whole, 'removeItem', 'never-created'), undefined);
+        assert.equal(await call(whole, 'removeItem', 'outside'), undefined);
+        assert.deepEqual(await call(inspector, 'keys'), []);
+        await assert.rejects(call(whole, 'keys'), denied);
+        await grants.evaluate(grants => grants.revoke());
+        await assert.rejects(call(whole, 'removeItem', 'outside'), { name: 'InvalidStateError' });
+    }
 }
 
 export async function verifySessionStores(page, mode, setup) {
