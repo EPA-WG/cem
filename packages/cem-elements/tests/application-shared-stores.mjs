@@ -38,7 +38,7 @@ async function provision(page, mode) {
     }, mode);
 }
 
-function binding(frame, id, scope) {
+export function binding(frame, id, scope) {
     return frame.evaluateHandle(async ({ id, scope }) => {
         const { getCemApplicationSharedStore } = await import('/runtime/index.js');
         const container = document.getElementById(id) ?? document;
@@ -47,7 +47,7 @@ function binding(frame, id, scope) {
 }
 
 // Preserve native error names across both Playwright transports.
-async function call(store, method, ...args) {
+export async function call(store, method, ...args) {
     const result = await store.evaluate(async (store, { method, args }) => {
         try { return { value: await store[method](...args) }; }
         catch (error) { return { error: error.name, message: error.message }; }
@@ -137,7 +137,7 @@ export async function verifySharedStores(page, mode, editors, other, peers) {
         IDBDatabase.prototype.transaction = function(table, mode, ...options) {
             if (mode !== 'readwrite') return original.call(this, table, mode, ...options);
             const ahead = original.call(this, table, mode);
-            ahead.objectStore(table).count();
+            ahead.objectStore(ahead.objectStoreNames[0]).count();
             const tx = original.call(this, table, mode, ...options);
             queued();
             return tx;

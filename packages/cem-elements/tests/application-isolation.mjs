@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, firefox } from 'playwright';
 import { verifySharedStores, verifySessionStores } from './application-shared-stores.mjs';
+import { verifySubscriptions } from './named-store-subscriptions.mjs';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const origin = 'http://127.0.0.1';
@@ -105,6 +106,7 @@ async function verify(context, mode) {
     assert.equal((await read(peers.A, 'A', true)).hash, '', 'navigation stays in the originating instance');
     assert.equal(new URL(page.url()).hash, '#host');
     await verifySharedStores(page, mode, { A, B }, other, peers);
+    await verifySubscriptions(page, { A, B }, other, peers);
     const withdrawn = await page.evaluate(async mode => {
         const { getCemApplicationStorage, getCemApplicationSharedStore } = await import('/runtime/index.js');
         const container = document.getElementById('A');

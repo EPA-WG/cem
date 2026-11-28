@@ -405,14 +405,19 @@ snapshot. Each tab's subsequent writes and clears affect only its own copy.
 ```js
 const grant = { storeId: 'store-17', scope: 'preferences', keys: ['lastContentType'], read: true };
 const editorGrant = grantCemApplicationSharedStore(shell, editor, { ...grant, write: true });
-grantCemApplicationSharedStore(shell, preview, { ...grant, write: false });
+const previewGrant = grantCemApplicationSharedStore(shell, preview, { ...grant, write: false, subscribe: true });
 
 const preferences = getCemApplicationSharedStore(editor, 'preferences');
+const previewPreferences = getCemApplicationSharedStore(preview, 'preferences');
+const stop = await previewPreferences.subscribe(change => updateFormatPreview(change));
 const { version } = await preferences.read('lastContentType');
 await preferences.setItem('lastContentType', 'text/markdown', version);
-const previewPreferences = getCemApplicationSharedStore(preview, 'preferences');
-await previewPreferences.getItem('lastContentType'); // 'text/markdown'
-editorGrant.revoke();
+
+function releaseStoreGrants() {
+    stop();
+    previewGrant.revoke();
+    editorGrant.revoke();
+}
 ```
 
 Omit `keys` to grant access to the whole store. A denied operation rejects
@@ -425,11 +430,25 @@ handle reject with `InvalidStateError`, and its revoker cannot withdraw the
 replacement. An enclosing app can replace a descendant's grant. A descendant
 cannot replace an ancestor-issued grant on the same recipient and scope.
 
-Subscription requires a separate grant. For example, an editor can update
-`store-17/lastContentType` after Save As. A preview with read-only access can
-display the format. With `subscribe=true` it can receive changes to that
-readable key. Otherwise it reads the current format on demand. A denied attempt
-to update or remove the preference changes no value or revision and emits no event.
+A subscription requires both `read: true` and `subscribe: true`. Await
+`store.subscribe(listener)` to establish a baseline for future commits. It
+returns an idempotent unsubscribe function. Each notification contains the
+recipient's local `scope`, its `type` (`set`, `remove`, `clear` or `invalidate`),
+and `key`, `oldValue` and `newValue`. A clear affecting any readable key
+produces one event with all three fields set to `null`. The runtime skips hidden
+keys, unchanged values, failed writes and the writing app’s own mutations,
+including across its aliases. Revoking or replacing the grant also stops
+queued callbacks. A replacement subscription establishes a fresh baseline.
+
+Durable stores upgrade existing entries in place. IndexedDB commits the change
+and its journal entry atomically and retains the last 64 mutations, including
+their old and new values. Cross-tab wake-ups carry no values. A subscriber
+reads the journal in commit order and periodically checks for missed wake-ups.
+If it falls behind the retained history or returns from the back-forward cache,
+it receives an `invalidate` event with a current `snapshot` of readable
+`[key, value]` pairs before incremental delivery resumes. Session stores
+publish from the page's commit queue. An external native clear in that page
+session also triggers a scoped snapshot.
 
 For private and shared stores, the provider orders mutations within each
 partition at commit across all participating tabs and frames. Check the grant,
@@ -1125,8 +1144,8 @@ Verify the following cases as each application capability is implemented.
   downgraded to read-only before commit. Check write-only responses, both
   clear/write orders, stale key versions and scoped notifications. The
   CEM browser checks in Chromium and Firefox cover transaction ordering,
-  conditional conflicts and write-only acknowledgments in light DOM and
-  same-origin iframe hosts. Scoped notifications remain open.
+  conditional conflicts, write-only acknowledgments, ordered subscriptions and
+  revocation during delivery in light DOM and same-origin iframe hosts.
 - The same app produces equivalent service/resource/command outcomes with
   equivalent grants in embedded and iframe hosts. Ordinary same-origin frames
   still use the layer; cross-origin hybrid enforcement preserves its APIs.

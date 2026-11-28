@@ -4,7 +4,18 @@ export interface CemSharedStoreValue {
     readonly version: string;
 }
 
+export interface CemSharedStoreChange {
+    readonly type: 'set' | 'remove' | 'clear' | 'invalidate';
+    readonly scope: string;
+    readonly key: string | null;
+    readonly oldValue: string | null;
+    readonly newValue: string | null;
+    /** Current readable entries when incremental delivery could not be recovered. */
+    readonly snapshot?: readonly (readonly [string, string])[];
+}
+
 export interface CemApplicationSharedStore {
+    subscribe(listener: (change: CemSharedStoreChange) => void): Promise<() => void>;
     getItem(key: string): Promise<string | null>;
     read(key: string): Promise<CemSharedStoreValue>;
     keys(): Promise<readonly string[]>;
@@ -25,97 +36,63 @@ interface StoreEntries {
     get(key: string): SharedStoreEntry | undefined | Promise<SharedStoreEntry | undefined>;
     keys(): string[] | Promise<string[]>;
     put(key: string, record: SharedStoreEntry): void;
-    clearIfNonempty(): void | Promise<void>;
+    clear(): void;
+    changed(change: StoreMutation): void;
 }
 
 /** The provider checks the grant again immediately before publishing its transaction. */
 export type SharedStoreTransaction = <T>(mode: 'readonly' | 'readwrite', check: () => void,
     work: (entries: StoreEntries) => Promise<T>) => Promise<T>;
 
-const table = 'entries';
-// Logical keys are strings. The numeric key belongs exclusively to the provider.
-const epochKey = 0;
-
-function request<T>(input: IDBRequest<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-        input.onsuccess = () => resolve(input.result);
-        input.onerror = () => reject(input.error);
-    });
+export interface StoreMutation {
+    writer: string;
+    key: string | null;
+    oldValue: string | null;
+    newValue: string | null;
+    clearedKeys?: string[];
 }
 
-function open(factory: IDBFactory, name: string): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const input = factory.open(name, 1);
-        let blocked = false;
-        input.onblocked = () => {
-            blocked = true;
-            reject(new DOMException('Shared store upgrade is blocked', 'InvalidStateError'));
-        };
-        input.onupgradeneeded = () => {
-            if (blocked) { input.transaction?.abort(); return; }
-            const entries = input.result.createObjectStore(table);
-            entries.createIndex('present', 'present');
-            entries.add(crypto.randomUUID(), epochKey);
-        };
-        input.onerror = () => reject(input.error);
-        input.onsuccess = () => {
-            const db = input.result;
-            if (blocked) { db.close(); return; }
-            db.onversionchange = () => db.close();
-            resolve(db);
-        };
-    });
+export type StorePublication = StoreMutation | { snapshot: [string, string][] };
+
+export interface StoreObserver {
+    signal: AbortSignal;
+    active(): boolean;
+    deliver(publication: StorePublication): void;
+}
+
+export interface SharedStoreProvider {
+    transact: SharedStoreTransaction;
+    observe(observer: StoreObserver): Promise<void>;
 }
 
 function version(epoch: string, key: string, entry: SharedStoreEntry | undefined): string {
     return JSON.stringify([epoch, key, entry?.stamp ?? null]);
 }
 
-export function durableStoreTransactions(factory: IDBFactory, namespace: string): SharedStoreTransaction {
-    const name = 'cem.application.shared/1:' + namespace;
-    return async (mode, check, work) => {
-        const db = await open(factory, name);
-        try {
-            check();
-            const tx = db.transaction(table, mode);
-            const completed = new Promise<DOMException | null>(resolve => {
-                tx.oncomplete = () => resolve(null);
-                tx.onabort = () => resolve(tx.error ?? new DOMException('Shared store operation aborted', 'AbortError'));
-            });
-            const entries = tx.objectStore(table);
-            const present = entries.index('present');
-            let result;
-            try {
-                result = await work({
-                    epoch: () => request<string>(entries.get(epochKey)),
-                    get: key => request<SharedStoreEntry | undefined>(entries.get(key)),
-                    keys: () => request(present.getAllKeys(1)) as Promise<string[]>,
-                    put(key, record) { entries.put(record, key); },
-                    async clearIfNonempty() {
-                        if (await request(present.getKey(1)) === undefined) return;
-                        entries.clear();
-                        entries.add(crypto.randomUUID(), epochKey);
-                    },
-                });
-                check();
-                tx.commit();
-            } catch (error) {
-                try { tx.abort(); } catch { /* A request may already have aborted the transaction. */ }
-                await completed;
-                throw error;
-            }
-            const failure = await completed;
-            if (failure) throw failure;
-            return result;
-        } finally { db.close(); }
-    };
+function scopedChange(change: StorePublication, scope: string, writer: string,
+    keys?: ReadonlySet<string>): CemSharedStoreChange | undefined {
+    if ('snapshot' in change) {
+        const snapshot = change.snapshot.filter(([key]) => !keys || keys.has(key))
+            .map(([key, value]) => Object.freeze([key, value] as const));
+        return { type: 'invalidate', scope, key: null, oldValue: null, newValue: null, snapshot: Object.freeze(snapshot) };
+    }
+    if (change.writer === writer) return;
+    const { key, oldValue, newValue } = change;
+    if (key === null) {
+        if (keys && !change.clearedKeys?.some(name => keys.has(name))) return;
+        return { type: 'clear', scope, key, oldValue, newValue };
+    }
+    if (keys && !keys.has(key)) return;
+    return { type: newValue === null ? 'remove' : 'set', scope, key, oldValue, newValue };
 }
 
 type StoreOperation = 'read' | 'write' | 'conditional-write' | 'clear';
 const writeFailureNames = new Set(['QuotaExceededError', 'SecurityError', 'InvalidStateError', 'AbortError']);
 
-export function bindSharedStore(transaction: SharedStoreTransaction, { read, write }: { read: boolean; write: boolean },
-    keys: ReadonlySet<string> | undefined, live: () => boolean): CemApplicationSharedStore {
+export function bindSharedStore(provider: SharedStoreProvider,
+    { read, write, subscribe, scope, writer, signal }: {
+        read: boolean; write: boolean; subscribe: boolean; scope: string; writer: string; signal: AbortSignal;
+    }, keys: ReadonlySet<string> | undefined, live: () => boolean): CemApplicationSharedStore {
     function authorize(operation: StoreOperation, key?: string) {
         if (!live()) throw new DOMException('Shared store binding has expired', 'InvalidStateError');
         if ((operation !== 'write' && !read) || (operation !== 'read' && !write)
@@ -129,7 +106,7 @@ export function bindSharedStore(transaction: SharedStoreTransaction, { read, wri
         const check = () => authorize(operation, key);
         check();
         try {
-            const result = await transaction(operation === 'read' ? 'readonly' : 'readwrite', check, work);
+            const result = await provider.transact(operation === 'read' ? 'readonly' : 'readwrite', check, work);
             if (operation === 'read') check();
             return result;
         } catch (error) {
@@ -156,10 +133,41 @@ export function bindSharedStore(transaction: SharedStoreTransaction, { read, wri
             if (value !== null) record.present = 1;
             // A deletion keeps a fresh stamp, fencing stale reads of an absent key.
             entries.put(key, record);
+            entries.changed({ writer, key, oldValue: old?.value ?? null, newValue: value });
         });
     }
 
     return Object.freeze({
+        async subscribe(listener: (change: CemSharedStoreChange) => void) {
+            authorize('read');
+            if (!subscribe) throw new DOMException('Shared store subscription is not granted', 'NotAllowedError');
+            if (typeof listener !== 'function') throw new TypeError('Expected a shared store change listener');
+            const subscription = new AbortController();
+            const stop = () => {
+                subscription.abort();
+                signal.removeEventListener('abort', stop);
+            };
+            signal.addEventListener('abort', stop);
+            const active = () => {
+                if (subscription.signal.aborted) return false;
+                try { if (live()) return true; } catch { /* A previously admitted document can become unreachable. */ }
+                stop();
+                return false;
+            };
+            try {
+                await provider.observe({
+                    signal: subscription.signal, active,
+                    deliver(change) {
+                        if (!active()) return;
+                        const event = scopedChange(change, scope, writer, keys);
+                        if (!event) return;
+                        try { listener(Object.freeze(event)); } catch (error) { reportError(error); }
+                    },
+                });
+                authorize('read');
+                return stop;
+            } catch (error) { stop(); throw error; }
+        },
         getItem(key: string) {
             key = String(key);
             return run('read', key, async entries => {
@@ -184,7 +192,10 @@ export function bindSharedStore(transaction: SharedStoreTransaction, { read, wri
         removeItem(key: string, expected?: string) { return change(String(key), null, expected); },
         async clear() {
             await run('clear', undefined, async entries => {
-                await entries.clearIfNonempty();
+                const clearedKeys = await entries.keys();
+                if (clearedKeys.length === 0) return;
+                entries.clear();
+                entries.changed({ writer, key: null, oldValue: null, newValue: null, clearedKeys });
             });
         },
     });

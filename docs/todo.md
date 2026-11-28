@@ -230,9 +230,16 @@ for the current native work and the conditional diagnostic items on recurrence.
     a separately granted reader checks the values and versions. Reads, enumeration, clear
     and mutations with a version token are refused. Run `nx run cem-elements:test:application-isolation`.
     [Unit checks for early denial and provider error privacy](../packages/cem-elements/src/lib/internal/runtime-support/shared-store.spec.ts)
+  - [x] Verify named-store subscriptions in Chromium and Firefox in light DOM and
+    same-origin iframe hosts. The [browser check](../packages/cem-elements/tests/named-store-subscriptions.mjs)
+    covers opt-in grants, filtered keys and clears, durable cross-tab commit order,
+    session-only delivery and suppression of writer-self and no-op events. It revokes
+    a grant during delivery, replaces a live grant and checks unsubscribe. It also
+    exercises version 1 store migration, recovery beyond the journal window and a native
+    session clear. Run `nx run cem-elements:test:application-isolation`.
   - The two-editor Save As gate also covers grant revocation and receipts after editor
-    replacement. Subscription and change delivery, private session
-    lifetime across tabs, ancestor stop fences, portable save/load/clone and physical offload remain open.
+    replacement. Private session lifetime across tabs, ancestor stop fences, portable
+    save/load/clone and physical offload remain open.
     [Implementation order](../packages/cem-components/docs/application.md#missing-capabilities-and-implementation-order)
 
 - [ ] **Complete localized resource delivery.** Pin the versioned message vocabulary and

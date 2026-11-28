@@ -1,7 +1,8 @@
-import { sessionStoreTransactions } from './internal/runtime-support/session-shared-store.js';
-import { bindSharedStore, durableStoreTransactions, type CemApplicationSharedStore, type SharedStoreTransaction } from './internal/runtime-support/shared-store.js';
+import { sessionSharedStore } from './internal/runtime-support/session-shared-store.js';
+import { durableSharedStore } from './internal/runtime-support/durable-shared-store.js';
+import { bindSharedStore, type CemApplicationSharedStore, type SharedStoreProvider } from './internal/runtime-support/shared-store.js';
 import { pageLocalStorage, privateStorage, type CemApplicationStorage, type ResourceStorage } from './internal/runtime-support/browser-storage.js';
-export type { CemApplicationSharedStore, CemSharedStoreValue } from './internal/runtime-support/shared-store.js';
+export type { CemApplicationSharedStore, CemSharedStoreValue, CemSharedStoreChange } from './internal/runtime-support/shared-store.js';
 export type { CemApplicationStorage, ResourceStorage } from './internal/runtime-support/browser-storage.js';
 
 /** Resource providers for a mounted application. Symbols share the same owner across
@@ -73,29 +74,27 @@ export class ApplicationLocation extends EventTarget {
 
 class ApplicationResources {
     private readonly stores = new Map<'local' | 'session', ResourceStorage>();
-    private readonly sessionTransactions = new Map<string, SharedStoreTransaction>();
-    readonly sharedStores = new Map<string, { issuer: ApplicationResources; store: CemApplicationSharedStore }>();
+    private writerId?: string;
+    get sharedWriterId(): string { return this.writerId ??= crypto.randomUUID(); }
+    private readonly sessionProviders = new Map<string, SharedStoreProvider>();
+    readonly sharedStores = new Map<string, { issuer: ApplicationResources; store: CemApplicationSharedStore; lifetime: AbortController }>();
 
     constructor(readonly document: Document, readonly parent: ApplicationResources | null,
         readonly path: readonly Segment[], readonly location: ApplicationLocation | undefined,
         readonly live: () => boolean) {}
-    sharedTransactions(kind: 'local' | 'session', storeId: string): SharedStoreTransaction {
+    sharedProvider(kind: 'local' | 'session', storeId: string): SharedStoreProvider {
         const window = this.document.defaultView;
         if (!window) throw new DOMException('Shared store provider unavailable', 'InvalidStateError');
         const namespace = JSON.stringify([this.path, storeId]);
-        if (kind === 'local') {
-            const factory = window.indexedDB;
-            if (!factory) throw new DOMException('Shared store provider unavailable', 'InvalidStateError');
-            return durableStoreTransactions(factory, namespace);
-        }
-        let transaction = this.sessionTransactions.get(storeId);
-        if (!transaction) {
+        if (kind === 'local') return durableSharedStore(window, namespace);
+        let provider = this.sessionProviders.get(storeId);
+        if (!provider) {
             const page = window.top;
             if (!page) throw new DOMException('Page session unavailable', 'InvalidStateError');
-            transaction = sessionStoreTransactions(page, namespace);
-            this.sessionTransactions.set(storeId, transaction);
+            provider = sessionSharedStore(page, namespace);
+            this.sessionProviders.set(storeId, provider);
         }
-        return transaction;
+        return provider;
     }
     storage(kind: 'local' | 'session'): ResourceStorage {
         if (!this.live()) throw Error('cem.application.owner-changed');
@@ -185,6 +184,8 @@ export interface CemSharedStoreGrant {
     readonly scope: string;
     readonly read: boolean;
     readonly write: boolean;
+    /** Opt in to change delivery for readable keys. */
+    readonly subscribe?: boolean;
     /** Omit for the whole store. A key-limited binding cannot clear the store. */
     readonly keys?: readonly string[];
 }
@@ -201,21 +202,28 @@ function encloses(issuer: ApplicationResources, recipient: ApplicationResources)
 export function grantCemApplicationSharedStore(owner: Element, recipient: Element, grant: CemSharedStoreGrant): { revoke(): void } {
     const issuer = requireApplication(owner);
     const target = requireApplication(recipient);
-    const { storeId, scope, read, write, keys, kind = 'local' } = grant;
+    const { storeId, scope, read, write, keys, subscribe = false, kind = 'local' } = grant;
     if (typeof storeId !== 'string' || !storeId || typeof scope !== 'string' || !scope
         || (kind !== 'local' && kind !== 'session')
         || typeof read !== 'boolean' || typeof write !== 'boolean' || (!read && !write)
+        || typeof subscribe !== 'boolean' || (subscribe && !read)
         || (keys !== undefined && (!Array.isArray(keys) || !keys.every(key => typeof key === 'string'))))
         throw new TypeError('Invalid shared store grant');
     const current = target.sharedStores.get(scope);
     if (!encloses(issuer, target) || (current && !encloses(issuer, current.issuer)))
         throw new DOMException('Shared store grant requires the owning application', 'NotAllowedError');
-    const transaction = issuer.sharedTransactions(kind, storeId);
+    const provider = issuer.sharedProvider(kind, storeId);
     const bound = () => target.sharedStores.get(scope)?.store === store;
-    const store: CemApplicationSharedStore = bindSharedStore(transaction, { read, write },
+    const lifetime = new AbortController();
+    const store: CemApplicationSharedStore = bindSharedStore(provider,
+        { read, write, subscribe, scope, writer: target.sharedWriterId, signal: lifetime.signal },
         keys && new Set(keys), () => bound() && target.live() && issuer.live());
-    target.sharedStores.set(scope, { issuer, store });
-    return Object.freeze({ revoke() { if (bound()) target.sharedStores.delete(scope); } });
+    target.sharedStores.set(scope, { issuer, store, lifetime });
+    current?.lifetime.abort();
+    return Object.freeze({ revoke() {
+        if (bound()) target.sharedStores.delete(scope);
+        lifetime.abort();
+    } });
 }
 
 /** Look up the named grant on this exact application, including across a same-origin frame. */
