@@ -1,6 +1,6 @@
-# Declarative keyboard handling for CEM menus
+# Declarative keyboard navigation in CEM
 
-Temporary proposal for review, 2026-11-27.
+Design adopted 2026-11-27.
 
 Render **one native control per logical menu item**. Use a button for a command or submenu launcher and an anchor with an `href` for navigation. That control carries the item’s accessible name, role and focus. The component declares the menu hierarchy and orientation. The `composite-menu` adapter owns **all four arrows** at the focused level. The browser owns ordinary button activation by Enter, Space or pointer.
 
@@ -10,15 +10,14 @@ The earlier radio/button experiment at `f02e46e2` exposed two focus destinations
 
 The revised prototype uses labelled native buttons throughout. Both documents use the same adapter. Each demonstrates horizontal and vertical menubars, nested submenus and a standalone menu button. [LTR sample](../packages/cem-components/src/components/cem-menu/css-menu-poc.html) · [RTL sample](../packages/cem-components/src/components/cem-menu/css-menu-poc-rtl.html)
 
-The collection already has a different starting point from the prototype. `keyboard="native"` gives ordinary controls their browser behavior. `keyboard="menu"` enables roving focus, orientation-aware arrows, Home/End, typeahead, native popup entry and Escape, and chain dismissal on Tab. Its current contract skips disabled items, derives the root role from its layout, and lacks the transition from a submenu leaf to the neighboring menubar branch. Those differences affect existing callers. [Component contract](../packages/cem-components/docs/component-reference.md) · [Current keyboard handler](../packages/cem-elements/src/lib/composite-menu-capability.ts)
+Before adoption the collection exposed a menu-specific keyboard setting. `keyboard="native"` gives ordinary controls their browser behavior. `keyboard="menu"` enables roving focus, orientation-aware arrows, Home/End, typeahead, native popup entry and Escape, and chain dismissal on Tab. Its current contract skips disabled items, derives the root role from its layout, and lacks the transition from a submenu leaf to the neighboring menubar branch. Those differences affect existing callers. [Component contract](../packages/cem-components/docs/component-reference.md) · [Current keyboard handler](../packages/cem-elements/src/lib/composite-menu-capability.ts)
 
-## Candidate authoring interface
+## Authoring interface
 
-Add an opt-in value, **`keyboard="menu-v1"`**, on the root. A persistent root has menubar semantics in this profile, including when laid out vertically. A popup opened by a menu button has menu semantics. A child inherits the profile through its registered launcher. Retain `direction="row|column"` for each level and inherited `dir` for reading direction. This lets a vertical menubar and a vertical popup share a layout while answering Right differently.
+Set **`keynav`** on the root or inherit it from an enclosing scope. A persistent root has menubar semantics in this profile, including when laid out vertically. A popup opened by a menu button has menu semantics. A submenu can inherit the enabled state through its registered launcher. Retain `direction="row|column"` for each level and inherited `dir` for reading direction. This lets a vertical menubar and a vertical popup share a layout while answering Right differently.
 
 ```html
-<!-- Candidate profile on the root. The item, direction and slot syntax exist today. -->
-<cem-menu keyboard="menu-v1" direction="row" aria-label="Document commands">
+<cem-menu keynav direction="row" aria-label="Document commands">
   <cem-menu-item label="File">
     <cem-menu slot="submenu" direction="column">
       <cem-menu-item label="Export">
@@ -37,11 +36,62 @@ Add an opt-in value, **`keyboard="menu-v1"`**, on the root. A persistent root ha
 </cem-menu>
 ```
 
-The example shows navigation structure. A leaf’s command is bound separately at the normal activation endpoint. A second component can opt into the same pattern through its XHTML `cem-element` declaration with `capability="composite-menu"`. Its template supplies a direct `part="composite"` container, native buttons or links (or item hosts with a direct `part="control"`), and submenu relationships. The existing `parent-item` relationship covers a panel projected elsewhere. Both declarations use the same adapter, with no per-component key listener. [Menu declaration](../packages/cem-components/src/components/cem-menu/cem-menu.xhtml) · [Item declaration](../packages/cem-components/src/components/cem-menu-item/cem-menu-item.xhtml)
+The example shows navigation structure. A leaf’s command is bound separately at the normal activation endpoint. A second component can opt into the same pattern through its XHTML `cem-element` declaration with `capability="composite-menu"`. Its template supplies a direct `part="composite"` container, native buttons or links (or item hosts with a direct `part="control"`), and submenu relationships. The existing `parent-item` relationship covers a panel projected elsewhere. The shared adapter installs the delegated listener for either declaration. [Menu declaration](../packages/cem-components/src/components/cem-menu/cem-menu.xhtml) · [Item declaration](../packages/cem-components/src/components/cem-menu-item/cem-menu-item.xhtml)
+
+### Scope, ownership and native controls
+
+`keynav` is the only navigation setting authors need. Bare HTML `keynav`, `keynav=""` and `keynav="on"` enable navigation. `keynav="off"` opts a subtree out. Omission inherits the nearest explicit setting. With no setting in the application, controls use their native keyboard behavior. A declaration can set the default on its rendered instance host; template nodes and instance markup can supply a closer setting. XHTML spells a bare attribute as `keynav=""`.
+
+Only the enabled state inherits. At each keydown the focused control’s nearest owning menu, fieldset or form supplies the rules. An explicitly enabled descendant can resume navigation within an opted-out subtree. A registered projected submenu inherits through its launcher. Scope lookup stops at the application boundary.
+
+This rendered example uses one marker. The form, its fieldset and the sort menu all inherit it. Moving the marker to the fieldset limits navigation to that group. Setting `keynav="off"` on the fieldset while leaving the host enabled opts out the complete group, including the menu.
+
+```html
+<file-list-tools keynav>
+  <form>
+    <fieldset>
+      <legend>File filters</legend>
+      <label>Filter files <input type="text" name="filter"></label>
+      <label>Minimum size <input type="range" name="size"></label>
+      <button type="submit">Apply</button>
+      <button type="reset">Reset</button>
+      <cem-menu direction="row" aria-label="Sort files">
+        <button type="button" role="menuitemradio" aria-checked="true">Name</button>
+        <button type="button" role="menuitemradio" aria-checked="false">Date</button>
+      </cem-menu>
+    </fieldset>
+  </form>
+</file-list-tools>
+```
+
+| Focus or owner | Behavior in this example |
+| --- | --- |
+| Text input, textarea or editable content | Leave arrows and modified arrows to the browser for caret movement and text selection. Space types and Enter follows the control’s editing or submission behavior. |
+| Slider, select, number input or native radio group | The focused control keeps its value and selection keys, including at the end of its range. No per-input opt-out is needed. |
+| Form or fieldset action button | Plain Down or inline-forward moves to the next eligible action button in source order. Up or inline-backward moves to the previous one. In LTR, Right on **Apply** focuses **Reset**. At either end focus stays in the group. Enter and Space activate the focused button normally. |
+| Sort menu button | The menu owns all four arrows. In horizontal LTR, Right on **Name** focuses **Date** and leaves **Name** checked. Native button activation requests a sort once. On confirmation the application moves the checked state to **Date**. |
+| Tab or Shift+Tab | Forms and fieldsets retain their ordinary Tab sequence. The menu contributes one stop. Tab from an open menu dismisses its chain and lets the browser continue traversal. |
+
+Form navigation is a CEM convenience for enabled, visible action buttons belonging directly to that form or fieldset. Skip controls owned by nested groups and menus. Preserve native behavior for other controls and modified shortcuts. An ordinary link keeps Enter navigation and Space scrolling. A registered menu link uses the menu’s Space activation rule. [Keyboard interface conventions](https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/) · [HTML implicit submission](https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#implicit-submission)
+
+**Delegate once per participating host.** A bubbling `keydown` listener resolves the event origin and the innermost registered owner. An outer owner never retries a key left to native handling by an inner owner. Resolve the effective marker and focused control for each event so a moved control or changed attribute takes effect on the next key. Respect composition, previously canceled events and modified shortcuts. Cancel the browser default only for a binding that replaces it. The following sketch names the three decisions.
+
+```js
+host.addEventListener("keydown", event => {
+  if (event.defaultPrevented || event.isComposing) return;
+  const owner = navigationOwner(event.composedPath());
+  if (owner?.host !== host || !effectiveKeynav(event.target, owner)) return;
+  owner.handleKeydown(event);
+});
+```
+
+Track focus from `focusin` and `focusout`, including pointer and programmatic moves. Remember the menu’s last live root item for Tab re-entry. Read native values on `input` or `change` and project menu choice state from the confirmed command result. Release listeners when the host disconnects. [UI Events focus events](https://www.w3.org/TR/uievents/#events-focusevent)
+
+Acceptance includes the sequence in the table, a second independent instance and both marker placements. Toggle the fieldset off while **Apply** is focused and verify that its next Right is uncanceled. Explicitly enable the nested menu and verify that its arrows work while Apply and Reset remain opted out. Remove both overrides and verify that all three owners inherit again.
 
 ### How to describe a key
 
-Keep the profile in one versioned table in `cem-elements`. Each row describes **where focus is**, **which key matches**, **who performs its default action**, and **where focus should end up**. Resolve `current item`, `child`, `launcher` and `adjacent root item` against the admitted menu relationships at event time. A few representative rows in design notation show the proposed granularity.
+The menu capability owns the key bindings in `cem-elements`. Each row describes **where focus is**, **which key matches**, **who performs its default action**, and **where focus should end up**. Resolve `current item`, `child`, `launcher` and `adjacent root item` against the admitted menu relationships at event time. A few representative rows in design notation show the proposed granularity.
 
 | Focus and condition | Key | Executor | Observable result |
 | --- | --- | --- | --- |
@@ -54,7 +104,7 @@ Keep the profile in one versioned table in `cem-elements`. Each row describes **
 For example, the library could store rows as CEM-ML and compile them once when registering the capability. This XML projection illustrates a candidate resource shape for four transitions. The `key` values below are logical keys resolved from the level’s orientation and reading direction.
 
 ```xml
-<keyboard-profile id="menu-v1">
+<keyboard-profile id="composite-menu">
   <binding in="popup" key="toward-child" item="launcher"
            action="open-child" focus="first-child" default="replace"/>
   <binding in="popup" key="toward-child" item="leaf" root="menubar"
@@ -68,9 +118,9 @@ For example, the library could store rows as CEM-ML and compile them once when r
 
 The vocabulary is finite. A binding can name a registered parent, sibling, child or launcher. It cannot supply an arbitrary CSS selector or call a method on a DOM node. Normalize the rows into one decision per reachable state during registration. Reject an ambiguous pair with its two source locations. An unmatched key passes through. A stay-put row retains focus and consumes the arrow to prevent page scrolling. This makes a missing behavior testable without publishing raw keyboard events to an application data island.
 
-For v1 the component author chooses the named profile. Keep individual rows owned by the library so a consumer cannot accidentally remove the exit key, handle Space twice, or turn an arrow into a write command. The resolver can be a pure function over key, modifiers, item kind, orientation, root kind and branch state. Its output describes the action and focus destination. The DOM adapter checks that the destination is still live before applying it.
+The component’s capability selects its bindings. The library owns the individual transitions, including exit keys and native activation. The resolver can be a pure function over key, modifiers, item kind, orientation, root kind and branch state. Its output describes the action and focus destination. The DOM adapter checks that the destination is still live before applying it.
 
-## Proposed behavior at the edges
+## Menu behavior at the edges
 
 The following are CEM profile decisions based on the WAI-ARIA patterns. The arrows below assume a horizontal LTR menubar with vertical submenus. [Menubar keyboard guidance](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#keyboardinteraction) · [Menu button guidance](https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/#keyboardinteraction)
 
@@ -107,7 +157,7 @@ For example, in a horizontal **File ▾ · Help · Edit ▾** bar, Down on File 
 
 Acceptance should exercise the four rows with focus on both a leaf and a launcher, repeat with a disabled launcher, and distinguish a root leaf from a popup leaf under a menubar or a standalone menu button. Switch `dir` on the open level and confirm that the next horizontal key follows the new mapping while focus and submenu ownership remain intact.
 
-**Focusable and invokable need separate tests.** In the candidate profile a visible disabled menu item can receive arrow focus and be announced as unavailable. Use a focusable control with `aria-disabled="true"` and guard pointer, keyboard and command activation. Skip hidden or inert items and separators. A panel containing only disabled items can therefore focus its first disabled item. A genuinely empty panel needs a named, programmatically focusable container and a working exit. Checked state belongs to the choice command. Navigation alone cannot commit a radio or checkbox choice. [Menu roles and states](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#wai-ariaroles,states,andproperties)
+**Focusable and invokable need separate tests.** In the menu adapter a visible disabled menu item can receive arrow focus and be announced as unavailable. Use a focusable control with `aria-disabled="true"` and guard pointer, keyboard and command activation. Skip hidden or inert items and separators. A panel containing only disabled items can therefore focus its first disabled item. A genuinely empty panel needs a named, programmatically focusable container and a working exit. Checked state belongs to the choice command. Navigation alone cannot commit a radio or checkbox choice. [Menu roles and states](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/#wai-ariaroles,states,andproperties)
 
 ## Focus and activation on the same control
 
@@ -117,8 +167,8 @@ In Chromium and Firefox, keyboard and pointer activation delivered one trusted c
 
 ## Adapter lifecycle and verification
 
-- Listen at the nearest owning composite during bubbling. Honor an already handled key, editable descendants, composition, and modified shortcuts. Repeats may move focus. Guard repeated Enter/Space against a second invocation. Only an owned transition that replaces a browser default should cancel that default. Native Tab traversal and native Escape dismissal still need theirs.
+- Delegate `keydown` once on each rendered host during bubbling. Resolve ownership, the effective `keynav` setting and the focused control’s owning group before dispatch. Honor an already handled key, editable descendants, composition, and modified shortcuts. Repeats may move focus. Guard repeated Enter/Space against a second invocation. Only an owned transition that replaces a browser default should cancel that default. Native Tab traversal and native Escape dismissal still need theirs.
 - Keep the active item, open branch and return destination in the menu session. Revalidate ownership after render, native toggle and async task entry. A removed launcher or stale close notification cannot restore into a hidden branch, another menu or another app. Release listeners and restore authored roles and tab stops when the mode changes. Hydration can restore presentation without replaying a key or click. [Menu-to-task relay](../packages/cem-elements/src/lib/menu-task-relay.ts)
 - Extend the existing trusted-key stories with a trace of **focused element, open panels, default action and command count** after each step. Start with File → Export → PDF, then Left twice. Expect Export first, then the previous root branch. Repeat from a menu button, a projected panel, a vertical bar and an RTL bar. Test forward and reverse Tab with focusable controls immediately before and after the widget.
 - Exercise native button activation, held Space, a disabled command, duplicate menus, and Save As opening a nonmodal form. Navigation and refusal produce zero commands. One accepted activation produces one command. Confirm that a late menu close preserves focus already in the form. [Existing browser stories](../packages/cem-components/src/components/cem-menu/cem-menu.stories.ts)
-- Before promotion, inspect the accessibility tree and listen to a screen reader announce the focused item, its name, submenu expansion and disabled state. The project adopts the APG interaction pattern. WCAG evaluation also covers keyboard access, escape from the composite, focus order and visible focus. The prototype verification covers keyboard and pointer input. [WCAG keyboard](https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html) · [No keyboard trap](https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html) · [Focus order](https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html) · [Focus visible](https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html)
+- For accessibility verification, inspect the accessibility tree and listen to a screen reader announce the focused item, its name, submenu expansion and disabled state. The project adopts the APG interaction pattern. WCAG evaluation also covers keyboard access, escape from the composite, focus order and visible focus. The prototype verification covers keyboard and pointer input. [WCAG keyboard](https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html) · [No keyboard trap](https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html) · [Focus order](https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html) · [Focus visible](https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html)
