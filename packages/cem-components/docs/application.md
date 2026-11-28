@@ -308,6 +308,13 @@ or `getCemApplicationStorage(app, 'session')` for session storage. Both expose
 before any `cem-element` is registered. A declarative `local-storage` control uses
 the same application service. A detached or replaced owner loses access through its old handle.
 
+A private session combines the top-level page’s session storage with the app’s
+container path. Reloading the page or just its same-origin editor frame recovers
+that editor’s draft. Independent tabs start empty. An opener-created tab receives
+an initial copy and then owns its subsequent edits and removals. Withdrawing
+the page’s session provider also withdraws access for embedded apps.
+[HTML page sessions](https://html.spec.whatwg.org/multipage/document-sequences.html#creating-a-new-top-level-traversable)
+
 Embedded `location-element` reads, writes and live subscriptions use an instance-local
 URL, initially based on the document address with query and fragment removed. The
 sole top-level page app uses browser navigation. Same-origin iframe bindings resolve the

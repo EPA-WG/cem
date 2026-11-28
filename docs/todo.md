@@ -237,9 +237,14 @@ for the current native work and the conditional diagnostic items on recurrence.
     a grant during delivery, replaces a live grant and checks unsubscribe. It also
     exercises version 1 store migration, recovery beyond the journal window and a native
     session clear. Run `nx run cem-elements:test:application-isolation`.
+  - [x] Verify private session storage at the `cem-application` boundary in Chromium
+    and Firefox, in light DOM and same-origin iframe hosts. The [browser check](../packages/cem-elements/tests/private-session-storage.mjs)
+    reloads two tabs with same-ID editors mounted in reverse order. Each editor recovers
+    its own draft. It also checks opener-copy independence, iframe-only reload and refusal
+    of old and new bindings when the page session provider is unavailable.
+    Run `nx run cem-elements:test:application-isolation`.
   - The two-editor Save As gate also covers grant revocation and receipts after editor
-    replacement. Private session lifetime across tabs, ancestor stop fences, portable
-    save/load/clone and physical offload remain open.
+    replacement. Ancestor stop fences, portable save/load/clone and physical offload remain open.
     [Implementation order](../packages/cem-components/docs/application.md#missing-capabilities-and-implementation-order)
 
 - [ ] **Complete localized resource delivery.** Pin the versioned message vocabulary and

@@ -95,6 +95,7 @@ function bindStorage(window: Window, backing: Storage, current: () => boolean, p
 export function privateStorage(window: Window, kind: 'local' | 'session', namespace: string, live: () => boolean): ResourceStorage {
     const property = kind === 'local' ? 'localStorage' : 'sessionStorage';
     const area = window[property];
+    if (!area) throw Error('cem.application.storage-unavailable');
     return bindStorage(window, area, () => live() && window[property] === area, privatePrefix + namespace + ':');
 }
 

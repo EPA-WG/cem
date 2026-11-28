@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, firefox } from 'playwright';
 import { verifySharedStores, verifySessionStores } from './application-shared-stores.mjs';
+import { verifyPrivateSessions } from './private-session-storage.mjs';
 import { verifySubscriptions } from './named-store-subscriptions.mjs';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
@@ -17,6 +18,7 @@ for (const engine of [chromium, firefox]) {
             const context = await browser.newContext();
             try {
                 await context.route(origin + '/**', serve);
+                await verifyPrivateSessions(context, origin + '/private-session', mode, mountEditor);
                 await verify(context, mode);
                 console.log(engine.name(), mode, 'passed');
             } catch (error) {
@@ -34,7 +36,7 @@ async function serve(route) {
         assert.ok(file.startsWith(dist));
         return route.fulfill({ path: file, contentType: file.endsWith('.wasm') ? 'application/wasm' : 'text/javascript' });
     }
-    const root = url.pathname === '/editor' ? '<main></main>' : '<cem-application id="shell"></cem-application>';
+    const root = url.pathname === '/editor' ? '<main><cem-application id="editor"></cem-application></main>' : '<cem-application id="shell"></cem-application>';
     return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>CEM application test</title>' + root });
 }
 
@@ -126,31 +128,37 @@ async function verify(context, mode) {
     await verifySessionStores(page, mode, setup);
 }
 
+async function mountEditor(page, mode, id) {
+    await page.evaluate(({ mode, id }) => {
+        const container = document.createElement('cem-application');
+        container.id = id;
+        document.querySelector('#shell').append(container);
+        if (mode === 'iframe') {
+            const iframe = document.createElement('iframe');
+            iframe.name = id;
+            iframe.src = '/editor';
+            container.append(iframe);
+        } else {
+            const editor = document.createElement('cem-application');
+            editor.id = 'editor';
+            container.append(editor);
+        }
+    }, { mode, id });
+    const editor = mode === 'light' ? page.locator('#' + id + ' > cem-application')
+        : page.frameLocator('iframe[name="' + id + '"]').locator('main > cem-application');
+    const app = await editor.elementHandle();
+    return { frame: mode === 'light' ? page : await app.ownerFrame(), app };
+}
+
 async function setup(page, mode, ids) {
     const frames = {};
     for (const id of ids) {
-        await page.evaluate(async ({ mode, id }) => {
-            const container = document.createElement('cem-application');
-            container.id = id;
-            document.querySelector('#shell').append(container);
-            if (mode === 'iframe') {
-                const iframe = document.createElement('iframe');
-                iframe.name = id;
-                const loaded = new Promise(resolve => { iframe.onload = resolve; });
-                iframe.src = '/editor';
-                container.append(iframe);
-                await loaded;
-            }
-        }, { mode, id });
-        const frame = mode === 'light' ? page : page.frame({ name: id });
+        const { frame, app } = await mountEditor(page, mode, id);
         frames[id] = frame;
-        await frame.evaluate(async ({ mode, id }) => {
+        await app.evaluate(async (app, id) => {
             const { getCemApplicationStorage, installCemElementRuntime, mountCemView } = await import('/runtime/index.js');
             window.runtime ??= installCemElementRuntime(window, { processingWorkerFactory() { throw Error('use owned fallback'); } });
             window.apps ??= new Map();
-            const app = document.createElement('cem-application');
-            app.id = 'editor';
-            (mode === 'light' ? document.getElementById(id) : document.querySelector('main')).append(app);
 
             const declarations = new Set();
             async function mount(suffix, markup) {
@@ -192,7 +200,8 @@ async function setup(page, mode, ids) {
                     } finally { if (!live) view.dispose(); }
                 },
             });
-        }, { mode, id });
+        }, id);
+        await app.dispose();
     }
     return frames;
 }

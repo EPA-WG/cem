@@ -100,9 +100,10 @@ class ApplicationResources {
         if (!this.live()) throw Error('cem.application.owner-changed');
         let store = this.stores.get(kind);
         if (!store) {
-            const window = this.document.defaultView;
-            if (!window) throw Error('cem.application.storage-unavailable');
-            store = privateStorage(window, kind, JSON.stringify(this.path), this.live);
+            const owner = this.document.defaultView;
+            const provider = kind === 'session' ? owner?.top : owner;
+            if (!provider) throw Error('cem.application.storage-unavailable');
+            store = privateStorage(provider, kind, JSON.stringify(this.path), this.live);
             this.stores.set(kind, store);
         }
         return store;
