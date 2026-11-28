@@ -204,6 +204,19 @@ for the current native work and the conditional diagnostic items on recurrence.
   lifecycle fences, portable save/load/clone and physical offload. The two-editor Save As
   scenario above covers a narrower path. [Application acceptance](../packages/cem-components/docs/application.md#acceptance-and-limits)
 
+  - [x] Verify private draft keys and per-app navigation in Chromium and Firefox, in light DOM
+    and same-origin iframe hosts. The [browser check](../packages/cem-elements/tests/application-isolation.mjs)
+    exercises the application storage service before any element is registered, including
+    separate local/session values and refusal of a detached app’s write. An app service and
+    a declarative control see each other’s writes. Two editors with the same container-local
+    ID retain separate drafts and URLs. Reopening in the other host type in reverse order
+    restores each draft. A live cross-tab reader sees only its partition’s update.
+    Run `nx run cem-elements:test:application-isolation`.
+  - The two-editor Save As gate also covers grant revocation and receipts after editor
+    replacement. Named-store grants, read-only and concurrent shared writes, session lifetime
+    across tabs, ancestor stop fences, portable save/load/clone and physical offload remain open.
+    [Implementation order](../packages/cem-components/docs/application.md#missing-capabilities-and-implementation-order)
+
 - [ ] **Complete localized resource delivery.** Pin the versioned message vocabulary and
   the declarative binding for `locate(lang)` and resource lookup. Verify equivalent
   CEM-ML, JSON, YAML and mapped CSV lookup, fallback and stale catalog handling, and

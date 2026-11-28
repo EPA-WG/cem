@@ -11,8 +11,8 @@ const repo = fileURLToPath(new URL('../../../', import.meta.url));
 const dist = path.join(repo, 'packages/cem-elements/dist');
 const temp = await mkdtemp(path.join(tmpdir(), 'cem-two-editor-'));
 const host = await readFile(new URL('./two-editor-host.mjs', import.meta.url));
-const shell = '<!doctype html><meta charset=utf-8><button id=file text-key="file.menu" popovertarget="commands">File</button>'
-    + '<div popover id=commands><button id=save command-id="file.save-as"></button></div>'
+const shell = '<!doctype html><meta charset=utf-8><cem-application id=shell><button id=file text-key="file.menu" popovertarget="commands">File</button>'
+    + '<div popover id=commands><button id=save command-id="file.save-as"></button></div></cem-application>'
     + '<style>iframe,section {display:block;width:600px;height:240px}dialog{margin:0}</style>';
 const frame = '<!doctype html><meta charset=utf-8><main></main><script type=module>import {editor} from "/fixture.mjs";window.makeEditor=editor</script>';
 const server = createServer(async (req, res) => {
@@ -174,7 +174,9 @@ async function run(page, browser, mode, scenario, xml) {
     assert.equal(await draft('B').inputValue(), 'B edited during A’s form');
     if (scenario === 'save') {
         assert.deepEqual(state.results.map(({ id, status }) => [id, status]), [['B', 'cancelled'], ['A', 'succeeded']]);
-        assert.deepEqual(state.store, { lastContentType: 'text/markdown' });
+        assert.equal(state.lastContentType, 'text/markdown');
+        assert.deepEqual(Object.values(state.store), ['text/markdown']);
+        assert.ok(!Object.hasOwn(state.store, 'lastContentType'), 'host preference uses the application partition');
         await privateChannels();
     } else assert.deepEqual(state.results, []);
     assert.deepEqual(errors, []);

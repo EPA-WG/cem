@@ -82,3 +82,5 @@ export { processingSchemaAssetBinding } from './lib/internal/runtime-support/pro
 export { connectCemNativeInvokerFocus } from './lib/native-invoker-focus.js';
 
 export { connectCemApplicationCommand, type CemApplicationCommandOptions, type CemApplicationCommandResult, type CemCommandDocument, type CemDocumentCommandOwner, type CemDocumentWrite, type CemWriteReceipt } from './lib/application-command.js';
+
+export { getCemApplicationStorage, type CemApplicationStorage } from './lib/application-resources.js';

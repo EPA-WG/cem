@@ -1,5 +1,5 @@
 // Browser fixture. CEM owns the UI and dispatch. The host supplies documents, grants and a file service.
-import { CemElementRuntime, mountCemView, connectCemApplicationCommand, CemCheckpointPublicationCoordinator }
+import { CemElementRuntime, mountCemView, getCemApplicationStorage, connectCemApplicationCommand, CemCheckpointPublicationCoordinator }
     from '/runtime/index.js';
 
 let runtime;
@@ -30,6 +30,8 @@ export async function start(mode, xml, useGeneratedForm) {
     if (useGeneratedForm) source.querySelector('manifest > template').remove();
     const authority = { runtimeId: 'desktop', generation: 1, policyStamp: 'test-grants' };
     const journal = new CemCheckpointPublicationCoordinator({ ...authority, seal: text => text, allowOwner: () => true });
+    const shell = document.querySelector('cem-application#shell');
+    const preferences = getCemApplicationStorage(shell);
     const menuButton = document.querySelector('#file'), menuItem = document.querySelector('#save');
     const app = connectCemApplicationCommand({ manifest: source.querySelector('manifest'), commandId: 'file.save-as',
         shortcutProfile: 'editor.windows', menuButton, menuItem, journal, journalAuthority: () => authority });
@@ -38,7 +40,9 @@ export async function start(mode, xml, useGeneratedForm) {
     const generations = { A: 0, B: 0 };
     async function mount(id) {
         const generation = ++generations[id], container = document.createElement(mode === 'iframe' ? 'iframe' : 'section');
-        container.id = id; document.body.append(container);
+        const boundary = document.createElement('cem-application');
+        boundary.id = 'editor-' + id;
+        container.id = id; boundary.append(container); shell.append(boundary);
         let view;
         if (mode === 'iframe') {
             container.title = 'Editor ' + id;
@@ -48,8 +52,8 @@ export async function start(mode, xml, useGeneratedForm) {
         const checkpoint = journal.register(id, () => view.inspect().island);
         const lease = app.register({ root: view.root, instanceId: id, pinDocument: view.pin,
             menuLabels: id === 'A' ? { fr: source.querySelector('message-override').textContent } : undefined,
-            preference: { parameter: 'contentType', read: () => localStorage.getItem('lastContentType'),
-                write: value => localStorage.setItem('lastContentType', value) },
+            preference: { parameter: 'contentType', read: () => preferences.getItem('lastContentType'),
+                write: value => preferences.setItem('lastContentType', value) },
             async write(request) {
                 await window.commitTestFile(request);
                 writes.push(request.operationId);
@@ -59,7 +63,7 @@ export async function start(mode, xml, useGeneratedForm) {
             result(value) { results.push({ id, generation, ...value }); },
         });
         lease.grant(true);
-        editors.set(id, { view, checkpoint, lease, container });
+        editors.set(id, { view, checkpoint, lease, boundary });
     }
     await mount('A'); await mount('B');
     return {
@@ -72,7 +76,9 @@ export async function start(mode, xml, useGeneratedForm) {
             }
             await journal.capture();
             const checkpoint = JSON.parse(new TextDecoder().decode(journal.current().bytes));
-            return { snapshots, results, writes, checkpoint, store: { ...localStorage }, applied };
+            // The test inspects all physical entries to detect destination leaks.
+            return { snapshots, results, writes, checkpoint, store: { ...localStorage },
+                lastContentType: preferences.getItem('lastContentType'), applied };
         },
         beginFrench() {
             const ready = new Promise(resolve => { releasePreparation = resolve; });
@@ -87,8 +93,8 @@ export async function start(mode, xml, useGeneratedForm) {
         holdReceipt() { receiptGate = new Promise(resolve => { releaseReceipt = resolve; }); },
         releaseReceipt() { releaseReceipt(); },
         async replace(id) {
-            const { lease, checkpoint, view, container } = editors.get(id);
-            lease.close(); checkpoint.remove(); view.dispose(); container.remove();
+            const { lease, checkpoint, view, boundary } = editors.get(id);
+            lease.close(); checkpoint.remove(); view.dispose(); boundary.remove();
             await mount(id);
         },
     };

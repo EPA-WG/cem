@@ -301,8 +301,17 @@ requires its own admitted adapter/policy; Web Storage prefixing does not define
 their semantics automatically. Native origin ownership remains a browser fact;
 apps see their granted logical providers, not ambient native objects.
 
-These generic provider bindings are new work. Current document-global
-storage/location behavior cannot be described as already insulated.
+The browser runtime binds private storage to each mounted `cem-application`. A host
+service obtains its key space with `getCemApplicationStorage(app)` for local storage
+or `getCemApplicationStorage(app, 'session')` for session storage. Both expose
+`getItem`, `setItem`, `removeItem` and per-key subscriptions. The binding is available
+before any `cem-element` is registered. A declarative `local-storage` control uses
+the same application service. A detached or replaced owner loses access through its old handle.
+
+Embedded `location-element` reads, writes and live subscriptions use an instance-local
+URL, initially based on the document address with query and fragment removed. The
+sole top-level page app uses browser navigation. Same-origin iframe bindings resolve the
+enclosing app through the embedding frame. [Browser verification](../../../docs/todo.md#cem-application-acceptance)
 
 ### Private persistence namespaces
 
@@ -1115,5 +1124,6 @@ Verify the following cases as each application capability is implemented.
 
 Complete guardrail coverage, `embed-page` behavioral parity, hybrid browser enforcement,
 OS adapters, portable app-state codec/migration, physical offload, cross-process
-transport and durable undo require implementation/evidence. Existing runtime
-storage and location bindings need application-scoped providers to meet the insulation contract.
+transport and durable undo require implementation/evidence. The private keyed providers
+cover local/session access and embedded logical URL changes.
+Shared grants, coordinated writes and host history projection still require implementation.

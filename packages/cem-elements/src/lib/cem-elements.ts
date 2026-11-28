@@ -1,3 +1,4 @@
+import { applicationResources, resolveLocalStorage, type ApplicationLocation, type ResourceStorage } from './application-resources.js';
 import { isCemParameterElement, isCemParameterEvent } from './command-parameters.js';
 import { hostAttributeCommitControl, prepareHostAttributePublication, type NativeHostAttributeCommit, type PreparedHostAttributePublication } from './internal/runtime-support/host-attribute-publication.js';
 import { compiledDeclarationWork, readCompiledDeclarationAsset } from './compiled-declaration-assets.js';
@@ -1207,6 +1208,7 @@ interface NativeJsonStorageState {
 }
 
 interface ActiveLocalStorageResource {
+    storage: ResourceStorage;
     key: string;
     storageType: string;
     live: boolean;
@@ -1215,10 +1217,11 @@ interface ActiveLocalStorageResource {
     native?: NativeJsonStorageState;
     destroy?: () => void;
     /** Original text-storage authority; no native handles or prior runtime. */
-    textBinding?: { storage: Storage; declaration: Readonly<LocalStorageDeclaration> };
+    textBinding?: { storage: ResourceStorage; declaration: Readonly<LocalStorageDeclaration> };
 }
 
 interface ActiveLocationResource {
+    location?: ApplicationLocation;
     key: string;
     live: boolean;
     lastValue: unknown;
@@ -1353,7 +1356,6 @@ const UID_SEED_ATTR = 'uid-seed';
 const PUBLIC_STYLE_SCOPE_ATTR = 'scope';
 const STYLE_CONTEXT_ATTR = 'data-cem-css-context';
 const STYLE_TAG = 'style';
-const LOCAL_STORAGE_EVENT = 'cem-local-storage';
 const LOCATION_EVENT = 'cem-location';
 const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
 const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
@@ -1416,8 +1418,6 @@ function styleOwnership(compiled: CompiledDeclaration): DeclarationStyleOwnershi
     return ownership;
 }
 let runtimeUidSeedSequence = 0;
-const localStorageTrackers = new WeakSet<Window>();
-const localStorageChangeRevisions = new WeakMap<Window, number>();
 const locationTrackers = new WeakSet<Window>();
 
 export interface ScopeUidInput {
@@ -3303,18 +3303,11 @@ export class CemElementRuntime {
         if (!restored.context.active()) return false;
         return restored.owner.consumeWrite(writer, trigger);
     }
-    private writeCheckpointStorage(instance: HTMLElement, storage: Storage, key: string, raw: string | null): void {
-        if (!this.checkpointWriteAllowed(instance)) return;
+    private writeCheckpointStorage(instance: HTMLElement, storage: ResourceStorage, key: string, raw: string | null): void {
+        if (storage !== resolveLocalStorage(instance) || !this.checkpointWriteAllowed(instance)) return;
         const acknowledge = this.beginCheckpointEffect(instance);
-        const window = instance.ownerDocument.defaultView;
-        const revision = window ? localStorageChangeRevisions.get(window) : undefined;
-        writeLocalStorageRaw(storage, key, raw);
-        // Runtime-owned writes must notify live consumers even when an embedder
-        // prevents or replaces Storage interception. Avoid a second notification
-        // when the intercepted method already published this synchronous write.
-        if (window && localStorageChangeRevisions.get(window) === revision) {
-            dispatchLocalStorageChange(window, key, raw);
-        }
+        if (raw === null) storage.removeItem(key);
+        else storage.setItem(key, raw);
         acknowledge?.();
     }
 
@@ -3444,14 +3437,16 @@ export class CemElementRuntime {
             }
         }
         for (const [name, active] of Object.entries(state.localStorageResources)) {
-            if (['password', 'file'].includes(active.storageType) || active.native?.checkpointPending || active.native?.disposed) return undefined;
-            if (active.live && localStorageForWindow(instance.ownerDocument.defaultView)?.getItem(active.key) !== active.lastRawValue) return undefined;
+            if (['password', 'file'].includes(active.storageType) || active.native?.checkpointPending || active.native?.disposed
+                || active.storage !== resolveLocalStorage(instance)) return undefined;
+            if (active.live && active.storage.getItem(active.key) !== active.lastRawValue) return undefined;
             resources.push({ name, kind: 'local-storage', disposition: active.live ? 'read-and-subscribe' : 'read-again',
                 revision: active.native?.revision ?? 0, cursor: 0, live: active.live, state: 'loaded' });
         }
         for (const [name, active] of Object.entries(state.locationResources)) {
             const value = active.lastValue as { href?: string } | undefined;
-            if (!value?.href || active.live && instance.ownerDocument.location.href !== value.href) return undefined;
+            if (!value?.href || active.location !== applicationResources(instance)?.location
+                || active.live && (active.location?.href ?? instance.ownerDocument.location.href) !== value.href) return undefined;
             resources.push({ name, kind: 'location', disposition: active.live ? 'read-and-subscribe' : 'read-again',
                 revision: state.resourceRevisions[name] ?? 0, cursor: 0, live: active.live, state: 'loaded', url: value.href });
         }
@@ -3648,8 +3643,8 @@ export class CemElementRuntime {
             resources: portableResourceState(state), policy: this.httpResourcePolicy,
             sources: Object.entries(state.httpResources).map(([name, resource]) => [name, resource.key, resource.revision, resource.controller.signal.aborted,
                 resource.checkpointSource && edgeContentAddress('sanitized-snapshot', resource.checkpointSource.bytes).digest]),
-            storage: Object.values(state.localStorageResources).map(resource => [resource.key, localStorageForWindow(instance.ownerDocument.defaultView)?.getItem(resource.key)]),
-            location: instance.ownerDocument.location.href });
+            storage: Object.values(state.localStorageResources).map(resource => [resource.key, resolveLocalStorage(instance)?.getItem(resource.key)]),
+            location: applicationResources(instance)?.location?.href ?? instance.ownerDocument.location.href });
     }
 
     private checkpointRetainedCapabilityGuard(instance: HTMLElement, compiled: CompiledDeclaration): (() => boolean) | undefined {
@@ -3667,19 +3662,18 @@ export class CemElementRuntime {
         const bindings = Object.entries(state.localStorageResources).map(([name, active]) => {
             const binding = active.textBinding;
             if (this.restrictedPreview || active.storageType !== 'text' || active.native || !binding
-                || binding.storage !== localStorageForWindow(instance.ownerDocument.defaultView)
+                || binding.storage !== resolveLocalStorage(instance)
                 || binding.storage.getItem(active.key) !== active.lastRawValue) throw Error('cem.checkpoint.resume.storage-authority');
-            return { name, active, binding, raw: active.lastRawValue,
-                read: binding.storage.getItem, write: binding.storage.setItem, remove: binding.storage.removeItem };
+            return { name, active, binding, raw: active.lastRawValue, methodsCurrent: binding.storage.pinMethods() };
         });
         return () => {
             try {
                 return (!bindings.length || !this.restrictedPreview) && this.instanceStates.get(instance) === state
                     && Object.keys(state.localStorageResources).length === bindings.length
-                    && bindings.every(({ name, active, binding, raw, read, write, remove }) => state.localStorageResources[name] === active
+                    && bindings.every(({ name, active, binding, raw, methodsCurrent }) => state.localStorageResources[name] === active
                         && active.textBinding === binding && !active.native && sameLocalStorageDeclaration(active, binding.declaration)
-                        && binding.storage === localStorageForWindow(instance.ownerDocument.defaultView)
-                        && binding.storage.getItem === read && binding.storage.setItem === write && binding.storage.removeItem === remove
+                        && binding.storage === resolveLocalStorage(instance)
+                        && methodsCurrent()
                         && active.lastRawValue === raw && binding.storage.getItem(active.key) === raw);
             } catch { return false; }
         };
@@ -7788,9 +7782,8 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         declaration: LocalStorageDeclaration,
     ): void {
-        const window = instance.ownerDocument.defaultView;
-        const storage = this.restrictedPreview ? null : localStorageForWindow(window);
-        if (!storage || !window) {
+        const storage = this.restrictedPreview ? null : resolveLocalStorage(instance);
+        if (!storage) {
             this.recordDiagnostics(instance, [
                 resourceDiagnostic(
                     'cem-element.local_storage_unavailable',
@@ -7805,14 +7798,14 @@ export class CemElementRuntime {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         let active: ActiveLocalStorageResource | undefined = state.localStorageResources[declaration.sliceName];
-        if (active && !sameLocalStorageDeclaration(active, declaration)) {
+        if (active && (active.storage !== storage || !sameLocalStorageDeclaration(active, declaration))) {
             active.destroy?.();
             delete state.localStorageResources[declaration.sliceName];
             active = undefined;
         }
 
         if (declaration.storageType === 'json') {
-            this.bindNativeJsonStorage(instance, compiled, state, declaration, storage, window, active);
+            this.bindNativeJsonStorage(instance, compiled, state, declaration, storage, active);
             return;
         }
         delete state.nativeSlices[declaration.sliceName];
@@ -7851,7 +7844,7 @@ export class CemElementRuntime {
             }
         }
 
-        active = this.ensureActiveLocalStorageResource(instance, compiled, state, declaration, nextValue, nextRawValue);
+        active = this.ensureActiveLocalStorageResource(instance, compiled, state, declaration, storage, nextValue, nextRawValue);
         if (source !== 'retained') {
             this.writeLocalStorageEventPayload(state, declaration, nextValue, nextRawValue, source);
             active.lastValue = nextValue;
@@ -7868,7 +7861,7 @@ export class CemElementRuntime {
 
     private bindNativeJsonStorage(
         instance: HTMLElement, compiled: CompiledDeclaration, state: InstanceState,
-        declaration: LocalStorageDeclaration, storage: Storage, window: Window,
+        declaration: LocalStorageDeclaration, storage: ResourceStorage,
         existing: ActiveLocalStorageResource | undefined,
     ): void {
         const name = declaration.sliceName;
@@ -7947,7 +7940,7 @@ export class CemElementRuntime {
                     if (this.checkpointPublication && instance.isConnected && !native.disposed) this.renderInstance(instance, compiled);
                 });
                 function isCurrent(): boolean {
-                    return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed;
+                    return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed && resolveLocalStorage(instance) === storage;
                 }
                 return;
             }
@@ -7958,7 +7951,7 @@ export class CemElementRuntime {
             scalar: null, initialValue: declaration.initialValue, disposed: false,
         };
         const active: ActiveLocalStorageResource = {
-            key: declaration.key, storageType: 'json', live: declaration.live,
+            storage, key: declaration.key, storageType: 'json', live: declaration.live,
             lastValue: null, lastRawValue: null, native,
         };
         state.localStorageResources[name] = active;
@@ -8002,28 +7995,21 @@ export class CemElementRuntime {
                     if (this.checkpointPublication && instance.isConnected && !native.disposed) this.renderInstance(instance, compiled);
                 });
             function isCurrent(): boolean {
-                return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed;
+                return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed && resolveLocalStorage(instance) === storage;
             }
         };
-        const listener = (event: Event) => {
-            const key = localStorageChangedKey(event);
-            if (key !== null && key !== declaration.key) return;
+        const unsubscribe = declaration.live ? storage.subscribe(declaration.key, () => {
+            if (!instance.isConnected || resolveLocalStorage(instance) !== storage) return;
             const raw = storage.getItem(declaration.key);
             if (raw !== active.lastRawValue) read(declaration.initialValue ?? raw, declaration.initialValue === undefined ? 'storage-event' : 'value-attribute');
-        };
-        if (declaration.live) {
-            ensureTrackedLocalStorage(window);
-            window.addEventListener('storage', listener);
-            window.addEventListener(LOCAL_STORAGE_EVENT, listener);
-        }
+        }) : undefined;
         const removeScopeListeners: (() => void)[] = [];
         active.destroy = () => {
             if (native.disposed) return;
             native.disposed = true;
             native.revision++;
             native.cancel?.();
-            window.removeEventListener('storage', listener);
-            window.removeEventListener(LOCAL_STORAGE_EVENT, listener);
+            unsubscribe?.();
             for (const remove of removeScopeListeners.splice(0)) remove();
         };
         for (let scope: CemDeclarationScope | null = compiled.declarationScope; scope; scope = scope.parent) {
@@ -8077,6 +8063,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         state: InstanceState,
         declaration: LocalStorageDeclaration,
+        storage: ResourceStorage,
         value: unknown,
         rawValue: string | null,
     ): ActiveLocalStorageResource {
@@ -8085,13 +8072,13 @@ export class CemElementRuntime {
             return existing;
         }
         const active: ActiveLocalStorageResource = {
-            key: declaration.key,
+            storage, key: declaration.key,
             storageType: declaration.storageType,
             live: declaration.live,
             lastValue: value,
             lastRawValue: rawValue,
             ...(declaration.storageType === 'text' ? { textBinding: {
-                storage: localStorageForWindow(instance.ownerDocument.defaultView)!, declaration: Object.freeze({ ...declaration }),
+                storage, declaration: Object.freeze({ ...declaration }),
             } } : {}),
         };
         if (declaration.live) {
@@ -8108,21 +8095,15 @@ export class CemElementRuntime {
         declaration: LocalStorageDeclaration,
         active: ActiveLocalStorageResource,
     ): () => void {
-        const window = instance.ownerDocument.defaultView;
-        const storage = this.restrictedPreview ? null : localStorageForWindow(window);
-        if (!window || !storage) {
+        const storage = this.restrictedPreview ? null : resolveLocalStorage(instance);
+        if (!storage) {
             return () => undefined;
         }
-        ensureTrackedLocalStorage(window);
-        const listener = (event: Event) => {
+        const unsubscribe = storage.subscribe(declaration.key, () => {
             const restored = this.checkpointResumedProcessing.get(instance);
-            if (this.checkpointStorageParked.has(instance) || !instance.isConnected || compiled.declarationScope.disposed
+            if (resolveLocalStorage(instance) !== storage || this.checkpointStorageParked.has(instance) || !instance.isConnected || compiled.declarationScope.disposed
                 || this.declarationForInstance(instance) !== compiled || state.localStorageResources[declaration.sliceName] !== active
                 || restored && (!restored.context.active() || restored.context.signal.aborted)) return;
-            const changedKey = localStorageChangedKey(event);
-            if (changedKey !== null && changedKey !== declaration.key) {
-                return;
-            }
             const rawValue = storage.getItem(declaration.key);
             const value = localStorageStringToValue(declaration.storageType, rawValue, instance.ownerDocument);
             active.lastValue = value;
@@ -8130,13 +8111,10 @@ export class CemElementRuntime {
             if (this.writeLocalStorageSlice(state, declaration, value, rawValue, 'storage-event', active)) {
                 this.renderInstance(instance, compiled);
             }
-        };
-        window.addEventListener('storage', listener);
-        window.addEventListener(LOCAL_STORAGE_EVENT, listener);
+        });
         const signal = this.checkpointResumedProcessing.get(instance)?.context.signal;
         const destroy = () => {
-            window.removeEventListener('storage', listener);
-            window.removeEventListener(LOCAL_STORAGE_EVENT, listener);
+            unsubscribe();
             signal?.removeEventListener('abort', destroy);
         };
         signal?.addEventListener('abort', destroy, { once: true });
@@ -8150,6 +8128,13 @@ export class CemElementRuntime {
         writer: number,
     ): void {
         const window = this.restrictedPreview ? null : instance.ownerDocument.defaultView;
+        let location: ApplicationLocation | undefined;
+        try { location = applicationResources(instance)?.location; }
+        catch {
+            this.recordDiagnostics(instance, [resourceDiagnostic('cem-element.location_unavailable',
+                'Application location binding is unavailable', compiled.producedTag, 'warning')]);
+            return;
+        }
         if (!window) {
             this.recordDiagnostics(instance, [
                 resourceDiagnostic(
@@ -8175,7 +8160,7 @@ export class CemElementRuntime {
                     implicit.add(writer);
                 }
                 const acknowledge = this.beginCheckpointEffect(instance);
-                const writeDiagnostics = writeLocationTarget(window, instance.ownerDocument, declaration, compiled.producedTag);
+                const writeDiagnostics = writeLocationTarget(window, instance.ownerDocument, declaration, compiled.producedTag, location);
                 if (!writeDiagnostics.length) acknowledge?.();
                 this.recordDiagnostics(instance, writeDiagnostics);
             }
@@ -8187,9 +8172,9 @@ export class CemElementRuntime {
 
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
-        const key = locationResourceKey(window, instance.ownerDocument, readDeclaration);
+        const key = locationResourceKey(window, instance.ownerDocument, readDeclaration, location);
         let active: ActiveLocationResource | undefined = state.locationResources[readDeclaration.sliceName];
-        if (active && active.key !== key) {
+        if (active && (active.key !== key || active.location !== location)) {
             active.destroy?.();
             delete state.locationResources[readDeclaration.sliceName];
             active = undefined;
@@ -8199,9 +8184,9 @@ export class CemElementRuntime {
             return;
         }
 
-        const value = readLocationValue(window, instance.ownerDocument, readDeclaration);
+        const value = readLocationValue(window, instance.ownerDocument, readDeclaration, location);
         const changed = this.writeLocationSlice(state, readDeclaration, value, 'initial-read', active);
-        active = this.ensureActiveLocationResource(instance, compiled, state, readDeclaration, key, value);
+        active = this.ensureActiveLocationResource(instance, compiled, state, readDeclaration, key, value, location);
         active.lastValue = value;
         if (changed) {
             queueMicrotask(() => {
@@ -8246,13 +8231,14 @@ export class CemElementRuntime {
         declaration: LocationReadDeclaration,
         key: string,
         value: unknown,
+        location?: ApplicationLocation,
     ): ActiveLocationResource {
         const existing = state.locationResources[declaration.sliceName];
         if (existing) {
             return existing;
         }
         const active: ActiveLocationResource = {
-            key,
+            key, location,
             live: declaration.live,
             lastValue: value,
         };
@@ -8274,13 +8260,21 @@ export class CemElementRuntime {
         if (!window) {
             return () => undefined;
         }
-        ensureTrackedLocation(window);
+        const location = active.location;
         const listener = () => {
-            const value = readLocationValue(window, instance.ownerDocument, declaration);
+            if (!instance.isConnected) return;
+            try { if (applicationResources(instance)?.location !== location) return; }
+            catch { return; } // Retired or reparented owner.
+            const value = readLocationValue(window, instance.ownerDocument, declaration, location);
             if (this.writeLocationSlice(state, declaration, value, 'location-event', active)) {
                 this.renderInstance(instance, compiled);
             }
         };
+        if (location) {
+            location.addEventListener('change', listener);
+            return () => location.removeEventListener('change', listener);
+        }
+        ensureTrackedLocation(window);
         window.addEventListener('popstate', listener);
         window.addEventListener('hashchange', listener);
         window.addEventListener(LOCATION_EVENT, listener);
@@ -10067,67 +10061,13 @@ function sameLocalStorageDeclaration(
     );
 }
 
-function localStorageForWindow(window: Window | null | undefined): Storage | null {
-    if (!window) {
-        return null;
-    }
-    try {
-        return window.localStorage;
-    } catch {
-        return null;
-    }
-}
-
-function ensureTrackedLocalStorage(window: Window): void {
-    if (localStorageTrackers.has(window)) {
-        return;
-    }
-    const storage = localStorageForWindow(window);
-    if (!storage) {
-        return;
-    }
-    const originalSetItem = storage.setItem;
-    const originalRemoveItem = storage.removeItem;
-    const originalClear = storage.clear;
-    try {
-        storage.setItem = function setItem(key: string, value: string): void {
-            originalSetItem.call(storage, key, value);
-            dispatchLocalStorageChange(window, String(key), String(value));
-        };
-        storage.removeItem = function removeItem(key: string): void {
-            originalRemoveItem.call(storage, key);
-            dispatchLocalStorageChange(window, String(key), null);
-        };
-        storage.clear = function clear(): void {
-            originalClear.call(storage);
-            dispatchLocalStorageChange(window, null, null);
-        };
-        localStorageTrackers.add(window);
-    } catch {
-        // Some hosts expose immutable Storage methods; cross-document `storage` events still work.
-    }
-}
-
-function dispatchLocalStorageChange(window: Window, key: string | null, value: string | null): void {
-    localStorageChangeRevisions.set(window, (localStorageChangeRevisions.get(window) ?? 0) + 1);
-    window.dispatchEvent(new CustomEvent(LOCAL_STORAGE_EVENT, { detail: { key, value } }));
-}
-
-function localStorageChangedKey(event: Event): string | null {
-    if (event.type === 'storage') {
-        return (event as StorageEvent).key;
-    }
-    const detail = (event as CustomEvent<{ key?: string | null }>).detail;
-    return detail?.key ?? null;
-}
-
-function locationResourceKey(window: Window, document: Document, declaration: LocationElementDeclaration): string {
+function locationResourceKey(window: Window, document: Document, declaration: LocationElementDeclaration, location?: ApplicationLocation): string {
     return stableJson({
-        scope: declaration.href === undefined ? 'window.location' : 'href',
+        scope: declaration.href === undefined ? (location ? 'application' : 'window.location') : 'href',
         href: declaration.href ?? null,
-        baseUrl: document.baseURI,
+        baseUrl: location ? (declaration.href === undefined ? null : location.href) : document.baseURI,
         live: declaration.href === undefined ? declaration.live : false,
-        origin: declaration.href === undefined ? window.location.origin : null,
+        origin: declaration.href === undefined && !location ? window.location.origin : null,
     });
 }
 
@@ -10135,17 +10075,19 @@ function readLocationValue(
     window: Window,
     document: Document,
     declaration: LocationElementDeclaration,
+    location?: ApplicationLocation,
 ): Record<string, unknown> {
+    const source = declaration.href !== undefined ? 'href' : location ? 'application' : 'window';
     try {
         const url =
             declaration.href === undefined
-                ? new URL(window.location.href)
-                : new URL(declaration.href, document.baseURI);
-        return locationUrlToRecord(url, declaration.href === undefined ? 'window' : 'href');
+                ? new URL(location?.href ?? window.location.href)
+                : new URL(declaration.href, location?.href ?? document.baseURI);
+        return locationUrlToRecord(url, source);
     } catch (error) {
         return {
             kind: 'location',
-            source: declaration.href === undefined ? 'window' : 'href',
+            source,
             href: declaration.href ?? null,
             params: {},
             paramEntries: [],
@@ -10154,7 +10096,7 @@ function readLocationValue(
     }
 }
 
-function locationUrlToRecord(url: URL, source: 'window' | 'href'): Record<string, unknown> {
+function locationUrlToRecord(url: URL, source: 'window' | 'application' | 'href'): Record<string, unknown> {
     const params: Record<string, string[]> = {};
     const paramEntries: { name: string; value: string; values: string[]; text: string }[] = [];
     const seen = new Set<string>();
@@ -10196,6 +10138,7 @@ function writeLocationTarget(
     document: Document,
     declaration: LocationElementDeclaration,
     tag: string,
+    location?: ApplicationLocation,
 ): CemElementDiagnostic[] {
     const method = declaration.method?.trim();
     const src = declaration.src?.trim();
@@ -10213,6 +10156,10 @@ function writeLocationTarget(
         ];
     }
     try {
+        if (location) {
+            location.write(method, src);
+            return [];
+        }
         ensureTrackedLocation(window);
         const currentHref = window.location.href;
         if (method === 'location.hash') {
@@ -10343,14 +10290,6 @@ function localStorageValueToString(type: string, value: unknown): string | null 
         return Number.isNaN(number) ? null : String(number);
     }
     return String(value);
-}
-
-function writeLocalStorageRaw(storage: Storage, key: string, rawValue: string | null): void {
-    if (rawValue === null) {
-        storage.removeItem(key);
-    } else {
-        storage.setItem(key, rawValue);
-    }
 }
 
 function resourceValuesEqual(left: unknown, right: unknown): boolean {
