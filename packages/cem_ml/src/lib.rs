@@ -62,6 +62,7 @@ pub mod native_binary;
 pub(crate) mod module_map;
 pub mod navigation_links;
 pub mod resource_base;
+pub mod resource_command;
 pub mod observability;
 pub mod operation_control;
 pub mod runtime_memory;

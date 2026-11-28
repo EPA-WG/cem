@@ -217,11 +217,14 @@ French locale publication, and a receipt arriving after editor replacement. Exte
 fixture where a case needs two editors. The following checks cover the rest of the
 [command design](../packages/cem-components/docs/command.md).
 
-- [ ] **Validate command definitions and invocation identity in native tests.** Exercise schema
+- [x] **Validate command definitions and invocation identity in native tests.** Exercise schema
   changes, scalar and native parameter profiles, locale-neutral values, duplicate command IDs,
   handler eligibility, claim and cancellation order, stale contexts and result correlation.
   Replay an invocation ID and verify its effect occurs at most once. Issue two Copy commands
   with identical parameters and distinct invocation IDs and verify each runs once.
+  Run `cargo test -p cem-ml --test resource_command`. The native coordinator reads the Save As
+  manifest and retains native parameters through the endpoint call. The tests also cover
+  terminal results delivered out of order and revocation during a guard.
 - [ ] **Verify routing from a projected editor in light DOM and iframe hosts.** Give the layout
   its own Save As handler and invoke the editor through the host menu. Exercise a successful
   claim, an owner guard refusal and a disabled nearest provider. Assert the layout receives
