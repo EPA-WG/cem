@@ -1,9 +1,10 @@
-// Run against the built cem-elements package. All persistence and navigation go
-// through the production declarative controls in a fresh Playwright context.
+// Exercise the built application storage services and declarative storage/navigation
+// controls in a fresh Playwright context for each browser and host representation.
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, firefox } from 'playwright';
+import { verifySharedStores } from './application-shared-stores.mjs';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const origin = 'http://127.0.0.1';
@@ -103,18 +104,23 @@ async function verify(context, mode) {
     assert.equal((await read(B, 'B', true)).hash, '#B');
     assert.equal((await read(peers.A, 'A', true)).hash, '', 'navigation stays in the originating instance');
     assert.equal(new URL(page.url()).hash, '#host');
+    await verifySharedStores(page, mode, { A, B }, other, peers);
     const withdrawn = await page.evaluate(async mode => {
-        const { getCemApplicationStorage } = await import('/runtime/index.js');
+        const { getCemApplicationStorage, getCemApplicationSharedStore } = await import('/runtime/index.js');
         const container = document.getElementById('A');
         const owner = mode === 'light' ? container : container.querySelector('iframe').contentDocument;
         const service = getCemApplicationStorage(owner.querySelector('cem-application'));
+        const shared = getCemApplicationSharedStore(owner.querySelector('cem-application'), 'format-only');
         const before = service.getItem('draft');
         container.remove();
-        try { service.setItem('draft', 'closed'); } catch { return { before, refused: true }; }
-        return { before, refused: false };
+        let sharedError;
+        try { await shared.setItem('format', 'closed'); } catch (error) { sharedError = error.name; }
+        try { service.setItem('draft', 'closed'); } catch { return { before, sharedError, refused: true }; }
+        return { before, sharedError, refused: false };
     }, mode);
-    assert.deepEqual(withdrawn, { before: 'updated', refused: true });
+    assert.deepEqual(withdrawn, { before: 'updated', sharedError: 'InvalidStateError', refused: true });
     assert.equal((await read(peers.A, 'A')).draft, 'updated');
+    assert.equal((await read(peers.B, 'B')).draft, 'beta');
 }
 
 async function setup(page, mode, ids) {

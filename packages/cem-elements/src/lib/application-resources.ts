@@ -1,7 +1,9 @@
+import { bindSharedStore, type CemApplicationSharedStore } from './internal/runtime-support/shared-store.js';
 import { pageLocalStorage, privateStorage, type CemApplicationStorage, type ResourceStorage } from './internal/runtime-support/browser-storage.js';
+export type { CemApplicationSharedStore, CemSharedStoreValue } from './internal/runtime-support/shared-store.js';
 export type { CemApplicationStorage, ResourceStorage } from './internal/runtime-support/browser-storage.js';
 
-/** Private providers for a mounted application. Symbols share the same owner across
+/** Resource providers for a mounted application. Symbols share the same owner across
  * independent runtime modules in same-origin frames without serializing authority. */
 const mounted = Symbol.for('cem.elements.applicationResources.v1');
 const claims = Symbol.for('cem.elements.applicationSlots.v1');
@@ -70,7 +72,9 @@ export class ApplicationLocation extends EventTarget {
 
 class ApplicationResources {
     private readonly stores = new Map<'local' | 'session', ResourceStorage>();
-    constructor(readonly document: Document,
+    readonly sharedStores = new Map<string, { issuer: ApplicationResources; store: CemApplicationSharedStore }>();
+
+    constructor(readonly document: Document, readonly parent: ApplicationResources | null,
         readonly path: readonly Segment[], readonly location: ApplicationLocation | undefined,
         readonly live: () => boolean) {}
     storage(kind: 'local' | 'session'): ResourceStorage {
@@ -132,7 +136,7 @@ function admit(root: Boundary): ApplicationResources {
     if (occupied(segment)) throw Error('cem.application.occupied-slot');
     const key = JSON.stringify(segment);
     const pageApp = !parent && doc.defaultView === doc.defaultView?.top && peers.size === 1;
-    const resources = new ApplicationResources(doc, path, pageApp ? undefined : new ApplicationLocation(address),
+    const resources = new ApplicationResources(doc, parent, path, pageApp ? undefined : new ApplicationLocation(address),
         () => slots.get(key)?.deref() === root && root.isConnected && root.ownerDocument === doc
             && nearest(root.parentElement, doc) === parentRoot && (!parent || parent.live())
             && frames.every(edge => edge.frame.isConnected && edge.frame.contentDocument === edge.document));
@@ -146,12 +150,65 @@ export function applicationResources(instance: Element): ApplicationResources | 
     return root && admit(root);
 }
 
+function requireApplication(application: Element): ApplicationResources {
+    if (!application.matches(applicationBoundary) || !application.isConnected) throw Error('cem.application.boundary-required');
+    return admit(application);
+}
+
+export interface CemSharedStoreGrant {
+    /** Stable ID in the granting application's durable partition. */
+    readonly storeId: string;
+    /** Alias exposed only to this recipient. */
+    readonly scope: string;
+    readonly read: true;
+    readonly write: boolean;
+    /** Omit for the whole store. A key-limited binding cannot clear the store. */
+    readonly keys?: readonly string[];
+}
+
+function encloses(issuer: ApplicationResources, recipient: ApplicationResources): boolean {
+    for (let app: ApplicationResources | null = recipient; app; app = app.parent) {
+        if (app === issuer) return true;
+    }
+    return false;
+}
+
+/** Trusted host operation. Reissuing an alias replaces its current binding.
+ * The returned revoker only applies to the generation it issued. */
+export function grantCemApplicationSharedStore(owner: Element, recipient: Element, grant: CemSharedStoreGrant): { revoke(): void } {
+    const issuer = requireApplication(owner);
+    const target = requireApplication(recipient);
+    const { storeId, scope, read, write, keys } = grant;
+    if (typeof storeId !== 'string' || !storeId || typeof scope !== 'string' || !scope
+        || read !== true || typeof write !== 'boolean'
+        || (keys !== undefined && (!Array.isArray(keys) || !keys.every(key => typeof key === 'string'))))
+        throw new TypeError('Invalid shared store grant');
+    const current = target.sharedStores.get(scope);
+    if (!encloses(issuer, target) || (current && !encloses(issuer, current.issuer)))
+        throw new DOMException('Shared store grant requires the owning application', 'NotAllowedError');
+    const factory = issuer.document.defaultView?.indexedDB;
+    if (!factory) throw new DOMException('Shared store provider unavailable', 'InvalidStateError');
+    const namespace = JSON.stringify([issuer.path, storeId]);
+    const bound = () => target.sharedStores.get(scope)?.store === store;
+    const store: CemApplicationSharedStore = bindSharedStore(factory, namespace, write,
+        keys && new Set(keys), () => bound() && target.live() && issuer.live());
+    target.sharedStores.set(scope, { issuer, store });
+    return Object.freeze({ revoke() { if (bound()) target.sharedStores.delete(scope); } });
+}
+
+/** Look up the named grant on this exact application, including across a same-origin frame. */
+export function getCemApplicationSharedStore(application: Element, scope: string): CemApplicationSharedStore {
+    const binding = requireApplication(application).sharedStores.get(scope);
+    if (!binding) throw new DOMException('Shared store scope has no grant', 'NotAllowedError');
+    return binding.store;
+}
+
 /** Resolve a store for a host-admitted service at the application boundary.
  * No cem-element, declaration registration or renderer is required. */
 export function getCemApplicationStorage(application: Element, kind: 'local' | 'session' = 'local'): CemApplicationStorage {
-    if (!application.matches(applicationBoundary) || !application.isConnected) throw Error('cem.application.boundary-required');
+    const app = requireApplication(application);
     if (kind !== 'local' && kind !== 'session') throw Error('cem.application.storage-kind');
-    return admit(application).storage(kind);
+    return app.storage(kind);
 }
 
 /** A declarative reader uses the owning app's service. A denied app never resolves to page storage. */

@@ -386,6 +386,33 @@ keys. A child can narrow its binding. Expanding a grant requires the host.
 | Read/write (`read=true`, `write=true`) | Read, set, conditionally update and remove granted keys. Clearing requires write authority over the whole partition. |
 | Write-only (`read=false`, `write=true`) | Set or remove granted keys. Confirm completion without disclosing prior values or whether the key existed. |
 
+For durable browser stores, the trusted host calls
+`grantCemApplicationSharedStore(owner, recipient, grant)` from `@epa-wg/cem-elements`.
+Both arguments are mounted `cem-application` boundaries. The owner's admitted
+path and `storeId` identify the IndexedDB partition. The recipient resolves its
+local `scope` to an asynchronous handle. Each mounted recipient needs its own
+grant, including after reopening in another tab.
+
+```js
+const grant = { storeId: 'store-17', scope: 'preferences', keys: ['lastContentType'], read: true };
+const editorGrant = grantCemApplicationSharedStore(shell, editor, { ...grant, write: true });
+grantCemApplicationSharedStore(shell, preview, { ...grant, write: false });
+
+const preferences = getCemApplicationSharedStore(editor, 'preferences');
+const { version } = await preferences.read('lastContentType');
+await preferences.setItem('lastContentType', 'text/markdown', version);
+const previewPreferences = getCemApplicationSharedStore(preview, 'preferences');
+await previewPreferences.getItem('lastContentType'); // 'text/markdown'
+editorGrant.revoke();
+```
+
+Omit `keys` to grant access to the whole store. A denied operation rejects
+with `NotAllowedError`. A stale expected version rejects with `ConstraintError`.
+Reissuing a scope replaces the previous grant. Operations on the retired
+handle reject with `InvalidStateError`, and its revoker cannot withdraw the
+replacement. An enclosing app can replace a descendant's grant. A descendant
+cannot replace an ancestor-issued grant on the same recipient and scope.
+
 Subscription requires a separate grant. For example, an editor can update
 `store-17/lastContentType` after Save As. A preview with read-only access can
 display the format. With `subscribe=true` it can receive changes to that
