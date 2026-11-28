@@ -198,6 +198,18 @@ for the current native work and the conditional diagnostic items on recurrence.
   synthesizer, installed voices and automatic language-switching setting.
   [Per-message language and formatting](../packages/cem-components/docs/localization.md#per-message-language-and-formatting)
 
+- [ ] **Verify general virtual-application isolation and lifecycle.** Exercise the guarded
+  storage, URL and provider APIs in light DOM and iframe hosts against the `embed-page`
+  behavioral reference. Cover named grants, read-only and concurrent shared writes,
+  lifecycle fences, portable save/load/clone and physical offload. The two-editor Save As
+  scenario above covers a narrower path. [Application acceptance](../packages/cem-components/docs/application.md#acceptance-and-limits)
+
+- [ ] **Complete localized resource delivery.** Pin the versioned message vocabulary and
+  the declarative binding for `locate(lang)` and resource lookup. Verify equivalent
+  CEM-ML, JSON, YAML and mapped CSV lookup, fallback and stale catalog handling, and
+  locale/shortcut publication during hydration and in stopped apps. Record the spoken
+  fallback-label result in the existing check above. [Localization acceptance](../packages/cem-components/docs/localization.md#caching-ssr-and-implementation-acceptance)
+
 ### Resource-backed command verification
 
 The completed two-editor scenario above covers the desktop write, grant revocation during
@@ -499,7 +511,7 @@ declarative `cem-components` migration first, then the remaining non-Figma phase
 through Phase 9 release governance.
 
 - [ ] Implement the general whole-page DCE CLI compilation pipeline from the
-      [whole-page SSR proposal](cem-ml-cli-ssr-proposal.md), using config-driven
+      [whole-page SSR design](cem-ml-cli-ssr-design.md), using config-driven
       CEMT transform graphs and the shared native DCE lifecycle. Accept HTML,
       CEM-ML and opted-in `.cem.md` pages; keep source URI, deployed page/base URL
       and output destination distinct. Support scoped declaration/module

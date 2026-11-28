@@ -6,7 +6,7 @@ CEM-ML document/AST tree; progressive AST streaming is a later phase.
 **Primary use case:** a loader custom element using CEM-ML library loading and
 import, with lifecycle behavior modeled on legacy `<http-request>`.
 **Related docs:** [`cem-element` design](./cem-element-design.md),
-[`cem-element` WASM proposal](./cem-element-wasm-proposal.md),
+[`cem-element` WASM design](./cem-element-wasm-design.md),
 [`CEM-ML resource lifecycle`](./cem-ml-resource-lifecycle.md),
 [`cem-element` external resource loading contract](./cem-element-src-loading-contract.md),
 [`CEM-ML stack design`](./cem-ml-stack-design.md), and

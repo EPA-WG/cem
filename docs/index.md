@@ -38,7 +38,11 @@ This index links the active project, release, and token workflow documents.
 - [CEM ML CLI feature summary](./cem-ml-cli-contract.md) — planned CLI capabilities, options, reports, diagnostics,
   fixture workflows, and exit codes.
 - [CEM ML CLI plan](./cem-ml-cli-plan.md) — Rust `cem-ml` CLI implementation plan with `cem-ml` library separation.
-- [CEM-ML IDE and SDLC integration options](./integrations.md) — LSP/DAP architecture, VS Code, IntelliJ, Chromium
+- [Native AST transform boundary](./transform-boundary-native-ast-design.md) covers typed artifacts, extensions and explicit encoded outputs.
+- [Whole-page SSR](./cem-ml-cli-ssr-design.md) defines page compilation, the available CLI profile and hydration acceptance.
+- [Virtual applications](../packages/cem-components/docs/application.md), [localized resources](../packages/cem-components/docs/localization.md)
+  and [commands](../packages/cem-components/docs/command.md) define application ownership, presentation and invocation.
+- [CEM-ML IDE and SDLC integration design](./integrations.md) — LSP/DAP architecture, VS Code, IntelliJ, Chromium
   DevTools, CLI/editor transports, CI/CD projections, tradeoffs, and an implementation-ordered feature list.
 - [CEM-ML deployment contract](./cem-ml-deployment-contract.md) — canonical Phase 2.5 project identities, synchronized
   version authority, host matrix, capabilities, host protocol, signing, package channels, and promotion gates.
@@ -65,7 +69,7 @@ This index links the active project, release, and token workflow documents.
   event-to-data wiring, render loop, UI/processing split, migration path, and parity gates.
 - [`cem-element` Phase 3 substrate audit](./cem-elements-phase3-substrate-audit.md) — current implementation and
   fixture classification, resolved Nx target ownership, and the next logical-scope API decision.
-- [`cem-element` WASM proposal](./cem-element-wasm-proposal.md) — options for using `cem_ml` WASM, inline and URI
+- [`cem-element` WASM design](./cem-element-wasm-design.md) — host integration for `cem_ml` WASM, inline and URI
   declaration templates, module-map resolution, streaming source adapters, host runtime support, patch-frame streams,
   worker-pool scheduling, edge processing, and server-side rendering.
 - [CEM-ML resource lifecycle](./cem-ml-resource-lifecycle.md) — portable resource and asset lifecycle states, AST stream

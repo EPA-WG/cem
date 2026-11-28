@@ -878,7 +878,7 @@ implementations:
 - SSR resource acquisition supports repeatable `--ssr-network-read URL=IP`
   grants for exact resource URLs. A matching read map takes precedence.
   The grants apply only to bounded SSR reads and participate in the SSR
-  readiness identity. See the [SSR resource profile](cem-ml-cli-ssr-proposal.md#80-implemented-native-inline-cliexport-slice).
+  readiness identity. See the [SSR resource profile](cem-ml-cli-ssr-design.md#80-implemented-native-inline-cliexport-slice).
 
 Every resolver operation carries a purpose so hosts can apply policy by capability:
 

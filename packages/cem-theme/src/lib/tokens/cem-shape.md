@@ -1,7 +1,9 @@
 # CEM D3 Shape — Bend (Edge Softness & Corner Roundedness)
 
-**Status:** Proposed (canonical CEM spec)
-**Last updated:** December 19, 2025
+**Adopted design · 2026-11-27.** This is the canonical D3 Shape & Bend
+specification. It defines the bend basis, semantic endpoints, optional modes
+and component mappings. Apply the [minimum accessibility checks](#86-minimum-test-checklist)
+when adopting these tokens in a component.
 
 **Taxonomy placement:** D3. Shape & Bend (part of the 7-dimensional CEM token framework)
 

@@ -423,7 +423,7 @@ Exit criteria:
 
 ## Phase 2.7 - IDE, Debugger, And Browser Tooling Projections
 
-Goal: promote the accepted sequencing in [`docs/integrations.md`](docs/integrations.md) into product roadmap work.
+Goal: deliver the [IDE and SDLC integration design](docs/integrations.md) in dependency order.
 Editors, debuggers, CI, Studio, and Chromium DevTools must project one schema/context-root-aware CEM engine rather than
 shipping separate parsers or policy models.
 
@@ -580,10 +580,10 @@ Exit criteria:
 Goal: establish the reusable declarative web runtime before building the full component catalog. Phase 3 has two
 linked tracks: the **substrate** (`@epa-wg/cem-elements`) that delivers the `<cem-element>` declarative authoring tag,
 and the **primitives** (`@epa-wg/cem-components`) that consume it. Design home for the substrate is
-[`docs/cem-element-design.md`](docs/cem-element-design.md). WASM integration options for CEM-ML/CEM-QL template
+[`docs/cem-element-design.md`](docs/cem-element-design.md). The WASM integration contracts for CEM-ML/CEM-QL template
 compilation, inline and URI declaration sources, streaming, worker-pool scheduling, and post-Phase-3 edge/SSR
-processing boundaries are proposed in
-[`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md).
+processing boundaries are defined in
+[`docs/cem-element-wasm-design.md`](docs/cem-element-wasm-design.md).
 
 ### 3.1 Substrate — `@epa-wg/cem-elements`
 
@@ -601,7 +601,7 @@ Deliverables:
 - Bridge-window compatibility surface: legacy `<custom-element>` templates remain supported via an opt-in
   `lang="custom-element-v0"` annotation while authors migrate.
 - WASM-backed template processing path selected from
-  [`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md), covering inline declaration templates,
+  [`docs/cem-element-wasm-design.md`](docs/cem-element-wasm-design.md), covering inline declaration templates,
   URI/module-map resolution, remote source streaming, local parser streaming, reusable host runtime support,
   patch-frame streams, worker-pool scheduling, service-worker-compatible artifact identity/hooks,
   post-Phase-3 edge/SSR boundaries, and main-thread DOM patch ownership.
@@ -1381,9 +1381,9 @@ Deliverables:
   `packages/cem-elements/index.html` and every HTML document under `packages/cem-elements/demo/`, emitting deterministic
   SSR HTML and hydration artifacts while preserving each document's base URL, import maps, scoped module resolution,
   and source-map identity. Gate the generated pages against the same page/legend inventory and observable outcomes as
-  the source-loaded browser demos so SSR coverage cannot silently drift from client rendering. The proposed command,
+  the source-loaded browser demos so SSR coverage cannot silently drift from client rendering. The command,
   artifact, CEMT participant, route-identity, formatting, and parity contracts are detailed in
-  [`docs/cem-ml-cli-ssr-proposal.md`](docs/cem-ml-cli-ssr-proposal.md).
+  [`docs/cem-ml-cli-ssr-design.md`](docs/cem-ml-cli-ssr-design.md).
 - Edge processing fixture that accepts a serialized snapshot plus previous render-plan identity and produces a
   patch-frame stream without access to live browser DOM.
   The Node-only reference fixture now verifies retained state and content, advances it by expected-ETag

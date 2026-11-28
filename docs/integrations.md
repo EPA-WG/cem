@@ -1,8 +1,10 @@
-# CEM-ML IDE and SDLC Integration Options
+# CEM-ML IDE and SDLC Integration Design
 
-Status: research and design proposal, 2026-08-09. This document is not yet an
-active implementation checklist; its ordered feature list is intended to be
-promoted into the roadmap after the contracts are accepted.
+**Adopted design · 2026-11-27.** Editors, CI, Studio and Chromium share one
+protocol-neutral tooling service. LSP projects its language features. DAP
+projects debugging once the execution engine supplies safe points and frame
+snapshots. Phase 2.7 owns the delivery sequence and exit criteria.
+[Tooling roadmap](../roadmap.md#phase-27---ide-debugger-and-browser-tooling-projections)
 
 ## Outcome
 
@@ -54,7 +56,7 @@ protocol.
 
 ## Existing Foundation
 
-This proposal can build on substantial existing behavior rather than wrapping
+The tooling service builds on substantial existing behavior rather than wrapping
 the CLI's human-readable output.
 
 | Existing capability                                                                                                                              | Integration value                                                                                   | Remaining gap                                                                                                |
@@ -291,7 +293,7 @@ by itself stop execution, preserve a live frame, step, or lazily expand values.
 A debugger therefore needs an execution controller in the query/transform
 runtime, not only a DAP serializer over completed reports.
 
-### Proposed execution model
+### Debug execution model
 
 Debug safe points should include:
 
@@ -643,10 +645,11 @@ implemented as alternate validators.
   they should not receive broader resolver or evaluation authority than the
   user-facing integrations.
 
-## Ordered Feature List for a Future Roadmap
+## Delivery sequence
 
-The order below is dependency-driven. Each item should be promoted into
-acceptance criteria and `docs/todo.md` only when implementation is authorized.
+Implement the work in dependency order. The protocol contract and Unicode
+source-range fixtures come first. The roadmap tracks editor, debugger and
+browser deliverables.
 
 1. **Tooling data contract.** Version a protocol-neutral document snapshot,
    source catalog, full primary/related ranges, source trace, diagnostic fixes,

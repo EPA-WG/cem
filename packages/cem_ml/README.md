@@ -5,6 +5,10 @@ conversion, query, transformation, reporting, scheduling, source-map, and
 operation-control semantics. Its version is the authority shared by the native
 CLI and synchronized npm/WASM deployment packages.
 
+
+The transform graph retains typed ASTs and native extension artifacts across adapters.
+Encoding occurs at explicit import or output boundaries. [Native AST transform boundary design](../../docs/transform-boundary-native-ast-design.md)
+
 ## Public boundary
 
 The crate exposes reusable library APIs and a WebAssembly-compatible `cdylib`.
@@ -56,7 +60,7 @@ the URL portion of render identity.
 
 The initial supported static HTML profile, base-policy decisions and invalid-base
 browser divergence are specified in the
-[SSR proposal](../../docs/cem-ml-cli-ssr-proposal.md#311-implemented-native-url-preflight).
+[SSR design](../../docs/cem-ml-cli-ssr-design.md#311-implemented-native-url-preflight).
 This is a native contract; the SSR command, settled rendering artifact and lifecycle
 coordinator are still pending. Run `yarn nx run cem_ml:test --lib --args=ssr_route`
 and `yarn nx run cem_ml:test:ssr-routes:browser` for the focused native and
@@ -78,7 +82,7 @@ available. The key is a conservative candidate, not cache or adoption authority.
 `export_report_json()` is an explicit bounded control sidecar without source text
 or DOM data. The SSR command, wire codec, lifecycle coordinator and settled
 adoption proof remain pending; see the
-[artifact contract](../../docs/cem-ml-cli-ssr-proposal.md#51-implemented-retained-envelope-and-admission-limits).
+[artifact contract](../../docs/cem-ml-cli-ssr-design.md#51-implemented-retained-envelope-and-admission-limits).
 
 Focused checks are `yarn nx run cem_ml:test --lib --args=ssr_artifact` and
 `yarn nx run cem_ml:test:stripped --args='--lib ssr_artifact'` with prepared
@@ -93,7 +97,7 @@ source provenance. Explicit document/base metadata does not rename the source.
 `text/cem-ml` template; it supplies decoded CEM text and authored source maps to
 the shared compiler without an HTML reparse or AST serialization. Existing
 script/resource policy and import limits apply. The first consumer is the
-[inline DCE preparation](../../docs/cem-ml-cli-ssr-proposal.md#611-implemented-preparation-for-one-inline-dce)
+[inline DCE preparation](../../docs/cem-ml-cli-ssr-design.md#611-implemented-preparation-for-one-inline-dce)
 in `cem-ql`; its separate island preparation and one-pass application APIs
 consume this owner.
 

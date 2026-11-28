@@ -411,7 +411,7 @@ phase passes a JavaScript document object or JSON-serialized AST between runtime
 ## Related Documents
 
 - [`cem-element` design](./cem-element-design.md)
-- [`cem-element` WASM proposal](./cem-element-wasm-proposal.md)
+- [`cem-element` WASM design](./cem-element-wasm-design.md)
 - [CEM-ML resource lifecycle](./cem-ml-resource-lifecycle.md)
 - [CEM Elements HTTP request resource design](./cem-elements-http-request-design.md)
 - [Content-type switching BRD](./content-type-switch.md)

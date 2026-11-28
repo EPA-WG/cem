@@ -1,11 +1,11 @@
 # Virtual applications and orchestration
 
-**Status:** design proposal, 2026-11-23. This document proposes
-`cem-application`; it does not introduce a shipped component, capability, or
-binding syntax. Read it with [command.md](command.md) and
-[localization.md](localization.md). Existing accepted interaction and lifecycle
-contracts remain authoritative until an explicit implementation revision adopts
-these additions.
+**Adopted design · 2026-11-27.** A `cem-application` owns an embeddable
+application context. This design specifies insulation, downward grants, lifecycle,
+and command orchestration. The two-editor Save As acceptance test covers one
+runtime path in light DOM and iframe hosts. The general component, providers and
+portability guarantees have their own [acceptance criteria](#acceptance-and-limits).
+See the [command design](command.md) and [localization design](localization.md).
 
 **Owner revision — virtual applications:** `cem-application` is an embeddable
 microapplication boundary, with a native CEM context, downward container
@@ -18,10 +18,9 @@ starts with a private admitted environment. Browser services are available to
 CEM app code only through `cem-elements` guardrails; app code receives no
 unrestricted browser API. This replaces the earlier inherited-by-default mode
 and the suggestion that CEM-only virtualization necessarily requires a separate
-browser realm. Native scope syntax and implicit property inheritance are the
-primary candidate, with explicit cross-app bindings and `embed-page` insulation
-parity as described below. These are proposed contracts, not implementation
-or security-conformance receipts.
+browser realm. Applications reuse native scope syntax and implicit property
+inheritance inside the admitted environment. Explicit bindings govern cross-app
+access. The acceptance criteria use `embed-page` as the behavioral reference.
 
 ## Purpose
 
@@ -168,7 +167,9 @@ cannot cancel an enclosing mandatory restriction. Parent ownership does not
 automatically issue cross-scope node or DOM-placement grants: keep
 [directed source/placement admission](../../../docs/cem-element-granted-placements-design.md).
 
-### Scope syntax and property inheritance: primary candidate
+<a id="scope-syntax-and-property-inheritance-primary-candidate"></a>
+
+### Scope syntax and property inheritance
 
 Reuse native CEM scope ownership and existing host-bound typed properties.
 A `cem-application` instance owns a native context frame; it need not require
@@ -195,15 +196,15 @@ sentinel is introduced here.
 
 Keep source-document URI, resolution base and app location/history distinct.
 The former two already have native context machinery. App location/storage
-providers and their cross-app bindings are a proposed generic consumer contract,
+providers and their cross-app bindings are a generic consumer contract,
 not new parser keywords. If undoing a local default later requires an explicit
 inherit/reset marker, define its per-property schema semantics separately;
-this proposal does not present such a marker as existing syntax.
+Existing scopes use implicit inheritance.
 
 ### Named groups and virtual sets
 
 A named application scope can serve as a handle for a host-admitted native
-environment/group. Its naming/lookup consumer is proposed work, separate from
+environment/group. Its naming and lookup require a dedicated consumer, separate from
 module-map prefix scopes and public named CSS membership. Resolve a local name
 to an immutable admitted group/provider identity; matching strings alone never
 authorize joining a vendor's environment.
@@ -445,7 +446,6 @@ The `embed-page` parity suite is the starting behavioral reference, not a list o
 edge cases already passed in CEM. Add acceptance for count/enumeration, empty
 keys, remove/clear, old/new values, writer/no-op suppression, scope collisions,
 cross-tab/session lifetimes, denied stores, epoch fences and rebind/rename/clone.
-This proposal adds no browser fixture or executable implementation.
 
 ## Ownership
 
@@ -469,7 +469,7 @@ to bypass provider bindings with direct browser globals. Neither those adapters
 nor hybrid app code may manufacture competing component UI, attach app-local
 UI behavior, or implement a separate dialog controller.
 
-## Proposed application surface
+## Application surface
 
 These names are design inputs, not current attributes. Structured inputs are
 native CEM values/references, never JSON text hidden in an attribute.
@@ -654,7 +654,7 @@ remain lower priority. The manager/chrome remains able to start or close an app
 whose own processing is stopped.
 [Windows MDI](https://learn.microsoft.com/en-us/windows/win32/winmsg/about-the-multiple-document-interface).
 
-| Proposed management command | Meaning |
+| Management command | Meaning |
 | --- | --- |
 | `app.activate` | Select an admitted child by instance ID; start/load it first when necessary, then commit activation only on success |
 | `app.next`, `app.previous` | Select the next/previous eligible direct child in the manager's declared stable order; skip closed/unavailable children and do nothing if none exists |
@@ -680,7 +680,7 @@ control. Selection and focus restoration respect lifecycle gates and modality.
 ## Lifecycle, priority and stopped-event admission
 
 Separate execution state, manager-selected active state, visibility and network
-connectivity. In this proposal, lifecycle **`offline`** means deliberately taken
+connectivity. In this design, lifecycle **`offline`** means deliberately taken
 out of application event processing. It does not mean that browser networking
 is unavailable. Keep independent connectivity status; losing the network must
 not suspend a usable local/cached app or be inferred solely from
@@ -983,7 +983,7 @@ and a correlation ID; it must not broadcast into every application in a window.
 Host menu updates subscribe to the published locale and eligibility revisions.
 
 The existing `host-command` bridge is a narrower scalar service boundary, not
-this proposed routing protocol. Extend it explicitly or add a separately named
+this routing protocol. Extend it explicitly or add a separately named
 adapter for typed parameters; preserve its nested-view and ownership checks.
 An endpoint receives authority through the logical route and host grant.
 DOM event `isTrusted` cannot grant execution permission.
@@ -1009,7 +1009,9 @@ handoff and preserves dirty state. [Save As across hosts](command.md#save-as-acr
 
 ## Missing capabilities and implementation order
 
-This proposal requires new shared capabilities; none are delivered here.
+The two-editor Save As flow exercises command routing, parameter forms, locale
+publication and receipt delivery for one desktop service. Implement the general
+application capabilities in the following order. [Verified runtime scenario](../../../docs/todo.md#cem-application-acceptance)
 
 1. Bind application frames to the native context tree and existing resolver,
    namespace, import and grant contracts. Construct private roots with explicit
@@ -1043,7 +1045,7 @@ invoker behavior must remain independently usable throughout migration.
 
 ## Acceptance and limits
 
-Future implementation acceptance requires:
+Verify the following cases as each application capability is implemented.
 
 - With A selected and B focused, ordinary Save and contextual host-menu Save
   reach B once. Selected-child Save reaches A once and a manager shortcut
@@ -1114,5 +1116,4 @@ Future implementation acceptance requires:
 Complete guardrail coverage, `embed-page` behavioral parity, hybrid browser enforcement,
 OS adapters, portable app-state codec/migration, physical offload, cross-process
 transport and durable undo require implementation/evidence. Existing runtime
-storage/location bindings are not already app-virtualized; this proposal records
-the insulation-first contract and its acceptance requirements.
+storage and location bindings need application-scoped providers to meet the insulation contract.

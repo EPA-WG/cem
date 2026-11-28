@@ -169,7 +169,7 @@ where a broader product claim would be premature.
 - [Shared import boundary](cem-data-import-principle.md) and
   [declarative UI principle](declarative-ui-principle.md)
 - [SSR processing gate](cem-elements-edge-ssr-gate.md) and
-  [whole-page CLI compilation proposal](cem-ml-cli-ssr-proposal.md)
+  [whole-page CLI compilation design](cem-ml-cli-ssr-design.md)
 - [Markdown site example](../examples/projects/markdown-site/README.md) and
   [Studio example projects](../examples/projects/README.md)
 - [Semantic theme](../packages/cem-theme/README.md) and

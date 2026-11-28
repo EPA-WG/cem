@@ -695,7 +695,7 @@ implementation baseline above supersedes the starting gaps recorded here:
 Relevant local contracts include the
 [`cem-ml` CLI feature summary](./cem-ml-cli-contract.md),
 [`cem-ml` run-config contract](./cem-ml-phase2-run-config-contract.md),
-[`cem-element` WASM proposal](./cem-element-wasm-proposal.md), and the
+[`cem-element` WASM design](./cem-element-wasm-design.md), and the
 [`@epa-wg/cem-components` conventions](../packages/cem-components/docs/conventions.md).
 
 ## Recommended Architecture

@@ -54,7 +54,7 @@ island capture, rendering or hydration admission occurs: the returned envelope
 is `Partial(Incomplete)` and remains non-adoptable.
 
 The initial strict static profile and refusal/size limits are documented in the
-[SSR proposal](../../docs/cem-ml-cli-ssr-proposal.md#611-implemented-preparation-for-one-inline-dce).
+[SSR design](../../docs/cem-ml-cli-ssr-design.md#611-implemented-preparation-for-one-inline-dce).
 Run `yarn nx run cem_ql:test --test=ssr_preparation` and the actual stripped gate
 `yarn nx run cem_ql:test:ssr-preparation:stripped`, with prepared dependencies.
 `cem_ml:test:ssr-inline:browser` compares shared template-text fixtures against
@@ -76,7 +76,7 @@ control remains authoritative.
 The shared `instance_island` module supplies topology/domain/slot admission to
 both SSR and the isolated compiled component receiver, whose old module path
 remains a reexport. This does not enable the experimental component profile.
-See [supported forms and limits](../../docs/cem-ml-cli-ssr-proposal.md#621-implemented-canonical-html-island-preparation).
+See [supported forms and limits](../../docs/cem-ml-cli-ssr-design.md#621-implemented-canonical-html-island-preparation).
 Run `cem_ql:test --test=ssr_island`, `cem_ql:test:ssr-island:stripped`,
 `cem_ql:test:ssr-island:component`, `cem_ql:test:ssr-island:browser` and
 `cem_ql:lint:ssr-island` through `yarn nx run`. Browser observations compare
@@ -96,7 +96,7 @@ This first application profile admits passive HTML generated output. Nested
 participants, resource capabilities, foreign output, structured attribute
 contracts and unsupported source decoding fail explicitly before application.
 It supplies neither a settled page nor a production HTML serializer. See the
-[application contract](../../docs/cem-ml-cli-ssr-proposal.md#622-implemented-single-render-plan-application).
+[application contract](../../docs/cem-ml-cli-ssr-design.md#622-implemented-single-render-plan-application).
 
 Run `cem_ql:test --test=ssr_render`, `cem_ql:test:ssr-render:stripped` and
 `cem_ql:lint:ssr-render` through `yarn nx run`. After the native observation
@@ -135,7 +135,7 @@ render, stripped, lint and browser targets above. `prepare_host_write_control`
 reuses native coalescing for versioned primitive browser-publication metadata;
 canonical DOM writers publish it with the existing patch/CSS transaction, preserving
 revision and rollback guards. Same-pass dataset projection folds HTML ASCII case.
-The control is a write intent, not a source-owner or adoption grant. See the [shared transaction contract](../../docs/cem-ml-cli-ssr-proposal.md#623-implemented-shared-hostisland-commit).
+The control is a write intent, not a source-owner or adoption grant. See the [shared transaction contract](../../docs/cem-ml-cli-ssr-design.md#623-implemented-shared-hostisland-commit).
 
 ## String helpers
 

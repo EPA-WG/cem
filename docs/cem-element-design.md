@@ -304,7 +304,7 @@ existing POC and with the material parity benchmark (which uses
 <!-- Same-document fragment -->
 <cem-element tag="cem-icon" hidden src="#cem-icon-template"></cem-element>
 
-<!-- Module-map specifier resolved by the cem-element resolver (§3 of the WASM proposal) -->
+<!-- Module-map specifier resolved by the cem-element resolver (§3 of the WASM design) -->
 <cem-element tag="cem-button" src="@epa-wg/cem-components/button.cem#button"></cem-element>
 
 <!-- Whole-document standalone XSLT declaration source -->
@@ -323,7 +323,7 @@ Rules:
   fragment (or whole resource, when no fragment is given) as the declaration
   template body.
 - `src` resolves through the `cem-element` module-map resolver and scope-URL policy
-  documented in [`cem-element-wasm-proposal.md` §3](./cem-element-wasm-proposal.md).
+  documented in [`cem-element-wasm-design.md` §3](./cem-element-wasm-design.md).
   Supported forms include absolute URLs, document-relative URLs, fragment-only
   references (`#name`), and module-map specifiers (`@scope/pkg/path#fragment`).
 - A `src` without a fragment loads the whole resource as the declaration template.
@@ -1388,7 +1388,7 @@ method and compatibility choices remain Phase 3.6 decisions.
 
 ## 8. References
 
-- [`docs/cem-element-wasm-proposal.md`](./cem-element-wasm-proposal.md) — host
+- [`docs/cem-element-wasm-design.md`](./cem-element-wasm-design.md) — host
   runtime support layer, WASM worker processing, patch-frame transport, edge
   processing, and SSR options.
 - [`docs/cem-ml-syntax.md`](./cem-ml-syntax.md) — CEM-ML canonical curly surface.

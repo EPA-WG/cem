@@ -482,12 +482,12 @@ Known deferrals stay outside this trigger:
   invoke a stable command ID, how the owning app collects parameters, and who receives
   the result. The two-editor Save As flow is verified in light DOM and iframe hosts.
   [Command design](./docs/command.md) · [Remaining verification](../../docs/todo.md#resource-backed-command-verification)
-- The application orchestration and localization proposals describe insulated embedded
+- The application orchestration and localization designs specify insulated embedded
   apps, native scope and property bindings, guarded browser APIs with `embed-page` parity,
   container overrides, lifecycle and portable state, and localized and theme resources.
   The focused surface owns keyboard input and the manager selects the active child.
   All ten review decisions were adopted on 2026-11-27.
-  [Application proposal](./docs/application.md) · [Localization proposal](./docs/localization.md) · [Application acceptance](../../docs/todo.md#cem-application-acceptance)
+  [Application design](./docs/application.md) · [Localization design](./docs/localization.md) · [Application acceptance](../../docs/todo.md#cem-application-acceptance)
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.
 - [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted

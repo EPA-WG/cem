@@ -1,9 +1,10 @@
 # Localized application resources
 
-**Status:** design proposal, 2026-11-23. Neither `locate(lang)` nor a command
-localization registry is currently implemented. This proposal complements
-[application.md](application.md) and [command.md](command.md); it preserves the
-existing CEM native import, resource lifecycle and data-island boundaries.
+**Adopted design · 2026-11-27.** Stable resource IDs resolve to a locale-specific
+view inside the owning application. The two-editor Save As flow verifies French
+label overrides and coordinated shortcut publication for that scenario. The
+general resolver and catalog formats are specified here. [Application design](application.md)
+· [Command design](command.md) · [Verification](#caching-ssr-and-implementation-acceptance)
 
 **Insulation revision — 2026-11-24:** app contexts and mutable preferences are
 private by default. A host can admit inheritance/sharing for selected families;
@@ -82,7 +83,7 @@ This is inspired by native systems, with important distinctions:
 | AppKit separates menu key equivalents from modifier masks and supports user mappings | Resolve shortcuts structurally; do not translate a shortcut display string into behavior. [Key equivalents](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MenuList/Articles/SettingMenuKeyEquiv.html) |
 | GTK actions omit presentation, while menu models carry labels, icons, action references and targets | Keep command schemas/handlers separate from translated labels and menu organization. [Actions](https://docs.gtk.org/gtk4/actions.html), [menu models](https://docs.gtk.org/gtk4/class.PopoverMenu.html#menu-models) |
 
-These conventions motivate the proposed resource split; they do not guarantee
+These conventions motivate the resource split; they do not guarantee
 that an already-rendered menu relocalizes merely because an OS setting changes.
 
 These English and French views use the same desktop `file.save-as` schema.
@@ -221,7 +222,7 @@ XPath evaluator, or DOM-to-record substitute is permitted. Imported resources
 converge on the same typed vocabulary. Export to translation-tool JSON/CSV is an
 explicit interchange boundary and preserves stable keys and translator context.
 
-Binary catalogs and compressed application bundles are proposed extensions,
+Binary catalogs and compressed application bundles are optional extensions,
 not a promise that every current binary projection codec is an executable
 resource codec. Pin magic/version, inner MIME/schema, byte order/encoding,
 integrity checks, resource revision and source provenance as applicable.
@@ -249,7 +250,7 @@ template syntax does not authorize evaluation.
 
 ## `locate(lang)` and language negotiation
 
-Use **`locate(lang)`** as the proposed localization-context
+Use **`locate(lang)`** as the localization-context
 operation. It is not an existing global JavaScript function or an OS API. Its
 contract is: prepare a read-only resolved resource view for a requested language
 (or the application's preference list when omitted), then return the view with
@@ -490,9 +491,7 @@ Verify coherent recovery or unavailable affected routes, with no replay.
 Use complete messages with named, typed arguments. Plural/select alternatives
 are structured resource data with a required fallback branch. Locale-sensitive
 plural rules, dates, numbers, lists, units and collation should use admitted
-platform `Intl`/Unicode data or a pinned native equivalent. Pin the chosen
-message vocabulary and version before implementation; this proposal does not
-silently introduce ICU syntax, a new CEM expression language or a dependency.
+platform `Intl`/Unicode data or a pinned native equivalent. The message vocabulary and its version still need a decision before implementation.
 Never concatenate translated fragments such as Save + document + failed.
 
 Default message output is text, escaped at the output boundary. Rich messages
@@ -541,7 +540,7 @@ before reconciling client preferences. Preference reconciliation may relocalize 
 reopen dialogs or overwrite entered form data. A locale mismatch is a resource
 revision issue, not permission to replace the whole application DOM.
 
-Before implementation adoption, verify:
+Implementation acceptance covers the following cases.
 
 - Equivalent resource lookup from CEM-ML, JSON, YAML and declared CSV mappings;
   native identity/provenance survives without JavaScript catalog records.
@@ -567,5 +566,4 @@ Before implementation adoption, verify:
   deterministic sources/artifacts and no execution of translated resource data.
 - SSR/hydration generation reconciliation, owner release and no event replay.
 
-These are acceptance requirements for later implementation. This design change
-adds no importer, codec, runtime API, browser compatibility claim or fixture.
+The spoken mixed-locale label check remains open. [Application acceptance checklist](../../../docs/todo.md#cem-application-acceptance)

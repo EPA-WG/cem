@@ -8,7 +8,7 @@ hosts. [Implementation and verification](#implementation-and-verification)
 Each application starts with a private command context. The host explicitly admits
 inheritance, shared services and named-group membership. Within that context, CEM
 uses its existing per-property scope inheritance. [Application orchestration](application.md)
-and [localization](localization.md) describe the companion proposals.
+and [localization](localization.md) describe the companion designs.
 
 ## Command identity and model
 
@@ -574,7 +574,7 @@ Native lexical scope suffices for local lookup once the host
 has admitted the child's context. This self-contained manifest needs no module
 map. If the locale resources move to separate files, native module-map resource entries
 can resolve their specifiers. A map cannot express who may write a store or
-which child receives a field override. The grant and resource consumers enforce those checks. [Native scope and property inheritance](application.md#scope-syntax-and-property-inheritance-primary-candidate)
+which child receives a field override. The grant and resource consumers enforce those checks. [Native scope and property inheritance](application.md#scope-syntax-and-property-inheritance)
 
 ## Lifecycle, concurrency and effects
 
