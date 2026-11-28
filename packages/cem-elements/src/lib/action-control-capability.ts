@@ -14,7 +14,7 @@ export const CEM_ACTION_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         const abort = new AbortController();
         aborts.set(host, abort);
         host.addEventListener('click', event => {
-            if (host.hasAttribute('disabled') && (event.target as Element).closest('[part~="control"]')?.parentElement === host) {
+            if (host.matches('[disabled],[aria-disabled="true"]') && (event.target as Element).closest('[part~="control"]')?.parentElement === host) {
                 event.preventDefault();
                 event.stopImmediatePropagation();
             }

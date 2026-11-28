@@ -99,7 +99,7 @@ export const TypedPopupAndIndependentSubmenuEndpoints: Story = {
         const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope }); runtime.install(window);
         const declarations = [
             declare(root, runtime, declarationTag, popup, '{attribute @name=open | false}{div @part=base | {button @type=button | Default}}{div @part=popup | {button @type=button | Content}}', 'popup'),
-            declare(root, runtime, declarationTag, menu, '{attribute @name=keyboard | menu}{div @part=composite | {slot}}', 'composite-menu'),
+            declare(root, runtime, declarationTag, menu, '{attribute @name=keynav | on}{div @part=composite | {slot}}', 'composite-menu'),
             declare(root, runtime, declarationTag, card, `{attribute @name=tone | initial}{cem:variable @name=trigger @select='data:read("<button type=\\"button\\">Trigger</button>", "xml").root.children'}{${popup} @trigger-for={#trigger} @open=false}{$trigger}{span | {$tone}}`),
         ];
         const instance = document.createElement(card); root.append(instance);

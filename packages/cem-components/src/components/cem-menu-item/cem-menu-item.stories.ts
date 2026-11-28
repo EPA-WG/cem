@@ -90,7 +90,7 @@ export const NativeActivation = meta.story({
     },
 });
 
-const submenuExample = `<cem-menu keyboard="menu" aria-label="Commands">
+const submenuExample = `<cem-menu keynav aria-label="Commands">
     <cem-menu-item label="File"><cem-menu slot="submenu">
         <cem-menu-item label="New"></cem-menu-item>
         <cem-menu-item label="More"><cem-menu slot="submenu"><cem-menu-item label="Deep command"></cem-menu-item></cem-menu></cem-menu-item>

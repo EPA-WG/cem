@@ -173,16 +173,14 @@ Host visibility follows the [shared native visibility convention](./conventions.
 
 ### Menu role ownership
 
-`cem-menu` defaults to `keyboard="native"`: its collection is a named group,
+`cem-menu` without an enabled `keynav` scope uses native semantics: its collection is a named group,
 buttons remain buttons and links remain links in the ordinary Tab order.
 `cem-menu-item` does not hard-code a menu role, including when used alone.
 Applications that previously queried a standalone item as `menuitem` should query
 its native `button` or `link` role instead.
 
-Opting a root into `keyboard="menu"` makes its row a menubar, or its column a
-menu. The shared composite controller assigns roles and roving tab stops to its
-direct controls. Nested submenus inherit the root's mode, including live changes;
-they do not choose their own independent keyboard policy. Existing authored
+Enabling `keynav` makes a persistent root a menubar in either orientation. A popup uses menu semantics. The shared composite controller assigns roles and roving tab stops to its
+direct controls. Nested submenus inherit the nearest setting, including live changes and local overrides. Existing authored
 `menuitemradio`/`menuitemcheckbox` roles remain intact in composite mode.
 
 Returning to native mode restores the controls' original roles/tab stops,
@@ -621,14 +619,16 @@ neighbor's zebra indicators. This applies to row, column and nested popup menus,
 including projected `cem-action` controls. Inherited spacing overrides apply
 without changing each item's own control padding.
 
-`keyboard="native|menu"` defaults to native. Native mode keeps ordinary Tab
-navigation. Menu mode exposes a row menubar or column menu with one enabled
-roving stop. Arrows follow orientation and RTL; Home/End and case-insensitive
-typeahead skip disabled and hidden controls. Enter/Space retain native control
-activation. Empty or all-disabled menus have no roving stop.
+An enabled `keynav` scope gives a persistent menubar one roving Tab stop in
+either orientation. A menu in a popup uses programmatic focus. Arrows follow
+orientation and reading direction. Home, End and typeahead skip hidden and
+natively disabled controls. To expose an unavailable item during navigation,
+use `aria-disabled="true"`. The item can receive focus and refuses activation.
+Without an enabled scope the controls keep their ordinary Tab order.
+[Keyboard navigation design](../../../docs/cem-keyboard-navigation-design.md)
 
 Place a nested `cem-menu slot="submenu"` directly inside a `cem-menu-item`.
-Submenus require root menu mode, inherit that behavior, default to columns and
+Submenus inherit `keynav`, default to columns and
 open below row triggers or beside column triggers, flipping/clamping to the
 viewport. Owners remain buttons even when href is supplied. Leaf href items
 render native anchors; disabled leaves omit href and suppress activation.
@@ -732,7 +732,7 @@ close the panel, updating `open` to false. The declaration consumes existing act
 bend, typography, focus and elevation tokens instead of defining
 component-specific shadow/height/width aliases.
 
-Place `cem-menu direction="column" keyboard="menu"` in the default slot.
+Place `cem-menu direction="column" keynav` in the default slot.
 Nested menu-item submenu slots keep their existing composition. Both capabilities
 consume the shared native popup binding. The browser closes one popover level
 per Escape; the generic invoker service returns focus to that level's opener.

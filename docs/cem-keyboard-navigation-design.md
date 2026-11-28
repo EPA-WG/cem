@@ -10,7 +10,7 @@ The earlier radio/button experiment at `f02e46e2` exposed two focus destinations
 
 The revised prototype uses labelled native buttons throughout. Both documents use the same adapter. Each demonstrates horizontal and vertical menubars, nested submenus and a standalone menu button. [LTR sample](../packages/cem-components/src/components/cem-menu/css-menu-poc.html) · [RTL sample](../packages/cem-components/src/components/cem-menu/css-menu-poc-rtl.html)
 
-Before adoption the collection exposed a menu-specific keyboard setting. `keyboard="native"` gives ordinary controls their browser behavior. `keyboard="menu"` enables roving focus, orientation-aware arrows, Home/End, typeahead, native popup entry and Escape, and chain dismissal on Tab. Its current contract skips disabled items, derives the root role from its layout, and lacks the transition from a submenu leaf to the neighboring menubar branch. Those differences affect existing callers. [Component contract](../packages/cem-components/docs/component-reference.md) · [Current keyboard handler](../packages/cem-elements/src/lib/composite-menu-capability.ts)
+The production component and prototype share a browser acceptance matrix. The component also exercises inherited scope in forms and fieldsets. [LTR component sample](../packages/cem-components/playgrounds/cem-menu-keynav.html) · [RTL component sample](../packages/cem-components/playgrounds/cem-menu-keynav-rtl.html) · [Component contract](../packages/cem-elements/docs/composite-menu-contract.md)
 
 ## Authoring interface
 

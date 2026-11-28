@@ -27,6 +27,16 @@ Required outcomes include:
 The prototype uses roving tabindex on one native button per item. Its visible
 label also supplies its accessible name.
 
+## Keyboard navigation in the component
+
+Enable `keynav` on a menu, its enclosing component or a template node. Menus
+inherit the setting through their owners. `keynav="off"` opts a subtree out.
+Run the [LTR component sample](../../../playgrounds/cem-menu-keynav.html) or
+[RTL component sample](../../../playgrounds/cem-menu-keynav-rtl.html) with the
+built CEM runtime and theme available. Each uses the production declarations for
+`cem-menu`, `cem-menu-item` and `cem-dropdown`. Arrow navigation, native button
+activation and Tab exit follow the [design](../../../../../docs/cem-keyboard-navigation-design.md).
+
 ## Arrow-key prototype
 
 Open the [LTR sample](./css-menu-poc.html) or the [RTL sample](./css-menu-poc-rtl.html).
@@ -59,7 +69,7 @@ focused button. [Keyboard adapter](../../../../../examples/web/menu-keyboard/men
 
 ## Verification
 
-From the workspace root run `node tools/scripts/verify-cem-menu-keyboard-poc.mjs`.
+From the workspace root run `node tools/scripts/verify-cem-menu-keyboard-poc.mjs` for the prototype. After building `cem-elements`, add `--component` to run the same cases against rendered CEM components and exercise form and fieldset inheritance.
 The Playwright check exercises both documents. It checks physical item order,
 the focused button, open panel chain, roving Tab stop and key default handling.
 It also counts trusted clicks from native button activation, checks that arrows

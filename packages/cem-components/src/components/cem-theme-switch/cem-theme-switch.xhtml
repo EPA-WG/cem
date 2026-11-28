@@ -17,7 +17,7 @@
     ```}
     {cem-icon-button @part=trigger @interaction-name=theme-trigger @image="◐" @variant=contextual @title="Change theme" @aria-label="Change theme"}
     {cem-dropdown @part=menu @trigger-for="@theme-trigger" @boundary=viewport @open=false @host-command={datadom.attributes.theme-command} @slice=selection @slice-event=click @slice-value="$target.value" |
-      {cem-menu @keyboard=menu @direction=column @aria-label="Theme" |
+      {cem-menu @keynav=on @direction=column @aria-label="Theme" |
         {cem-icon-button @align=start @image="☀" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-light" { true } else { null } } @control-role=menuitemradio @aria-label="Light" @value=cem-theme-light | Light}
         {cem-icon-button @align=start @image="☾" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-dark" { true } else { null } } @control-role=menuitemradio @aria-label="Dark" @value=cem-theme-dark | Dark}
         {cem-icon-button @align=start @image="☀" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-contrast-light" { true } else { null } } @control-role=menuitemradio @aria-label="Contrast light" @value=cem-theme-contrast-light | Contrast light}

@@ -3,7 +3,7 @@ import { registerCemMenuRelay, resetCemTaskActivation, consumeCemTaskActivation 
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
 import { focusSurface, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
-import { compositeIndex } from './composite-navigation.js';
+import { compositeIndex, keynavEnabled } from './composite-navigation.js';
 import { checkpointPopupGeometry, preparePopupGeometry, positionPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
 
 import { CemNativePopupBinding } from './native-popup-binding.js';
@@ -25,6 +25,7 @@ interface State {
     settled?: () => void;
     native?: CemNativePopupBinding;
     entryLast?: boolean;
+    pendingEntry?: { last: boolean; origin: Element | null };
     controls: Set<HTMLElement>;
     relayRevision: number;
     queuedActivations: number;
@@ -39,6 +40,7 @@ interface State {
     geometryReady?: boolean;
     buffer: string;
     typedAt: number;
+    language?: string;
     abort?: AbortController;
     observer?: MutationObserver;
     syncing: boolean;
@@ -55,7 +57,7 @@ function owner(panel: HTMLElement): HTMLElement | null {
     const selected = interactionReference(panel, panel.getAttribute('parent-item') ?? '', 'parent-item');
     const control = interactionControl(selected.target);
     const parent = control?.closest(COMPOSITE)?.parentElement;
-    const code = selected.code ?? (!control || !parent || !menus.has(parent) || !controls(parent).includes(control)
+    const code = selected.code ?? (!control || !parent || control.closest('cem-application') !== panel.closest('cem-application') || !menus.has(parent) || !controls(parent).includes(control)
         || (nested && !nested.contains(control)) ? 'interaction-reference-conflict' : undefined);
     if (code) reportInteractionReference(panel, code);
     return code ? null : control ?? null;
@@ -71,7 +73,10 @@ function rootMenu(host: HTMLElement): HTMLElement | null {
         host = parent;
     }
 }
-function enabled(host: HTMLElement): boolean { return rootMenu(host)?.getAttribute('keyboard') === 'menu'; }
+function enabled(host: HTMLElement, origin = container(host) ?? host): boolean {
+    if (!rootMenu(host)) return false;
+    return keynavEnabled(origin, node => menus.has(node) && node.hasAttribute('parent-item') ? owner(node) : null);
+}
 function insideChain(host: HTMLElement, node: Node | null): boolean {
     if (!node) return false;
     const root = rootMenu(host);
@@ -81,7 +86,7 @@ function relationshipsChanged(host: HTMLElement): void {
     const state = stateFor(host);
     const parent = parentMenu(host) ?? undefined;
     if (state.parent && state.parent !== parent && stateFor(state.parent).openPanel === host) close(state.parent, true);
-    if (state.parent !== parent) { state.native?.disconnect(); state.native = undefined; }
+    if (state.parent !== parent) { state.native?.disconnect(); state.native = undefined; state.buffer = ''; }
     state.parent = parent;
     const trigger = owner(host);
     if (rootMenu(host) && (!parent || trigger && panelFor(trigger) === host)) reportInteractionReference(host);
@@ -107,7 +112,10 @@ function unavailable(control: HTMLElement): boolean {
     return !!control.closest('[hidden]:not([hidden="until-found"]),[inert],[disabled],[aria-disabled="true"]') ||
         control.getClientRects().length === 0 || getComputedStyle(control).visibility === 'hidden';
 }
-function items(host: HTMLElement): HTMLElement[] { return controls(host).filter(control => !unavailable(control)); }
+function items(host: HTMLElement): HTMLElement[] {
+    return controls(host).filter(control => !control.matches(':disabled') && !control.closest('[inert],[hidden]') &&
+        control.getClientRects().length > 0 && getComputedStyle(control).visibility !== 'hidden' && enabled(host, control));
+}
 function panelFor(control: HTMLElement): HTMLElement | null {
     const nested = control.parentElement?.querySelector<HTMLElement>(`:scope > [slot="submenu"]`) ?? null;
     const panels = new Set<HTMLElement>(nested && (!nested.hasAttribute('parent-item') || owner(nested) === control && rootMenu(nested)) ? [nested] : []);
@@ -171,6 +179,22 @@ function position(host: HTMLElement): void {
     else if (!stateFor(panel).geometryReady || panel.getAttribute('anchor-lost') !== 'freeze') close(host);
     stateFor(panel).settled?.(); stateFor(host).settled?.();
 }
+function enterWhenReady(panel: HTMLElement): void {
+    const state = stateFor(panel);
+    const pending = state.pendingEntry;
+    if (!pending || !state.native?.open) return;
+    const box = container(panel);
+    const active = panel.ownerDocument.activeElement;
+    if (active !== pending.origin && active !== box && active !== panel.ownerDocument.body) {
+        state.pendingEntry = undefined;
+        return;
+    }
+    const entry = items(panel).at(pending.last ? -1 : 0);
+    // Keep the requested end until an asynchronously rendered control arrives.
+    if (entry || panel.hasAttribute('focus-target') || panel.hasAttribute('data-cem-node-ref-focus-target')) state.pendingEntry = undefined;
+    if (entry?.matches('[aria-disabled="true"]') && !panel.hasAttribute('focus-target') && !panel.hasAttribute('data-cem-node-ref-focus-target')) entry.focus();
+    else focusSurface(panel, panel, entry ?? box ?? undefined);
+}
 function bindPanel(host: HTMLElement, trigger: HTMLElement, panel: HTMLElement): CemNativePopupBinding {
     const state = stateFor(host), child = stateFor(panel);
     if (child.native && child.native.trigger !== trigger) { child.native.disconnect(); child.native = undefined; }
@@ -186,13 +210,14 @@ function bindPanel(host: HTMLElement, trigger: HTMLElement, panel: HTMLElement):
                 synchronize(panel);
             } else {
                 if (state.openPanel === panel) { state.open = undefined; state.openPanel = undefined; state.relayRevision++; }
+                child.pendingEntry = undefined;
                 releasePopupGeometry(panel); child.geometryReady = false;
             }
             child.settled?.(); state.settled?.();
         },
         entered() {
-            const candidates = items(panel);
-            focusSurface(panel, panel, (child.entryLast ? candidates.at(-1) : candidates[0]) ?? container(panel) ?? undefined);
+            child.pendingEntry = { last: !!child.entryLast, origin: panel.ownerDocument.activeElement };
+            enterWhenReady(panel);
             child.entryLast = false;
         },
         closing: () => { state.relayRevision++; },
@@ -200,13 +225,14 @@ function bindPanel(host: HTMLElement, trigger: HTMLElement, panel: HTMLElement):
     reportInteractionReference(panel, child.native.valid ? undefined : 'interaction-control-unsupported', 'native-invoker');
     return child.native;
 }
-function open(host: HTMLElement, trigger: HTMLElement, last = false): void {
+function open(host: HTMLElement, trigger: HTMLElement, last = false, enter = true): void {
     if (!enabled(host) || unavailable(trigger)) return;
     const panel = panelFor(trigger);
     if (!panel) return;
     const binding = bindPanel(host, trigger, panel);
     stateFor(panel).entryLast = last;
-    binding.request(true, true);
+    if (enter) binding.request(true, true);
+    else binding.previewBranch();
 }
 function synchronize(host: HTMLElement): void {
     const state = stateFor(host);
@@ -218,28 +244,29 @@ function synchronize(host: HTMLElement): void {
     state.syncing = true;
     try {
         const menuMode = enabled(host);
-        setAttribute(box, 'role', menuMode ? (column(host) || owner(host) ? 'menu' : 'menubar') : 'group');
+        setAttribute(box, 'role', menuMode ? (popupLevel(host) ? 'menu' : 'menubar') : 'group');
         setAttribute(box, 'aria-orientation', menuMode ? (column(host) ? 'vertical' : 'horizontal') : null);
         for (const control of ownedControls) {
             const prior = originals.get(control);
             if (prior && prior.owner !== host) releaseControl(prior.owner, control);
             if (!originals.has(control)) originals.set(control, { owner: host, role: control.getAttribute('role'), tabindex: control.getAttribute('tabindex'), disabled: control.getAttribute('aria-disabled') });
             state.controls.add(control);
-            if (control.matches('a')) setAttribute(control, 'aria-disabled', control.hasAttribute('disabled') || control.parentElement?.hasAttribute('disabled') ? 'true' : originals.get(control)?.disabled ?? null);
+            if (control.matches('a')) setAttribute(control, 'aria-disabled', control.hasAttribute('disabled') || control.parentElement?.matches('[disabled],[aria-disabled="true"]') ? 'true' : originals.get(control)?.disabled ?? null);
         }
         const candidates = items(host);
         setAttribute(box, 'tabindex', menuMode && candidates.length === 0 ? '-1' : null);
         if (!state.active || !candidates.includes(state.active)) state.active = candidates[0];
-        if (state.open && (!candidates.includes(state.open) || !panelFor(state.open))) close(host);
         if (!menuMode) close(host, !!state.openPanel?.contains(host.ownerDocument.activeElement));
+        else if (state.open && (!candidates.includes(state.open) || !panelFor(state.open))) close(host);
         for (const control of ownedControls) {
+            const controlMode = menuMode && enabled(host, control);
             const authoredRole = originals.get(control)?.role;
-            setAttribute(control, 'role', menuMode ? (authoredRole === 'menuitemradio' || authoredRole === 'menuitemcheckbox' ? authoredRole : 'menuitem') : authoredRole ?? null);
-            const disabled = unavailable(control);
-            setAttribute(control, 'tabindex', menuMode ? (control === state.active && !disabled ? '0' : '-1') : (disabled ? '-1' : originals.get(control)?.tabindex ?? null));
+            setAttribute(control, 'role', controlMode ? (authoredRole === 'menuitemradio' || authoredRole === 'menuitemcheckbox' ? authoredRole : 'menuitem') : authoredRole ?? null);
+            const disabled = control.matches(':disabled') || !controlMode && unavailable(control);
+            setAttribute(control, 'tabindex', controlMode ? (control === state.active && !disabled && !popupLevel(host) ? '0' : '-1') : (disabled ? '-1' : originals.get(control)?.tabindex ?? null));
             const panel = panelFor(control);
             if (!panel) { releaseRelationship(control); continue; }
-            if (!menuMode) {
+            if (!controlMode) {
                 stateFor(panel).native?.disconnect(); stateFor(panel).native = undefined;
                 releaseRelationship(control);
                 setAttribute(panel, 'hidden', '');
@@ -251,50 +278,98 @@ function synchronize(host: HTMLElement): void {
             if (!panel.id) panel.id = `cem-composite-panel-${++sequence}`;
             setAttribute(control, 'aria-haspopup', 'menu');
             setAttribute(control, 'aria-controls', panel.id);
-            setAttribute(control, 'aria-expanded', state.open === control ? 'true' : 'false');
             const panelBox = container(panel);
             if (panelBox) setAttribute(panelBox, 'aria-labelledby', control.id);
-            bindPanel(host, control, panel).sync();
+            const binding = bindPanel(host, control, panel);
+            binding.sync();
+            setAttribute(control, 'aria-expanded', String(binding.open));
             synchronize(panel);
         }
         position(host);
+        enterWhenReady(host);
     } finally { state.syncing = false; }
 }
-function handleKey(host: HTMLElement, event: KeyboardEvent): void {
-    if (!enabled(host)) return;
+function standalone(host: HTMLElement): boolean {
+    return !!host.closest('[part~="popup"]');
+}
+function popupLevel(host: HTMLElement): boolean { return !!parentMenu(host) || standalone(host); }
+export function popupMenuEntry(panel: HTMLElement, last: boolean): HTMLElement | undefined {
+    const menu = Array.from(menus).find(menu => menu.closest('[part~="popup"]') === panel && !parentMenu(menu) && enabled(menu));
+    if (!menu) return;
+    return items(menu).at(last ? -1 : 0) ?? container(menu) ?? undefined;
+}
+function moveBranch(root: HTMLElement, launcher: HTMLElement, step: 'next' | 'previous', preview: boolean): void {
+    const bar = items(root);
+    const sibling = bar[compositeIndex(bar.length, bar.indexOf(launcher), step)];
+    close(root);
+    focus(root, sibling);
+    if (preview && sibling && !unavailable(sibling)) open(root, sibling, false, false);
+}
+
+export function handleMenuKeydown(host: HTMLElement, event: KeyboardEvent): void {
     const target = event.target as HTMLElement;
-    if (target.closest(COMPOSITE) !== container(host)) return;
+    const box = container(host);
+    if (!box || target.closest(COMPOSITE) !== box || !enabled(host, target)) return;
     const candidates = items(host);
     const current = candidates.indexOf(target);
-    if (current < 0 && !['Escape', 'Tab'].includes(event.key)) return;
-    const rtl = getComputedStyle(host).direction === 'rtl';
-    const isColumn = column(host);
-    const forward = rtl ? 'ArrowLeft' : 'ArrowRight';
-    const backward = rtl ? 'ArrowRight' : 'ArrowLeft';
+    if (current < 0 && target !== box) return;
     const key = event.key;
-    const parent = parentMenu(host);
-    if (key === 'Tab') { dismiss(host); return; }
-    if (key === 'Escape') { return; // Native auto-popover closes exactly one level.
-    } else if ((isColumn && key === forward) || (!isColumn && (key === 'ArrowDown' || key === 'ArrowUp'))) {
-        open(host, target, key === 'ArrowUp');
-    } else if (isColumn && key === backward && parent) {
-        close(parent, true);
-    } else if (key === 'Home' || key === 'End' || key === (isColumn ? 'ArrowDown' : forward) || key === (isColumn ? 'ArrowUp' : backward)) {
-        const action = key === 'Home' ? 'first' : key === 'End' ? 'last' : key === (isColumn ? 'ArrowDown' : forward) ? 'next' : 'previous';
+    const root = rootMenu(host);
+    if (!root) return;
+    if (key === 'Tab') {
+        const launcher = stateFor(root).open;
+        if (launcher) { dismiss(host); launcher.focus(); }
+        return;
+    }
+    if (event.shiftKey || key === 'Escape' || current < 0) return;
+    if (key === 'Enter' || key === ' ') {
+        if (event.repeat || unavailable(target)) event.preventDefault();
+        else if (key === ' ' && target.matches('a[href]')) { event.preventDefault(); target.click(); }
+        return;
+    }
+    const vertical = column(host);
+    const forward = getComputedStyle(box).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
+    const backward = forward === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+    const next = vertical ? 'ArrowDown' : forward;
+    const previous = vertical ? 'ArrowUp' : backward;
+    const toward = vertical ? forward : 'ArrowDown';
+    const away = vertical ? backward : 'ArrowUp';
+    if (key === next || key === previous) {
+        const step = key === next ? 'next' : 'previous';
+        if (host === root && stateFor(root).open) moveBranch(root, target, step, true);
+        else { close(host); focus(host, candidates[compositeIndex(candidates.length, current, step)]); }
+    } else if (key === toward || key === away) {
+        const parent = parentMenu(host);
+        if (panelFor(target) && (key === toward || !popupLevel(host))) open(host, target, key === away);
+        else if (!popupLevel(host)) moveBranch(root, target, key === toward ? 'next' : 'previous', false);
+        else if (key === away && parent && (parent !== root || standalone(root))) close(parent, true);
+        else if (!standalone(root)) {
+            const launcher = stateFor(root).open;
+            if (launcher) moveBranch(root, launcher, key === toward ? 'next' : 'previous', true);
+        }
+    } else if (key === 'Home' || key === 'End') {
         close(host);
-        focus(host, candidates[compositeIndex(candidates.length, current, action)]);
-    } else if (key.length === 1 && key !== ' ' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        focus(host, key === 'Home' ? candidates[0] : candidates.at(-1));
+    } else if (key.length === 1) {
         const state = stateFor(host);
         const now = Date.now();
-        state.buffer = now - state.typedAt > 700 ? key : state.buffer + key;
+        const language = target.closest('[lang]')?.getAttribute('lang') || undefined;
+        state.buffer = now - state.typedAt > 700 || language !== state.language ? key : state.buffer + key;
+        state.language = language;
         state.typedAt = now;
         const query = [...state.buffer].every(letter => letter === state.buffer[0]) ? key : state.buffer;
         const ordered = [...candidates.slice(current + 1), ...candidates.slice(0, current + 1)];
-        const match = ordered.find(control => (control.getAttribute('aria-label') ?? control.textContent ?? '').trim().toLocaleLowerCase().startsWith(query.toLocaleLowerCase()));
+        let collator: Intl.Collator;
+        try { collator = new Intl.Collator(language, { usage: 'search', sensitivity: 'base' }); }
+        catch { collator = new Intl.Collator(undefined, { usage: 'search', sensitivity: 'base' }); }
+        const match = ordered.find(control => {
+            const label = (control.getAttribute('aria-label') ?? control.textContent ?? '').trim();
+            return collator.compare(label.slice(0, query.length), query) === 0;
+        });
+        if (!match) return;
         focus(host, match);
-    } else return; // Enter and Space retain native button/link activation.
+    } else return;
     event.preventDefault();
-    event.stopPropagation();
 }
 
 export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
@@ -317,7 +392,6 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         });
         state.releaseReferences = observeInteractionReferences(host, () => relationshipsChanged(host));
         const options = { signal: abort.signal };
-        host.addEventListener('keydown', event => handleKey(host, event), options);
         host.addEventListener('click', event => {
             const control = (event.target as Element).closest<HTMLElement>('button,a');
             if (!control || !controls(host).includes(control)) return;
@@ -332,7 +406,12 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
                 queueMicrotask(() => {
                     state.queuedActivations--;
                     if (consumeCemTaskActivation(control) || event.defaultPrevented || !host.isConnected) return;
-                    dismiss(host); host.dispatchEvent(new Event('cem-popup-dismiss', { bubbles: true }));
+                    const root = rootMenu(host);
+                    const launcher = root && stateFor(root).open;
+                    const restore = root && insideChain(root, host.ownerDocument.activeElement);
+                    dismiss(host);
+                    if (restore && launcher?.isConnected) launcher.focus();
+                    host.dispatchEvent(new Event('cem-popup-dismiss', { bubbles: true }));
                 });
             }
         }, { ...options, capture: true });
@@ -356,14 +435,14 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         view.addEventListener('resize', reflow, options);
         view.addEventListener('scroll', reflow, { ...options, capture: true });
         state.observer = new MutationObserver(() => synchronize(host));
-        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'hidden', 'direction', 'keyboard', 'dir', 'href', 'parent-item', 'data-cem-node-ref-parent-item', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost', 'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary'] });
+        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'disabled', 'hidden', 'direction', 'keynav', 'dir', 'href', 'parent-item', 'data-cem-node-ref-parent-item', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost', 'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary'] });
     },
     rendered(host) { relationshipsChanged(host); },
     preserveRenderedAttribute(_host, _current, _desired, attribute) {
         return (_current.matches(COMPOSITE) || controls(_host).includes(_current as HTMLElement)) && ['role', 'tabindex', 'aria-orientation', 'aria-haspopup', 'aria-controls', 'aria-expanded', 'aria-labelledby', 'aria-disabled', 'id'].includes(attribute.name);
     },
     disconnected(host) {
-        const state = stateFor(host); state.settled = undefined;
+        const state = stateFor(host); state.settled = undefined; state.pendingEntry = undefined;
         close(host);
         for (const control of state.controls) releaseControl(host, control);
         state.releaseRelay?.(); state.releaseRelay = undefined;

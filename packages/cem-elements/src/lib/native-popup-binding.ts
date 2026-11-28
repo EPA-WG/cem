@@ -29,7 +29,7 @@ export class CemNativePopupBinding {
     private readonly hidden: HTMLElement['hidden'];
     private last = false;
     private enter = false;
-    private requesting = false;
+    private preview = false;
     private opening = false;
     private closing = false;
     private previousFocus?: Element | null;
@@ -55,11 +55,25 @@ export class CemNativePopupBinding {
         bindings.set(trigger, this); bindings.set(panel, this);
         panel.hidden = !nativeSurfaceVisible(panel);
         const signal = this.abort.signal;
-        trigger.addEventListener('click', () => { if (!this.requesting) this.enter = true; }, { capture: true, signal });
+        trigger.addEventListener('click', event => {
+            // A branch preview is already open, so native show emits no toggle.
+            if (this.preview && this.open) {
+                // Keep the show action through the browser's click default, then restore toggle.
+                const timer = view.setTimeout(() => {
+                    this.timers.delete(timer);
+                    if (event.defaultPrevented || !this.preview || !this.open) return;
+                    this.setPreview(false);
+                    this.options.entered();
+                }, 0);
+                this.timers.add(timer);
+            } else this.enter = true;
+        }, { capture: true, signal });
         panel.addEventListener('beforetoggle', event => {
             if (!event.isTrusted || event.target !== panel) return;
             if ((event as ToggleEvent).newState === 'open') {
                 this.closing = false;
+                // Native toggle notifications can coalesce a close and reopen.
+                if (this.last) { this.last = false; options.changed(false); }
                 this.opening = true;
                 this.previousFocus = panel.ownerDocument.activeElement;
                 this.policy.reset();
@@ -82,16 +96,35 @@ export class CemNativePopupBinding {
     get valid(): boolean {
         return this.live && this.supported && this.host.isConnected && this.trigger.isConnected && this.panel.isConnected
             && isDomInstance(this.trigger, 'HTMLButtonElement') && this.trigger.popoverTargetElement === this.panel
-            && this.trigger.type === 'button' && this.trigger.popoverTargetAction === 'toggle' && !this.trigger.hasAttribute('commandfor') && this.panel.popover === 'auto';
+            && this.trigger.type === 'button' && this.trigger.popoverTargetAction === (this.preview ? 'show' : 'toggle') && !this.trigger.hasAttribute('commandfor') && this.panel.popover === 'auto';
     }
     ownsAttribute(node: HTMLElement, attribute: Attr): boolean {
         return this.valid && (node === this.panel && attribute.name === 'hidden'
             || this.attributes.get(node)?.get(attribute.name)?.value === attribute.value);
     }
     get open(): boolean { return this.valid && nativeSurfaceVisible(this.panel); }
-    /** Arrows activate the invoker; compatibility intent uses the native API without replaying a click. */
+    private setPreview(preview: boolean): void {
+        if (this.preview === preview) return;
+        const action = this.attributes.get(this.trigger)?.get('popovertargetaction');
+        if (!action || this.trigger.getAttribute('popovertargetaction') !== action.value) return;
+        this.preview = preview;
+        action.value = preview ? 'show' : 'toggle';
+        this.trigger.setAttribute('popovertargetaction', action.value);
+    }
+    previewBranch(): void {
+        this.request(true);
+        if (this.open) this.setPreview(true);
+    }
+    /** Programmatic entry never dispatches a click on the launcher. */
     request(open: boolean, enter = false, restore = false): void {
-        if (!this.live || this.closing) return;
+        if (!this.live) return;
+        if (this.closing) {
+            if (nativeSurfaceVisible(this.panel)) return;
+            // Escape has already closed the surface; the next arrow may precede toggle.
+            this.closing = false;
+            this.sync();
+        }
+        if (enter || !open) this.setPreview(false);
         this.enter = enter;
         if (!open) {
             const inside = this.panel.contains(this.panel.ownerDocument.activeElement);
@@ -103,10 +136,7 @@ export class CemNativePopupBinding {
             if (restore && inside && (!active || active === this.trigger || active === this.previousFocus
                 || active === this.panel.ownerDocument.body || this.panel.contains(active))) restoreSurfaceFocus(this.host, this.trigger);
         } else if (this.valid && this.options.admitted() && !this.open) {
-            if (enter) {
-                this.requesting = true;
-                try { this.trigger.click(); } finally { this.requesting = false; }
-            } else this.panel.showPopover({ source: this.trigger });
+            this.panel.showPopover({ source: this.trigger });
         }
         this.sync();
         if (enter && this.open && this.enter) { this.enter = false; this.options.entered(); }
@@ -119,6 +149,7 @@ export class CemNativePopupBinding {
         // A new authored hidden request must not be overwritten by the mirror.
         if (open && this.last && this.panel.hidden) { this.request(false); return; }
         if (this.panel.hidden !== !open) this.panel.hidden = !open;
+        if (!open) this.setPreview(false);
         if (this.last !== open) { this.last = open; this.options.changed(open); }
         if (open && this.enter) { this.enter = false; this.options.entered(); }
     }

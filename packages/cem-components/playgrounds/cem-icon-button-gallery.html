@@ -214,7 +214,7 @@
 {section @id=icon-disclosure-details @hidden=true | Details are not available yet.}
 </template></cem-demo-element>
 <cem-demo-element type="cem-ml" legend="Radio menu composition" description="control-role is a composition hook for named radio items inside a composite menu, as used by the theme switch. The containing application owns selected state." data-covers="control-role"><template slot="source">
-{cem-menu @keyboard=menu @direction=column @aria-label="Display mode" |
+{cem-menu @keynav=on @direction=column @aria-label="Display mode" |
     {cem-icon-button @control-role=menuitemradio @selected=true @image="☀" @variant=contextual | Day mode}
     {cem-icon-button @control-role=menuitemradio @image="☾" @variant=contextual | Night mode}
 }

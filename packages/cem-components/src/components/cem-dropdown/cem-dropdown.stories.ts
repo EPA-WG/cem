@@ -39,7 +39,7 @@ export const SourceAndProjectedBase = meta.story({
 });
 export const NestedMenu = meta.story({
     render: () => `<section class="cem-theme-light"><p>Trusted keyboard and pointer checks run in the browser test runner.</p>
-        <cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands">
+        <cem-dropdown label="Commands" open="false"><cem-menu keynav direction="column" aria-label="Commands">
           <cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="More"><cem-menu slot="submenu"><cem-menu-item label="Deep"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item>
           <cem-menu-item href="#help" label="Help"></cem-menu-item>
         </cem-menu></cem-dropdown><button style="margin-inline-start: 25rem">Outside</button></section>`,
@@ -58,7 +58,7 @@ export const NestedMenu = meta.story({
         await userEvent.keyboard('{ArrowRight}');
         expect(document.activeElement?.textContent).toBe('New');
         await userEvent.keyboard('{ArrowDown}{ArrowRight}');
-        expect(document.activeElement?.textContent).toBe('Deep');
+        await waitFor(() => expect(document.activeElement?.textContent).toBe('Deep'));
         await userEvent.keyboard('{Escape}');
         expect(document.activeElement?.textContent).toBe('More');
         await userEvent.keyboard('{Escape}');

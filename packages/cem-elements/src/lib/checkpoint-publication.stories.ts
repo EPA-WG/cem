@@ -1114,7 +1114,7 @@ async function submenuTaskCheckpointContract(canvasElement: HTMLElement, fallbac
     const f = fixture(root, fallback);
     try {
         const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
-            '<div><button part="control" type="button">More</button></div>', 'composite-menu', { keyboard: 'menu', direction: 'column' });
+            '<div><button part="control" type="button">More</button></div>', 'composite-menu', { keynav: 'on', direction: 'column' });
         await f.runtime.whenRenderSettled(menu);
         const launcher = menu.querySelector<HTMLButtonElement>('button')!; launcher.id = `submenu-launcher-${crypto.randomUUID()}`;
         const submenu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
@@ -1184,7 +1184,7 @@ async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fal
         input.focus(); input.value = 'Unsaved draft'; input.setSelectionRange(2, 8);
         input.dispatchEvent(new InputEvent('input', { bubbles: true })); await producer.runtime.whenRenderSettled(targets);
         const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
-            '<button part="control" type="button">More</button>', 'composite-menu', { keyboard: 'menu', direction: 'column', boundary: '@bounds' });
+            '<button part="control" type="button">More</button>', 'composite-menu', { keynav: 'on', direction: 'column', boundary: '@bounds' });
         await f.runtime.whenRenderSettled(menu);
         const launcher = menu.querySelector<HTMLButtonElement>('button')!; launcher.id = `explicit-launcher-${crypto.randomUUID()}`;
         const submenu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
@@ -1285,7 +1285,7 @@ async function typedSubmenuCheckpointContract(canvasElement: HTMLElement, fallba
     const f = fixture(root, fallback);
     try {
         const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
-            '<button part="control" type="button">More</button>', 'composite-menu', { keyboard: 'menu', direction: 'column' });
+            '<button part="control" type="button">More</button>', 'composite-menu', { keynav: 'on', direction: 'column' });
         await f.runtime.whenRenderSettled(menu);
         const launcher = menu.querySelector('button')!; launcher.id = `typed-launcher-${crypto.randomUUID()}`;
         const definition = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root, undefined, 'composite-menu');

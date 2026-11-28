@@ -178,7 +178,8 @@ import { watchCemControlNames } from './control-name-diagnostics.js';
 import { connectCemNativeInvokerFocus } from './native-invoker-focus.js';
 import { preserveNativePopupAttribute } from './native-popup-binding.js';
 import { CEM_PAYLOAD_HEADER_NAMES, resolveRetainedPayloadContract, freezeRetainedPayloadContract, type CemRetainedPayloadContract } from './retained-payload-contract.js';
-import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
+import { connectKeynav, disconnectKeynav } from './composite-navigation.js';
+import { handleMenuKeydown, CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
 
@@ -4140,6 +4141,8 @@ export class CemElementRuntime {
             clearCemPlacementRelationships(instance);
             this.hydratedServerRenders.delete(instance);
         }
+        connectKeynav(instance, compiled.declarationElement.getAttribute('keynav'),
+            compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY ? handleMenuKeydown : undefined);
         compiled.behavior?.connected?.(instance, this.behaviorContext(instance));
         if (this.hydratedServerRenders.has(instance)) {
             const hydrationSnapshot = this.hydrationSnapshots.get(instance);
@@ -4505,6 +4508,7 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        disconnectKeynav(instance);
         this.controlNameChecks.get(instance)?.();
         this.controlNameChecks.delete(instance);
         this.canonicalSsrAdmissions.get(instance)?.cancel();

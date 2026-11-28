@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>التنقل بلوحة المفاتيح</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/": "../src/components/",
+        "@epa-wg/cem-components/playgrounds/": "./"
+    }
+}</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        window.cemPlaygroundRuntime = installCemElementRuntime(window);
+        document.addEventListener('click', event => {
+            const item = event.target.closest('button[role=menuitem]');
+            if (item && !event.defaultPrevented && !item.hasAttribute('aria-haspopup')) {
+                document.querySelector('output').value = item.textContent;
+            }
+        });
+    </script>
+</head>
+<body class="cem-theme-light" keynav>
+<cem-element tag="cem-menu-item" capability="action-control" src="@epa-wg/cem-components/components/cem-menu-item/cem-menu-item.xhtml#cem-menu-item"></cem-element>
+<cem-element tag="cem-menu" capability="composite-menu" src="@epa-wg/cem-components/components/cem-menu/cem-menu.xhtml#cem-menu"></cem-element>
+<cem-element tag="cem-dropdown" capability="popup" src="@epa-wg/cem-components/components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown"></cem-element>
+<h1>التنقل بلوحة المفاتيح</h1>
+<section>
+    <h2>شريط أفقي</h2>
+    <cem-menu direction="row" aria-label="شريط أفقي">
+        <cem-menu-item label="ملف">
+            <cem-menu direction="column" aria-label="ملف" slot="submenu" id="horizontal-file">
+                <cem-menu-item label="جديد"></cem-menu-item>
+                <cem-menu-item label="تصدير">
+                    <cem-menu direction="column" aria-label="تصدير" slot="submenu" id="horizontal-export">
+                        <cem-menu-item label="PDF"></cem-menu-item>
+                        <cem-menu-item label="SVG"></cem-menu-item>
+                    </cem-menu>
+                </cem-menu-item>
+                <cem-menu-item label="حفظ"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="مساعدة"></cem-menu-item>
+        <cem-menu-item label="تحرير">
+            <cem-menu direction="column" aria-label="تحرير" slot="submenu" id="horizontal-edit">
+                <cem-menu-item label="نسخ"></cem-menu-item>
+                <cem-menu-item label="لصق"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="غير متاح" aria-disabled="true">
+            <cem-menu direction="column" aria-label="غير متاح" slot="submenu" id="horizontal-unavailable">
+                <cem-menu-item label="طباعة"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="عرض">
+            <cem-menu direction="column" aria-label="عرض" slot="submenu" id="horizontal-view">
+                <cem-menu-item label="تكبير"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+    </cem-menu>
+</section>
+<section>
+    <h2>شريط عمودي</h2>
+    <cem-menu direction="column" aria-label="شريط عمودي">
+        <cem-menu-item label="ملف">
+            <cem-menu direction="column" aria-label="ملف" slot="submenu" id="vertical-file">
+                <cem-menu-item label="جديد"></cem-menu-item>
+                <cem-menu-item label="تصدير">
+                    <cem-menu direction="column" aria-label="تصدير" slot="submenu" id="vertical-export">
+                        <cem-menu-item label="PDF"></cem-menu-item>
+                        <cem-menu-item label="SVG"></cem-menu-item>
+                    </cem-menu>
+                </cem-menu-item>
+                <cem-menu-item label="حفظ"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="مساعدة"></cem-menu-item>
+        <cem-menu-item label="تحرير">
+            <cem-menu direction="row" aria-label="تحرير" slot="submenu" id="vertical-edit">
+                <cem-menu-item label="نسخ"></cem-menu-item>
+                <cem-menu-item label="لصق"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="غير متاح" aria-disabled="true">
+            <cem-menu direction="column" aria-label="غير متاح" slot="submenu" id="vertical-unavailable">
+                <cem-menu-item label="طباعة"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+        <cem-menu-item label="عرض">
+            <cem-menu direction="column" aria-label="عرض" slot="submenu" id="vertical-view">
+                <cem-menu-item label="تكبير"></cem-menu-item>
+            </cem-menu>
+        </cem-menu-item>
+    </cem-menu>
+</section>
+<section>
+    <h2>زر قائمة مستقل</h2>
+    <cem-dropdown id="actions" open="false" label="خيارات">
+        <cem-menu direction="column" aria-label="إجراءات">
+            <cem-menu-item label="طباعة"></cem-menu-item>
+            <cem-menu-item label="حفظ"></cem-menu-item>
+        </cem-menu>
+    </cem-dropdown>
+</section>
+<output aria-live="polite"></output>
+</body>
+</html>

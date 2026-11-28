@@ -20,7 +20,7 @@ async function fixture(root: HTMLElement, fallback = false, independent = false)
         ...(fallback ? { processingWorkerFactory: () => { throw new Error('fallback'); } } : {}) }); runtime.install(window);
     const declarations: HTMLElement[] = [];
     for (const [tag, capability, text] of [[popupTag, 'popup', '{attribute @name=open | false}{span @part=base | {button @type=button | Menu}}{div @part=popup | {slot}}'],
-        [menuTag, 'composite-menu', '{attribute @name=keyboard | menu}{attribute @name=direction | column}{div @part=composite | {slot}}']]) {
+        [menuTag, 'composite-menu', '{attribute @name=keynav | on}{attribute @name=direction | column}{div @part=composite | {slot}}']]) {
         const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag); declaration.setAttribute('capability', capability);
         const template = document.createElement('template'); template.setAttribute('type', 'text/cem-ml'); template.textContent = text;
         declaration.append(template); root.append(declaration); runtime.registerDeclaration(declaration); declarations.push(declaration);

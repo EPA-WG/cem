@@ -425,14 +425,12 @@ strip it.
   enforcement mechanism for size minima.
 
 
-`cem-menu` preserves native Tab navigation unless `keyboard="menu"` is selected.
+`cem-menu` preserves native Tab navigation outside an enabled `keynav` scope.
 Native mode exposes a named group and native button/link items; standalone
 `cem-menu-item` controls also retain their implicit native roles. Menu roles and
 popup relationships belong to the shared composite controller, are synchronized
 through nested owners, and are released on native-mode changes or removal.
-Label it with `aria-label` or `aria-labelledby`. Menu mode uses a menubar for row
-roots, menu for columns and submenus, and a single enabled roving stop per open
-menu. Nested owners expose haspopup, controls and expanded relationships;
+Label it with `aria-label` or `aria-labelledby`. Menu mode uses one roving stop per persistent menubar. Popup items receive programmatic focus. Nested owners expose haspopup, controls and expanded relationships;
 Escape restores their focus. Tab and outside activation dismiss without trapping
 focus. Disabled links cannot navigate. Context menus and checkable items are
 outside this contract. See the component reference for composition and keys.

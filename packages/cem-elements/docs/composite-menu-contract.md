@@ -4,8 +4,11 @@ A declaration requests `capability="composite-menu"` and produces one direct
 `part="composite"` container. Its direct links/buttons and direct child hosts'
 `part="control"` controls form the collection. A control host may project a
 direct child with `slot="submenu"` that uses this same capability. No component
-tag names are required. `keyboard="menu"` on the root enables the composite;
+tag names are required. Bare `keynav` enables the composite, omission inherits
+and `keynav="off"` restores native keyboard handling. A persistent root is a
+menubar in either orientation. Popup items use programmatic focus.
 `direction`, `dir` and `justify` retain declaration ownership.
+[Navigation design and form ownership](../../../docs/cem-keyboard-navigation-design.md)
 
 The browser-independent navigation/position contracts have Node unit tests.
 This addition performs no native AST transformation; existing native capability

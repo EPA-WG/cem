@@ -1767,10 +1767,10 @@ async function verifyMenus(baseUrl) {
         await menu.getByRole('link', { name: 'Home', exact: true }).focus();
         await page.keyboard.press('Tab'); assert.equal(await command.evaluate(node => node === document.activeElement), true);
         await page.keyboard.press('Tab'); assert.equal(await link.evaluate(node => node === document.activeElement), true);
-        for (const mode of ['menu', 'native', 'menu', 'native']) {
-            await page.getByRole('group', { name: 'keyboard', exact: true }).getByRole('radio', { name: mode, exact: true }).check();
-            await page.waitForFunction(mode => document.querySelector('main cem-menu[aria-label="Commands"]')?.getAttribute('keyboard') === mode, mode);
-            if (mode === 'native') {
+        for (const mode of ['on', 'off', 'on', 'off']) {
+            await page.getByRole('group', { name: 'keynav', exact: true }).getByRole('radio', { name: mode, exact: true }).check();
+            await page.waitForFunction(mode => document.querySelector('main cem-menu[aria-label="Commands"]')?.getAttribute('keynav') === mode, mode);
+            if (mode === 'off') {
                 await native();
                 // A change through an outside control must not steal its focus.
                 assert.equal(await page.getByRole('radio', { name: mode, exact: true }).evaluate(node => node === document.activeElement), true);
@@ -1779,7 +1779,7 @@ async function verifyMenus(baseUrl) {
                 await menu.getByRole('menuitem', { name: 'Commands', exact: true }).waitFor().catch(async error => {
                     console.error('Menu accessibility:', await menu.ariaSnapshot());
                     console.error('Menu role transition:', await menu.evaluate(host => ({
-                        mode: host.getAttribute('keyboard'),
+                        mode: host.getAttribute('keynav'),
                         diagnostics: window.cemPlaygroundRuntime.diagnosticsFor(host),
                     })));
                     throw error;
@@ -1800,7 +1800,7 @@ async function verifyMenus(baseUrl) {
         const bundled = page.locator('cem-menu[aria-label="Bundled menu"]');
         const leaf = bundled.getByRole('menuitem', { name: 'Bundled leaf', exact: true });
         await leaf.waitFor(); const leafOwner = await leaf.elementHandle();
-        await bundled.evaluate(node => node.setAttribute('keyboard', 'native'));
+        await bundled.evaluate(node => node.setAttribute('keynav', 'off'));
         const nativeLeaf = bundled.getByRole('button', { name: 'Bundled leaf', exact: true });
         await nativeLeaf.waitFor();
         assert.equal(await nativeLeaf.evaluate((node, original) => node === original, leafOwner), true);

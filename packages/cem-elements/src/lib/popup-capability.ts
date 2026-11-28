@@ -1,3 +1,5 @@
+import { keynavEnabled } from './composite-navigation.js';
+import { popupMenuEntry } from './composite-menu-capability.js';
 import type { CheckpointEndpoint, CheckpointMenuRole, CheckpointPopup } from './checkpoint-interactions.js';
 import { registerCemPopupRelay, containsCemMenuChain } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
@@ -76,7 +78,7 @@ function synchronize(host: HTMLElement): void {
             } else { if (previous) state.relayRevision++; releasePopupGeometry(panel); state.geometryReady = false; }
             state.settled?.();
         },
-        entered: () => { if (state.open) focusSurface(host, panel); },
+        entered: () => { if (state.open) focusSurface(host, panel, popupMenuEntry(panel, false)); },
         closing: () => { state.relayRevision++; },
     });
     reportInteractionReference(host, state.native.valid ? undefined : 'interaction-control-unsupported', 'native-invoker');
@@ -118,11 +120,20 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
         });
         state.releaseReferences = observeInteractionReferences(host, () => { synchronize(host); position(); });
         const abort = state.abort, options = { signal: abort.signal };
-        host.addEventListener('keydown', event => {
-            if (event.defaultPrevented) return;
-            if (event.key === 'Tab' && state.open) setOpen(host, false);
-            else if (event.target === state.trigger && event.key === 'ArrowDown') { event.preventDefault(); setOpen(host, true); }
-        }, options);
+        const keydown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+            if (event.key === 'Tab' && state.open) {
+                const inside = state.panel?.contains(host.ownerDocument.activeElement);
+                setOpen(host, false);
+                if (inside) state.trigger?.focus();
+            } else if (event.target === state.trigger && !event.shiftKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                if (!state.native?.valid || !state.panel || !state.trigger || !keynavEnabled(state.trigger, undefined, true) || state.trigger.matches(':disabled,[aria-disabled="true"]')) return;
+                event.preventDefault();
+                state.native.request(true);
+                if (state.native.open) focusSurface(host, state.panel, popupMenuEntry(state.panel, event.key === 'ArrowUp'));
+            }
+        };
+        host.addEventListener('keydown', keydown, options);
         host.addEventListener('cem-popup-dismiss', () => setOpen(host, false, true), options);
         host.addEventListener('focusout', event => {
             if (containsCemMenuChain(host, event.relatedTarget as Node | null) || event.relatedTarget === state.trigger) return;
@@ -136,7 +147,7 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
             }, 0);
         }, options);
         host.ownerDocument.addEventListener('keydown', event => {
-            if (state.external && event.target === state.trigger && event.key === 'ArrowDown' && !state.trigger?.matches(':disabled,[aria-disabled="true"]')) { event.preventDefault(); setOpen(host, true); }
+            if (state.external && event.target === state.trigger) keydown(event);
         }, options);
         const view = host.ownerDocument.defaultView;
         const position = () => {

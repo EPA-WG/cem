@@ -56,7 +56,7 @@
         {a @part=control @href={if seq:count(datadom.attributes.disabled) > 0 { null } else { datadom.attributes.href }} @aria-label="{$datadom.attributes.aria-label}" @aria-disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @tabindex={if seq:count(datadom.attributes.disabled) > 0 { -1 } else { null }} @slice=selected @slice-event=click @slice-value="$event.type" | {slot | {$label}}}
       }
       {cem:otherwise |
-        {button @type=button @class=cem-menu-item @part=control @aria-label="{$datadom.attributes.aria-label}" @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-expanded={if datadom.slices.hasSubmenu { null } else { datadom.attributes.expanded }} @slice=selected @slice-event=click @slice-value="$event.type" | {slot | {$label}}}
+        {button @type=button @aria-disabled={if datadom.attributes.aria-disabled == "true" { "true" } else { null }} @class=cem-menu-item @part=control @aria-label="{$datadom.attributes.aria-label}" @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-expanded={if datadom.slices.hasSubmenu { null } else { datadom.attributes.expanded }} @slice=selected @slice-event=click @slice-value="$event.type" | {slot | {$label}}}
       }
     }
     {slot @name=submenu}

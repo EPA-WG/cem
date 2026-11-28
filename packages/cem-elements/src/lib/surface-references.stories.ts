@@ -121,7 +121,7 @@ export const MenuFocusBoundaryInheritanceAndCleanup: Story = {
         const root = required<HTMLElement>(canvasElement, 'section'), scope = createCemDeclarationScope({ document });
         const suffix = crypto.randomUUID(), menu = `cem-geometry-menu-${suffix}`, declarationTag = `declaration-${suffix}`;
         const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope }); runtime.install(window);
-        const declaration = declare(root, runtime, declarationTag, menu, '{attribute @name=keyboard | menu}{div @part=composite | {slot}}', 'composite-menu');
+        const declaration = declare(root, runtime, declarationTag, menu, '{attribute @name=keynav | on}{div @part=composite | {slot}}', 'composite-menu');
         const parent = document.createElement(menu), child = document.createElement(menu);
         const boundary = document.createElement('div'); boundary.id = `boundary-${suffix}`;
         boundary.style.cssText = 'position:fixed;left:40px;top:40px;width:240px;height:180px;pointer-events:none';
